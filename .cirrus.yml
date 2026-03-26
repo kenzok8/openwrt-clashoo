@@ -3,6 +3,7 @@ env:
   PACKAGE: "luci-app-clash"
   FEEDNAME: "packages_ci"
   SDK_DIR: /home/user/sdk
+  GITHUB_TOKEN: ENCRYPTED[!9babbfba673722cd96e111fb4e278f2995f48301e0c2f0072d2175a78bae8ad83ef46460fbfb0204cfbfadfcec2f202b!]
 
 build_task:
   name: build / $ARCH
@@ -79,8 +80,21 @@ build_task:
   collect_script: |
     mkdir -p "${CIRRUS_WORKING_DIR}/output"
     find "${SDK_DIR}/bin/" -name "*.ipk" -exec cp {} "${CIRRUS_WORKING_DIR}/output/" \;
-    echo "==> 构建产物："
-    ls "${CIRRUS_WORKING_DIR}/output/" || echo "未找到 .ipk 文件"
+    echo "==> build artifacts:"
+    ls "${CIRRUS_WORKING_DIR}/output/" || echo "no .ipk files found"
+
+  upload_release_script: |
+    cd "${CIRRUS_WORKING_DIR}"
+    TAG="${ARCH}-${SDK_VERSION}"
+    REPO="${CIRRUS_REPO_OWNER}/${CIRRUS_REPO_NAME}"
+    # create or update release
+    gh release view "${TAG}" --repo "${REPO}" > /dev/null 2>&1 \
+      || gh release create "${TAG}" --repo "${REPO}" --title "${TAG}" --notes "Built by Cirrus CI"
+    # upload ipk files (replace existing)
+    for f in output/*.ipk; do
+      [ -f "$f" ] || continue
+      gh release upload "${TAG}" "$f" --repo "${REPO}" --clobber
+    done
 
   always:
     ipk_artifacts:
