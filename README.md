@@ -9,26 +9,22 @@
 
 ## 说明
 
-本仓库基于 [frainzy1477/luci-app-clash](https://github.com/frainzy1477/luci-app-clash) 进行现代化重构与兼容性修复，主要改动如下：
+本仓库基于 [frainzy1477/luci-app-clash](https://github.com/frainzy1477/luci-app-clash) 进行现代化重构与兼容性修复。
 
-### ✅ 修复 / 更新
+**修复 / 更新**
 
-| 类型 | 说明 |
-|------|------|
-| 🔧 修复 | `root/etc/init.d/clash`：原本硬编码 `/etc/clash/clash`，现自动检测 `mihomo` / `clash-meta` / `clash` 多种二进制路径 |
-| 🔧 修复 | `root/usr/share/rpcd/acl.d/luci-app-clash.json`：补全 ubus、uci、文件读写权限，解决 23.05+ 下权限不足问题 |
-| 🔧 修复 | `luasrc/controller/clash.lua`：添加 `menu.d` 检测，防止与 23.05+ JSON 菜单注册发生双重菜单问题 |
-| 🔧 修复 | `Makefile`：补全新文件安装路径（`www/luci-static/resources`、`menu.d`、`rpcd/ucode`） |
+- `root/etc/init.d/clash`：原本硬编码 `/etc/clash/clash`，现自动检测 `mihomo` / `clash-meta` / `clash` 多种二进制路径
+- `root/usr/share/rpcd/acl.d/luci-app-clash.json`：补全 ubus、uci、文件读写权限，解决 luci 23.05+ 下权限不足问题
+- `luasrc/controller/clash.lua`：添加 `menu.d` 检测，防止与 23.05+ JSON 菜单注册发生双重菜单问题
+- `Makefile`：补全新文件安装路径（`www/luci-static/resources`、`menu.d`、`rpcd/ucode`）
 
-### ✨ 新增
+**新增（luci 23.05+）**
 
-| 文件 | 说明 |
-|------|------|
-| `htdocs/.../tools/clash.js` | RPC 辅助模块（`require tools.clash`），封装所有后端调用 |
-| `htdocs/.../view/clash/app.js` | luci 23.05+ 主视图：状态栏 + 应用配置，含自动轮询服务状态 |
-| `htdocs/.../view/clash/log.js` | luci 23.05+ 日志视图：深色终端风格，每 5 秒自动刷新 |
-| `root/usr/share/luci/menu.d/luci-app-clash.json` | luci 23.05+ 菜单注册（`admin/services/clash`） |
-| `root/usr/share/rpcd/ucode/luci.clash` | rpcd ucode 后端，提供 `version` / `status` / `reload` / `restart` / `list_profiles` / `read_log` 接口 |
+- `htdocs/.../tools/clash.js`：RPC 辅助模块，封装所有后端调用
+- `htdocs/.../view/clash/app.js`：主视图，状态栏 + 应用配置，含自动轮询服务状态
+- `htdocs/.../view/clash/log.js`：日志视图，深色终端风格，每 5 秒自动刷新
+- `root/usr/share/luci/menu.d/luci-app-clash.json`：luci 23.05+ 菜单注册（`admin/services/clash`）
+- `root/usr/share/rpcd/ucode/luci.clash`：rpcd ucode 后端，提供 version / status / reload / restart / list_profiles / read_log 接口
 
 ---
 
