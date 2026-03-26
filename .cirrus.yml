@@ -1,0 +1,72 @@
+env:
+  SDK_VERSION: "24.10.4"
+  PACKAGE: "luci-app-clash"
+  FEEDNAME: "packages_ci"
+  SDK_DIR: /opt/sdk
+
+build_task:
+  name: build / $TARGET
+  only_if: $CIRRUS_BRANCH == "test" || $CIRRUS_TAG != ""
+
+  matrix:
+    - env:
+        TARGET: x86/64
+    - env:
+        TARGET: armvirt/64
+    - env:
+        TARGET: ath79/generic
+    - env:
+        TARGET: ramips/mt7621
+    - env:
+        TARGET: rockchip/armv8
+    - env:
+        TARGET: mediatek/filogic
+
+  container:
+    image: ubuntu:22.04
+    cpu: 2
+    memory: 4G
+
+  install_script: |
+    apt-get update -qq
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      build-essential clang flex bison g++ gawk gettext git \
+      libncurses-dev libssl-dev python3 rsync unzip \
+      zlib1g-dev file wget zstd xz-utils curl
+
+  download_sdk_script: |
+    SDK_BASE="https://downloads.openwrt.org/releases/${SDK_VERSION}/targets/${TARGET}/"
+    SDK_FILENAME=$(curl -sL "${SDK_BASE}" | grep -oE 'openwrt-sdk-[^"]+\.tar\.zst' | head -1)
+    if [ -z "${SDK_FILENAME}" ]; then
+      echo "ERROR: 无法找到 ${TARGET} 的 SDK，请检查 target 名称是否正确"
+      exit 1
+    fi
+    echo "==> 下载 ${SDK_BASE}${SDK_FILENAME}"
+    wget -q "${SDK_BASE}${SDK_FILENAME}" -O /tmp/sdk.tar.zst
+    mkdir -p "${SDK_DIR}"
+    tar -xf /tmp/sdk.tar.zst -C "${SDK_DIR}" --strip-components=1
+
+  build_script: |
+    set -e
+    cd "${SDK_DIR}"
+
+    # 将本仓库以 feed 形式挂载进 SDK
+    mkdir -p /tmp/myfeed
+    ln -sf "${CIRRUS_WORKING_DIR}" "/tmp/myfeed/${PACKAGE}"
+    { echo "src-link ${FEEDNAME} /tmp/myfeed"; cat feeds.conf.default; } > feeds.conf
+
+    ./scripts/feeds update -a
+    ./scripts/feeds install -a
+
+    make defconfig
+    make package/${PACKAGE}/compile -j$(nproc) V=s 2>&1 | tail -30
+
+  collect_script: |
+    mkdir -p "${CIRRUS_WORKING_DIR}/output"
+    find "${SDK_DIR}/bin/" -name "*.ipk" -exec cp {} "${CIRRUS_WORKING_DIR}/output/" \;
+    echo "==> 构建产物："
+    ls "${CIRRUS_WORKING_DIR}/output/" || echo "未找到 .ipk 文件"
+
+  always:
+    ipk_artifacts:
+      path: "output/*.ipk"
