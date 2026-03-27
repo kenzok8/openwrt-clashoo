@@ -155,11 +155,11 @@ local function dash_pass()
 end
 
 local function is_running()
-	return luci.sys.call("pidof clash >/dev/null") == 0
+	return luci.sys.call("pidof clash >/dev/null || pidof mihomo >/dev/null || pidof clash-meta >/dev/null") == 0
 end
 
 local function is_web()
-	return luci.sys.call("pidof clash >/dev/null") == 0
+	return luci.sys.call("pidof clash >/dev/null || pidof mihomo >/dev/null || pidof clash-meta >/dev/null") == 0
 end
 
 local function localip()
@@ -210,16 +210,20 @@ end
 
 
 local function clash_core()
-	if nixio.fs.access("/etc/clash/clash") then
-		local core=luci.sys.exec("/etc/clash/clash -v 2>/dev/null |awk -F ' ' '{print $2}'")
-		if core ~= "" then
-			return luci.sys.exec("/etc/clash/clash -v 2>/dev/null |awk -F ' ' '{print $2}'")
-		else
-			return luci.sys.exec("sed -n 1p /usr/share/clash/core_version")
-		end
-	else
-		return "0"
+	local version = luci.sys.exec([[
+		for bin in /usr/bin/mihomo /usr/bin/clash-meta /etc/clash/clash; do
+			[ -x "$bin" ] || continue
+			ver=$($bin -v 2>/dev/null | awk 'NR==1 { if ($1 == "Mihomo") print $3; else print $2 }')
+			[ -n "$ver" ] && { echo "$ver"; exit 0; }
+		done
+	]])
+
+	if version ~= "" then
+		return version
 	end
+
+	version = luci.sys.exec("sed -n 1p /usr/share/clash/core_version")
+	return version ~= "" and version or "0"
 end
 
 
@@ -439,4 +443,3 @@ else
 	luci.http.write(a.."\0")
 end
 end
-

@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk 
 
 PKG_NAME:=luci-app-clash
-PKG_VERSION:=v1.8.0
+PKG_VERSION:=v1.9.0
 PKG_MAINTAINER:=frainzy1477
 
 include $(INCLUDE_DIR)/package.mk
@@ -11,7 +11,7 @@ define Package/$(PKG_NAME)
 	CATEGORY:=LuCI
 	SUBMENU:=2. Clash For OpenWRT
 	TITLE:=LuCI app for clash
-	DEPENDS:=+luci-base +wget +iptables +coreutils-base64 +coreutils +coreutils-nohup +bash +ipset +libustream-openssl +curl +jsonfilter +ca-certificates +iptables-mod-tproxy +kmod-tun
+	DEPENDS:=+luci-base +bash +coreutils +coreutils-nohup +curl +wget-ssl +jsonfilter +ca-bundle +ipset +kmod-tun
 	PKGARCH:=all
 	MAINTAINER:=frainzy1477
 endef
@@ -92,23 +92,10 @@ exit 0
 endef
 
 define Package/$(PKG_NAME)/install
-	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/controller
-	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model/cbi/clash
-	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model/cbi/clash/config
-	
-	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model/cbi/clash/dns
-	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model/cbi/clash/client
-	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model/cbi/clash/game
-	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model/cbi/clash/geoip
-	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model/cbi/clash/logs
-	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model/cbi/clash/update
-	
-	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/view/clash
 	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/i18n
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_DIR) $(1)/etc/config
 	$(INSTALL_DIR) $(1)/etc/clash
-	$(INSTALL_DIR) $(1)/usr/lib/lua/luci
 	$(INSTALL_DIR) $(1)/usr/share/
 	$(INSTALL_DIR) $(1)/usr/share/clash
 	$(INSTALL_DIR) $(1)/usr/share/rpcd	
@@ -157,18 +144,6 @@ define Package/$(PKG_NAME)/install
 	$(INSTALL_BIN) ./root/usr/share/clash/dashboard/js/bundle.658aa6a6e3feec8f168b.min.js $(1)/etc/clash/dashboard/js
 	$(INSTALL_BIN) ./root/usr/share/clash/yacd/* $(1)/usr/share/clash/yacd
 	
-	$(INSTALL_DATA) ./luasrc/clash.lua $(1)/usr/lib/lua/luci
-	$(INSTALL_DATA) ./luasrc/controller/*.lua $(1)/usr/lib/lua/luci/controller
-	$(INSTALL_DATA) ./luasrc/model/cbi/clash/*.lua $(1)/usr/lib/lua/luci/model/cbi/clash
-	$(INSTALL_DATA) ./luasrc/model/cbi/clash/config/*.lua $(1)/usr/lib/lua/luci/model/cbi/clash/config
-	$(INSTALL_DATA) ./luasrc/model/cbi/clash/client/*.lua $(1)/usr/lib/lua/luci/model/cbi/clash/client
-	$(INSTALL_DATA) ./luasrc/model/cbi/clash/dns/*.lua $(1)/usr/lib/lua/luci/model/cbi/clash/dns
-	$(INSTALL_DATA) ./luasrc/model/cbi/clash/game/*.lua $(1)/usr/lib/lua/luci/model/cbi/clash/game
-	$(INSTALL_DATA) ./luasrc/model/cbi/clash/geoip/*.lua $(1)/usr/lib/lua/luci/model/cbi/clash/geoip
-	$(INSTALL_DATA) ./luasrc/model/cbi/clash/logs/*.lua $(1)/usr/lib/lua/luci/model/cbi/clash/logs
-	$(INSTALL_DATA) ./luasrc/model/cbi/clash/update/*.lua $(1)/usr/lib/lua/luci/model/cbi/clash/update
-	$(INSTALL_DATA) ./luasrc/view/clash/* $(1)/usr/lib/lua/luci/view/clash
-
 	# luci 23.05+ JS 视图（htdocs）
 	$(INSTALL_DIR) $(1)/www/luci-static/resources/tools
 	$(INSTALL_DIR) $(1)/www/luci-static/resources/view/clash

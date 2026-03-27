@@ -2,7 +2,7 @@
 
 'use strict';
 
-import { access, popen, glob } from 'fs';
+import { access, popen, glob, readfile } from 'fs';
 
 /* 按优先级依次检测可用的二进制 */
 const BINARY_PATHS = [
@@ -18,6 +18,39 @@ function find_binary() {
 		if (access(path, 'x')) return path;
 	}
 	return null;
+}
+
+function read_first_line(path) {
+	if (!access(path, 'r'))
+		return '';
+
+	const content = readfile(path);
+	return trim(split(content ?? '', '\n')[0] ?? '');
+}
+
+function detect_firewall_backend() {
+	if (system('command -v fw4 >/dev/null 2>&1') == 0)
+		return 'fw4';
+
+	if (system('command -v firewall >/dev/null 2>&1') == 0)
+		return 'fw3';
+
+	return '';
+}
+
+function detect_missing_legacy_tools() {
+	const missing = [];
+
+	if (system('command -v iptables >/dev/null 2>&1') != 0)
+		push(missing, 'iptables');
+
+	if (system('command -v ipset >/dev/null 2>&1') != 0)
+		push(missing, 'ipset');
+
+	if (system('command -v ip >/dev/null 2>&1') != 0)
+		push(missing, 'ip');
+
+	return missing;
 }
 
 /* 多个候选日志路径 */
@@ -39,7 +72,8 @@ const methods = {
 	version: {
 		call: function () {
 			const binary = find_binary();
-			if (!binary) return { core: '', binary: '' };
+			let app = read_first_line('/usr/share/clash/luci_version');
+			if (!binary) return { app: app, core: '', binary: '' };
 
 			let core = '';
 			const p = popen(`${binary} -v 2>&1 | head -1`);
@@ -47,7 +81,7 @@ const methods = {
 				core = trim(p.read('all'));
 				p.close();
 			}
-			return { core: core, binary: binary };
+			return { app: app, core: core, binary: binary };
 		}
 	},
 
@@ -110,6 +144,18 @@ const methods = {
 				}
 			}
 			return { content: '' };
+		}
+	},
+
+	capabilities: {
+		call: function () {
+			return {
+				backend: detect_firewall_backend(),
+				missing_legacy_tools: detect_missing_legacy_tools(),
+				has_mihomo: access('/usr/bin/mihomo', 'x'),
+				has_clash_meta: access('/usr/bin/clash-meta', 'x'),
+				has_builtin_core: access('/etc/clash/clash', 'x')
+			};
 		}
 	}
 };

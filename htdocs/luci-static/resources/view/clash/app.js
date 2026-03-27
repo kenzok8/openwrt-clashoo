@@ -26,24 +26,39 @@ return view.extend({
             uci.load('clash'),
             clash.version(),
             clash.status(),
-            clash.listProfiles()
+            clash.listProfiles(),
+            clash.capabilities()
         ]);
     },
 
     render: function (data) {
+        const appVersion   = data[1].app   || '';
         const coreVersion = data[1].core  || '';
         const binary      = data[1].binary || '';
         const running     = data[2];
         const profiles    = data[3];
+        const caps        = data[4] || {};
+        const backend     = caps.backend || _('Unknown');
+        const missing     = caps.missing_legacy_tools || [];
 
         let m, s, o;
 
         m = new form.Map('clash', _('Clash'),
             _('Transparent proxy with Clash / Clash.Meta / Mihomo on OpenWrt.'));
 
+        if (missing.length) {
+            m.description = _('Current runtime still expects legacy firewall tooling. Missing commands: ') + missing.join(', ') + '. ' +
+                _('You can install the UI first, but transparent proxy mode will not be reliable until firewall handling is refactored further.');
+        }
+
         /* ── 状态栏 ── */
         s = m.section(form.TableSection, 'status', _('Status'));
         s.anonymous = true;
+
+        o = s.option(form.Value, '_app_version', _('App Version'));
+        o.readonly = true;
+        o.load = function () { return appVersion || _('Unknown'); };
+        o.write = function () { };
 
         o = s.option(form.Value, '_core_version', _('Core Version'));
         o.readonly = true;
@@ -53,6 +68,11 @@ return view.extend({
         o = s.option(form.Value, '_binary', _('Binary'));
         o.readonly = true;
         o.load = function () { return binary || _('Not found'); };
+        o.write = function () { };
+
+        o = s.option(form.Value, '_backend', _('Firewall Backend'));
+        o.readonly = true;
+        o.load = function () { return backend; };
         o.write = function () { };
 
         o = s.option(form.DummyValue, '_core_status', _('Core Status'));
