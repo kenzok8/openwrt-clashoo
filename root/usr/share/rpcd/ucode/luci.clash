@@ -4,151 +4,190 @@
 
 import { access, popen, glob, readfile } from 'fs';
 
-/* 按优先级依次检测可用的二进制 */
 const BINARY_PATHS = [
 	'/usr/bin/mihomo',
 	'/usr/bin/clash-meta',
 	'/usr/bin/clash',
 	'/etc/clash/clash',
-	'/etc/clash/clashtun/clash',
+	'/etc/clash/clashtun/clash'
+];
+
+const LOG_PATHS = [
+	'/var/log/clash.log',
+	'/var/log/clash/clash.log',
+	'/tmp/clash.log',
+	'/usr/share/clash/clash.txt'
+];
+
+const PROFILE_DIRS = [
+	'/etc/clash/profiles',
+	'/etc/clash'
 ];
 
 function find_binary() {
-	for (const path of BINARY_PATHS) {
-		if (access(path, 'x')) return path;
+	for (let path in BINARY_PATHS) {
+		if (access(path, 'x')) {
+			return path;
+		}
 	}
-	return null;
+
+	return '';
 }
 
 function read_first_line(path) {
-	if (!access(path, 'r'))
+	if (!access(path, 'r')) {
 		return '';
+	}
 
-	const content = readfile(path);
-	return trim(split(content ?? '', '\n')[0] ?? '');
+	let content = readfile(path);
+	if (!content) {
+		return '';
+	}
+
+	return trim(split(content, '\n')[0] || '');
 }
 
 function detect_firewall_backend() {
-	if (system('command -v fw4 >/dev/null 2>&1') == 0)
+	if (system('command -v fw4 >/dev/null 2>&1') == 0) {
 		return 'fw4';
+	}
 
-	if (system('command -v firewall >/dev/null 2>&1') == 0)
+	if (system('command -v firewall >/dev/null 2>&1') == 0) {
 		return 'fw3';
+	}
 
 	return '';
 }
 
 function detect_missing_legacy_tools() {
-	const missing = [];
+	let missing = [];
 
-	if (system('command -v iptables >/dev/null 2>&1') != 0)
+	if (system('command -v iptables >/dev/null 2>&1') != 0) {
 		push(missing, 'iptables');
+	}
 
-	if (system('command -v ipset >/dev/null 2>&1') != 0)
+	if (system('command -v ipset >/dev/null 2>&1') != 0) {
 		push(missing, 'ipset');
+	}
 
-	if (system('command -v ip >/dev/null 2>&1') != 0)
+	if (system('command -v ip >/dev/null 2>&1') != 0) {
 		push(missing, 'ip');
+	}
 
 	return missing;
 }
 
-/* 多个候选日志路径 */
-const LOG_PATHS = [
-	'/var/log/clash.log',
-	'/var/log/clash/clash.log',
-	'/tmp/clash.log',
-	'/usr/share/clash/clash.txt',
-];
+function get_core_version(binary) {
+	if (!binary) {
+		return '';
+	}
 
-/* clash 可能存放 YAML 的目录（最新优先）*/
-const PROFILE_DIRS = [
-	'/etc/clash/profiles',
-	'/etc/clash',
-];
+	let process = popen(binary + " -v 2>&1 | head -1");
+	let version = '';
+	if (process) {
+		version = trim(process.read('all'));
+		process.close();
+	}
+
+	return version;
+}
+
+function get_profiles() {
+	let profiles = [];
+
+	for (let dir in PROFILE_DIRS) {
+		if (!access(dir, 'r')) {
+			continue;
+		}
+
+		let files = glob(dir + '/*.yaml') || [];
+		let alt_files = glob(dir + '/*.yml') || [];
+
+		for (let f in files) {
+			let name = replace(f, dir + '/', '');
+			if (name && name != 'config.yaml' && !length(filter(profiles, (x) => x == name))) {
+				push(profiles, name);
+			}
+		}
+
+		for (let f in alt_files) {
+			let name = replace(f, dir + '/', '');
+			if (name && name != 'config.yaml' && !length(filter(profiles, (x) => x == name))) {
+				push(profiles, name);
+			}
+		}
+
+		if (length(profiles) > 0) {
+			break;
+		}
+	}
+
+	return profiles;
+}
+
+function get_log_content() {
+	for (let path in LOG_PATHS) {
+		if (!access(path, 'r')) {
+			continue;
+		}
+
+		let process = popen("tail -300 '" + path + "'");
+		if (process) {
+			let content = process.read('all');
+			process.close();
+			return content;
+		}
+	}
+
+	return '';
+}
 
 const methods = {
-	/* 版本信息 */
 	version: {
-		call: function () {
-			const binary = find_binary();
-			let app = read_first_line('/usr/share/clash/luci_version');
-			if (!binary) return { app: app, core: '', binary: '' };
-
-			let core = '';
-			const p = popen(`${binary} -v 2>&1 | head -1`);
-			if (p) {
-				core = trim(p.read('all'));
-				p.close();
-			}
-			return { app: app, core: core, binary: binary };
+		call: function() {
+			let binary = find_binary();
+			return {
+				app: read_first_line('/usr/share/clash/luci_version'),
+				core: get_core_version(binary),
+				binary: binary
+			};
 		}
 	},
 
-	/* 运行状态，直接返回 boolean */
 	status: {
-		call: function () {
-			return system('pgrep -x mihomo >/dev/null 2>&1'            ) == 0
-			    || system('pgrep -x clash-meta >/dev/null 2>&1'        ) == 0
-			    || system('service clash running >/dev/null 2>&1'      ) == 0;
+		call: function() {
+			return system('pgrep -x mihomo >/dev/null 2>&1') == 0 ||
+				system('pgrep -x clash-meta >/dev/null 2>&1') == 0 ||
+				system('service clash running >/dev/null 2>&1') == 0;
 		}
 	},
 
-	/* 热重载（不中断连接） */
 	reload: {
-		call: function () {
+		call: function() {
 			return { success: system('service clash reload >/dev/null 2>&1') == 0 };
 		}
 	},
 
-	/* 完全重启 */
 	restart: {
-		call: function () {
+		call: function() {
 			return { success: system('service clash restart >/dev/null 2>&1') == 0 };
 		}
 	},
 
-	/* 列出可用的 YAML 配置文件 */
 	list_profiles: {
-		call: function () {
-			const profiles = [];
-			for (const dir of PROFILE_DIRS) {
-				if (!access(dir, 'r')) continue;
-				const files = [
-					...( glob(`${dir}/*.yaml`) || [] ),
-					...( glob(`${dir}/*.yml`)  || [] ),
-				];
-				for (const f of files) {
-					/* 只保留文件名，不含路径 */
-					const name = replace(f, `${dir}/`, '');
-					if (name && name != 'config.yaml' && !some(profiles, (x) => x == name)) {
-						push(profiles, name);
-					}
-				}
-				if (length(profiles) > 0) break;
-			}
-			return { profiles: profiles };
+		call: function() {
+			return { profiles: get_profiles() };
 		}
 	},
 
-	/* 读取日志（最后 300 行） */
 	read_log: {
-		call: function () {
-			for (const path of LOG_PATHS) {
-				if (!access(path, 'r')) continue;
-				const p = popen(`tail -300 '${path}'`);
-				if (p) {
-					const content = p.read('all');
-					p.close();
-					return { content: content };
-				}
-			}
-			return { content: '' };
+		call: function() {
+			return { content: get_log_content() };
 		}
 	},
 
 	capabilities: {
-		call: function () {
+		call: function() {
 			return {
 				backend: detect_firewall_backend(),
 				missing_legacy_tools: detect_missing_legacy_tools(),

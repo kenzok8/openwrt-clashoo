@@ -7,6 +7,7 @@ SETS_RULES="${NFT_DIR}/fw4_sets.nft"
 DSTNAT_RULES="${NFT_DIR}/fw4_dstnat.nft"
 MANGLE_RULES="${NFT_DIR}/fw4_mangle.nft"
 OUTPUT_RULES="${NFT_DIR}/fw4_output.nft"
+LOCAL_OUTPUT_TABLE="clash_local"
 PROXY_FWMARK="0x162"
 PROXY_ROUTE_TABLE="0x162"
 
@@ -92,6 +93,26 @@ render_china_elements() {
 	awk '!/^$/&&!/^#/{printf sep $0; sep=", "}' /usr/share/clash/china_ip.txt 2>/dev/null
 }
 
+apply_local_output_rule() {
+	local redir_port fake_ip_range
+	redir_port="$(config_redir_port)"
+	fake_ip_range="$(config_fake_ip_range)"
+
+	nft delete table ip ${LOCAL_OUTPUT_TABLE} >/dev/null 2>&1 || true
+	nft -f - <<EOF
+table ip ${LOCAL_OUTPUT_TABLE} {
+	chain output {
+		type nat hook output priority dstnat; policy accept;
+		ip daddr ${fake_ip_range} tcp dport != 53 redirect to :${redir_port}
+	}
+}
+EOF
+}
+
+remove_local_output_rule() {
+	nft delete table ip ${LOCAL_OUTPUT_TABLE} >/dev/null 2>&1 || true
+}
+
 generate_rules() {
 	local redir_port enable_udp access_control fake_ip_range proxy_lan_ips reject_lan_ips
 	redir_port="$(config_redir_port)"
@@ -133,9 +154,7 @@ set clash_reject_lan {
 }
 EOF
 
-	cat > "$OUTPUT_RULES" <<EOF
-meta nfproto ipv4 ip daddr ${fake_ip_range} meta l4proto tcp redirect to :${redir_port}
-EOF
+	: > "$OUTPUT_RULES"
 
 	cat > "$DSTNAT_RULES" <<EOF
 ip daddr @clash_localnetwork return
@@ -162,7 +181,7 @@ apply_rules() {
 	generate_rules
 	ensure_firewall_include clash_fw4_sets "$SETS_RULES" '' table-pre
 	ensure_firewall_include clash_fw4_dstnat "$DSTNAT_RULES" dstnat
-	ensure_firewall_include clash_fw4_output "$OUTPUT_RULES" output
+	remove_firewall_include clash_fw4_output
 	if [ -s "$MANGLE_RULES" ]; then
 		ensure_firewall_include clash_fw4_mangle "$MANGLE_RULES" mangle_prerouting
 		ip rule add fwmark "$PROXY_FWMARK" table "$PROXY_ROUTE_TABLE" >/dev/null 2>&1 || true
@@ -171,9 +190,11 @@ apply_rules() {
 		remove_firewall_include clash_fw4_mangle
 	fi
 	/etc/init.d/firewall restart >/dev/null 2>&1 || /etc/init.d/firewall reload >/dev/null 2>&1 || true
+	apply_local_output_rule
 }
 
 remove_rules() {
+	remove_local_output_rule
 	remove_firewall_include clash_fw4_sets
 	remove_firewall_include clash_fw4_dstnat
 	remove_firewall_include clash_fw4_output

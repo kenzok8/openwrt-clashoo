@@ -32,32 +32,41 @@
 		TEMP_FILE="/tmp/clashdns.yaml"
 		interf=$(uci get clash.config.interf 2>/dev/null)
 		CONFIG_YAML="/etc/clash/config.yaml"
+		has_runtime_block=0
+		has_dns_block=0
+
+		grep -Eq '^mixed-port:|^port:|^external-controller:|^secret:|^socks-port:|^redir-port:' "$CONFIG_YAML" && has_runtime_block=1
+		grep -Eq '^dns:' "$CONFIG_YAML" && has_dns_block=1
 
 		rm -rf $TEMP_FILE 2>/dev/null
+		rm -f $CONFIG_START 2>/dev/null
+		: > $CONFIG_START
 		
-		echo " ">>/tmp/dns.yaml 2>/dev/null
-		sed -i "1i\#****CLASH-CONFIG-START****#" $CONFIG_START 2>/dev/null
-		sed -i "2i\port: ${http_port}" $CONFIG_START 2>/dev/null
-		sed -i "/port: ${http_port}/a\socks-port: ${socks_port}" $CONFIG_START 2>/dev/null 
-		sed -i "/socks-port: ${socks_port}/a\redir-port: ${redir_port}" $CONFIG_START 2>/dev/null 
-		sed -i "/redir-port: ${redir_port}/a\mixed-port: ${mixed_port}" $CONFIG_START 2>/dev/null 
-		sed -i "/mixed-port: ${mixed_port}/a\ipv6: ${enable_ipv6}" $CONFIG_START 2>/dev/null
-		sed -i "/ipv6: ${enable_ipv6}/a\allow-lan: ${allow_lan}" $CONFIG_START 2>/dev/null
-		if [ $allow_lan == "true" ];  then
-		sed -i "/allow-lan: ${allow_lan}/a\bind-address: \"${bind_addr}\"" $CONFIG_START 2>/dev/null 
-		sed -i "/bind-address: \"${bind_addr}\"/a\mode: ${p_mode}" $CONFIG_START 2>/dev/null
-		sed -i "/mode: ${p_mode}/a\log-level: ${log_level}" $CONFIG_START 2>/dev/null 
-		sed -i "/log-level: ${log_level}/a\external-controller: 0.0.0.0:${dash_port}" $CONFIG_START 2>/dev/null 
-		sed -i "/external-controller: 0.0.0.0:${dash_port}/a\secret: \"${da_password}\"" $CONFIG_START 2>/dev/null 
-		sed -i "/secret: \"${da_password}\"/a\external-ui: \"./dashboard\"" $CONFIG_START 2>/dev/null 
-		sed -i -e "\$a " $CONFIG_START 2>/dev/null
-		else
-		sed -i "/allow-lan: ${allow_lan}/a\mode: Rule" $CONFIG_START 2>/dev/null
-		sed -i "/mode: Rule/a\log-level: ${log_level}" $CONFIG_START 2>/dev/null 
-		sed -i "/log-level: ${log_level}/a\external-controller: 0.0.0.0:${dash_port}" $CONFIG_START 2>/dev/null 
-		sed -i "/external-controller: 0.0.0.0:${dash_port}/a\secret: \"${da_password}\"" $CONFIG_START 2>/dev/null 
-		sed -i "/secret: \"${da_password}\"/a\external-ui: \"./dashboard\"" $CONFIG_START 2>/dev/null 
-		sed -i -e "\$a " $CONFIG_START 2>/dev/null
+		if [ "$has_runtime_block" -eq 0 ]; then
+			echo " " >>/tmp/dns.yaml 2>/dev/null
+			sed -i "1i\#****CLASH-CONFIG-START****#" $CONFIG_START 2>/dev/null
+			sed -i "2i\port: ${http_port}" $CONFIG_START 2>/dev/null
+			sed -i "/port: ${http_port}/a\socks-port: ${socks_port}" $CONFIG_START 2>/dev/null 
+			sed -i "/socks-port: ${socks_port}/a\redir-port: ${redir_port}" $CONFIG_START 2>/dev/null 
+			sed -i "/redir-port: ${redir_port}/a\mixed-port: ${mixed_port}" $CONFIG_START 2>/dev/null 
+			sed -i "/mixed-port: ${mixed_port}/a\ipv6: ${enable_ipv6}" $CONFIG_START 2>/dev/null
+			sed -i "/ipv6: ${enable_ipv6}/a\allow-lan: ${allow_lan}" $CONFIG_START 2>/dev/null
+			if [ $allow_lan == "true" ]; then
+				sed -i "/allow-lan: ${allow_lan}/a\bind-address: \"${bind_addr}\"" $CONFIG_START 2>/dev/null 
+				sed -i "/bind-address: \"${bind_addr}\"/a\mode: ${p_mode}" $CONFIG_START 2>/dev/null
+				sed -i "/mode: ${p_mode}/a\log-level: ${log_level}" $CONFIG_START 2>/dev/null 
+				sed -i "/log-level: ${log_level}/a\external-controller: 0.0.0.0:${dash_port}" $CONFIG_START 2>/dev/null 
+				sed -i "/external-controller: 0.0.0.0:${dash_port}/a\secret: \"${da_password}\"" $CONFIG_START 2>/dev/null 
+				sed -i "/secret: \"${da_password}\"/a\external-ui: \"./dashboard\"" $CONFIG_START 2>/dev/null 
+				sed -i -e "\$a " $CONFIG_START 2>/dev/null
+			else
+				sed -i "/allow-lan: ${allow_lan}/a\mode: Rule" $CONFIG_START 2>/dev/null
+				sed -i "/mode: Rule/a\log-level: ${log_level}" $CONFIG_START 2>/dev/null 
+				sed -i "/log-level: ${log_level}/a\external-controller: 0.0.0.0:${dash_port}" $CONFIG_START 2>/dev/null 
+				sed -i "/external-controller: 0.0.0.0:${dash_port}/a\secret: \"${da_password}\"" $CONFIG_START 2>/dev/null 
+				sed -i "/secret: \"${da_password}\"/a\external-ui: \"./dashboard\"" $CONFIG_START 2>/dev/null 
+				sed -i -e "\$a " $CONFIG_START 2>/dev/null
+			fi
 		fi
 
 cat $CONFIG_START >> $TEMP_FILE 2>/dev/null
@@ -190,7 +199,7 @@ sleep 1
 
 enable_dns=$(uci get clash.config.enable_dns 2>/dev/null) 
 
-if [ "$enable_dns" -eq 1 ];then
+if [ "$enable_dns" -eq 1 ] && [ "$has_dns_block" -eq 0 ];then
 
 
 cat >> "/tmp/enable_dns.yaml" <<-EOF

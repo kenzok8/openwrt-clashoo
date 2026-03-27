@@ -92,10 +92,21 @@ exit 0
 endef
 
 define Package/$(PKG_NAME)/install
+	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/controller
+	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model/cbi/clash
+	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model/cbi/clash/config
+	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model/cbi/clash/dns
+	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model/cbi/clash/client
+	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model/cbi/clash/game
+	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model/cbi/clash/geoip
+	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model/cbi/clash/logs
+	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model/cbi/clash/update
+	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/view/clash
 	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/i18n
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_DIR) $(1)/etc/config
 	$(INSTALL_DIR) $(1)/etc/clash
+	$(INSTALL_DIR) $(1)/usr/lib/lua/luci
 	$(INSTALL_DIR) $(1)/usr/share/
 	$(INSTALL_DIR) $(1)/usr/share/clash
 	$(INSTALL_DIR) $(1)/usr/share/rpcd	
@@ -143,6 +154,18 @@ define Package/$(PKG_NAME)/install
 	$(INSTALL_BIN) ./root/usr/share/clash/dashboard/js/1.bundle.658aa6a6e3feec8f168b.min.js $(1)/etc/clash/dashboard/js
 	$(INSTALL_BIN) ./root/usr/share/clash/dashboard/js/bundle.658aa6a6e3feec8f168b.min.js $(1)/etc/clash/dashboard/js
 	$(INSTALL_BIN) ./root/usr/share/clash/yacd/* $(1)/usr/share/clash/yacd
+
+	$(INSTALL_DATA) ./luasrc/clash.lua $(1)/usr/lib/lua/luci
+	$(INSTALL_DATA) ./luasrc/controller/*.lua $(1)/usr/lib/lua/luci/controller
+	$(INSTALL_DATA) ./luasrc/model/cbi/clash/*.lua $(1)/usr/lib/lua/luci/model/cbi/clash
+	$(INSTALL_DATA) ./luasrc/model/cbi/clash/config/*.lua $(1)/usr/lib/lua/luci/model/cbi/clash/config
+	$(INSTALL_DATA) ./luasrc/model/cbi/clash/client/*.lua $(1)/usr/lib/lua/luci/model/cbi/clash/client
+	$(INSTALL_DATA) ./luasrc/model/cbi/clash/dns/*.lua $(1)/usr/lib/lua/luci/model/cbi/clash/dns
+	$(INSTALL_DATA) ./luasrc/model/cbi/clash/game/*.lua $(1)/usr/lib/lua/luci/model/cbi/clash/game
+	$(INSTALL_DATA) ./luasrc/model/cbi/clash/geoip/*.lua $(1)/usr/lib/lua/luci/model/cbi/clash/geoip
+	$(INSTALL_DATA) ./luasrc/model/cbi/clash/logs/*.lua $(1)/usr/lib/lua/luci/model/cbi/clash/logs
+	$(INSTALL_DATA) ./luasrc/model/cbi/clash/update/*.lua $(1)/usr/lib/lua/luci/model/cbi/clash/update
+	$(INSTALL_DATA) ./luasrc/view/clash/* $(1)/usr/lib/lua/luci/view/clash
 	
 	# luci 23.05+ JS 视图（htdocs）
 	$(INSTALL_DIR) $(1)/www/luci-static/resources/tools
@@ -152,10 +175,8 @@ define Package/$(PKG_NAME)/install
 	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/clash/log.js $(1)/www/luci-static/resources/view/clash
 	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/clash/index.js $(1)/www/luci-static/resources/view/clash
 
-	# luci 23.05+ menu.d & rpcd ucode
-	$(INSTALL_DIR) $(1)/usr/share/luci/menu.d
+	# rpcd ucode 后端；完整菜单先交给旧 controller 注册，避免功能入口缺失
 	$(INSTALL_DIR) $(1)/usr/share/rpcd/ucode
-	$(INSTALL_DATA) ./root/usr/share/luci/menu.d/luci-app-clash.json $(1)/usr/share/luci/menu.d
 	$(INSTALL_BIN)  ./root/usr/share/rpcd/ucode/luci.clash $(1)/usr/share/rpcd/ucode
 endef
 
