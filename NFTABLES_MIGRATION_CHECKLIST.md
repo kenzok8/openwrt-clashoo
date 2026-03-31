@@ -1,4 +1,4 @@
-# luci-app-clash nftables 迁移清单（对齐 Nikki）
+# luci-app-clash nftables 迁移清单
 
 目标：在 OpenWrt fw4 环境下，统一采用 nftables 规则模型，避免旧版 iptables 规则与 Mihomo 行为不一致。
 
