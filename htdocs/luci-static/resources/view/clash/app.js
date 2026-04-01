@@ -81,14 +81,16 @@ return view.extend({
         o.default = 'tun';
         o.description = 'TPROXY：需内核支持 IP_TRANSPARENT；TUN：与 TCP TUN 模式配合使用';
 
-        o = s.option(form.ListValue, 'stack', 'TUN 协议栈');
+        o = s.option(form.ListValue, 'stack', '网络栈类型');
         o.optional    = true;
         o.placeholder = 'mixed';
-        o.value('system', 'system（原生 TCP+UDP）');
+        o.value('system', 'System（原生 TCP+UDP）');
         o.value('gvisor', 'gVisor（沙箱隔离）');
-        o.value('mixed',  'mixed（推荐：TCP=system, UDP=gVisor）');
-        o.description = 'TUN 模式专用；mixed 综合性能最佳，为 Mihomo 官方推荐值';
+        o.value('mixed',  'Mixed（推荐：TCP=System, UDP=gVisor）');
+        o.default = 'mixed';
+        o.description = 'TUN 模式专用；请根据运行速度为 TUN 模式选择合适的网络栈';
         o.depends('tcp_mode', 'tun');
+        o.depends('udp_mode', 'tun');
 
         o = s.option(form.Flag, 'ipv4_dns_hijack', 'IPv4 DNS 劫持');
         o.default = '1';
