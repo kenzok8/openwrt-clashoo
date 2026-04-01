@@ -32,10 +32,10 @@ return view.extend({
 
         const BTN_STYLE = [
             'display:inline-block',
-            'min-width:80px',
+            'width:90px',
             'height:36px',
             'line-height:36px',
-            'padding:0 14px',
+            'padding:0 6px',
             'border:none',
             'border-radius:.375rem',
             'font-size:.9rem',
