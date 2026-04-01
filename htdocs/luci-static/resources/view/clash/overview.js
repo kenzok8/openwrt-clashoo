@@ -59,9 +59,9 @@ return view.extend({
         }
 
         /* ── Static structure ── */
-        let node = E('div', { style: 'max-width:700px;margin:0 auto;background:#fff;border-radius:.5rem;overflow:hidden;border:1px solid #e0e0e0' }, [
+        let node = E('div', { style: 'width:100%' }, [
             /* Hero */
-            E('div', { style: 'text-align:center;padding:22px 0 18px;border-bottom:1px solid #eee' }, [
+            E('div', { style: 'text-align:center;padding:22px 0 18px' }, [
                 E('img', {
                     src: '/luci-static/clash/logo.png',
                     style: 'width:60px;height:60px;object-fit:contain',
