@@ -243,11 +243,6 @@ return view.extend({
         o.value('https://github.com/MetaCubeX/Razord-meta/archive/refs/heads/gh-pages.zip', 'Razord');
         o.description = _('选择要下载安装的 Web 面板包');
 
-        o = s.option(form.Value, 'api_listen', _('控制器监听地址'));
-        o.placeholder = '[::]:9090';
-        o.rmempty = true;
-        o.description = _('完整格式：[::]:9090（覆盖面板端口设置，留空使用面板端口）');
-
         o = s.option(form.Value, 'api_tls_listen', _('TLS 加密监听地址'));
         o.placeholder = '[::]:9443';
         o.rmempty = true;
