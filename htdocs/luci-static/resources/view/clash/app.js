@@ -44,8 +44,7 @@ return view.extend({
 
         let m, s, o;
 
-        m = new form.Map('clash', 'Clash',
-            'OpenWrt 上的 Mihomo / Clash.Meta 透明代理插件。');
+        m = new form.Map('clash', '代理配置', '');
 
         if (missing.length) {
             m.description = '当前运行环境缺少 fw4/nft 所需命令：' + missing.join(', ') + '。请先补齐防火墙运行依赖，再启用透明代理。';
