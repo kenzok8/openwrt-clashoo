@@ -212,10 +212,14 @@ return view.extend({
         return m.render().then(function (systemNode) {
             /* ─── 日志 Tab 工具函数 ─── */
             function mkLogPanel(initialContent, readFn, clearFn) {
+                function processLog(raw) {
+                    if (!raw) return '';
+                    return raw.trim().split('\n').reverse().join('\n');
+                }
+
                 let ta = E('textarea', {
                     style: 'width:100%;height:50vh;font-family:monospace;font-size:13px;padding:8px;resize:vertical;box-sizing:border-box;border:1px solid #d0d0d0;border-radius:4px;background:#fafafa;color:#333;'
-                }, [initialContent]);
-                ta.scrollTop = ta.scrollHeight;
+                }, [processLog(initialContent)]);
 
                 let clearBtn = E('button', {
                     class: 'btn cbi-button cbi-button-negative',
@@ -225,8 +229,8 @@ return view.extend({
                 let scrollBtn = E('button', {
                     class: 'btn cbi-button',
                     style: 'margin-left:8px',
-                    onclick: function () { ta.scrollTop = ta.scrollHeight; }
-                }, [_('滚动到底部')]);
+                    onclick: function () { ta.scrollTop = 0; }
+                }, [_('回到顶部')]);
 
                 let panel = E('div', { style: 'padding-top:12px' }, [
                     E('div', { style: 'margin-bottom:10px' }, [clearBtn, scrollBtn]),
@@ -234,7 +238,7 @@ return view.extend({
                 ]);
 
                 poll.add(function () {
-                    return readFn().then(function (c) { ta.value = c; });
+                    return readFn().then(function (c) { ta.value = processLog(c); });
                 }, 5);
 
                 return panel;
