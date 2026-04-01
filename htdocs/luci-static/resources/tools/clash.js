@@ -16,7 +16,7 @@ const callSetProxy    = rpc.declare({ object: 'luci.clash', method: 'set_proxy_m
 const callSetPanel    = rpc.declare({ object: 'luci.clash', method: 'set_panel',       params: ['name'],         expect: {} });
 const callUpdatePanel = rpc.declare({ object: 'luci.clash', method: 'update_panel',    params: ['name'],         expect: {} });
 const callReadLog     = rpc.declare({ object: 'luci.clash', method: 'read_log',        expect: {} });
-const callCaps        = rpc.declare({ object: 'luci.clash', method: 'capabilities',    expect: {} });
+const callClearLog    = rpc.declare({ object: 'luci.clash', method: 'clear_log',       expect: {} });
 const callGetArch     = rpc.declare({ object: 'luci.clash', method: 'get_cpu_arch',    expect: {} });
 const callDownCore    = rpc.declare({ object: 'luci.clash', method: 'download_core',   expect: {} });
 const callUpdateGeoip = rpc.declare({ object: 'luci.clash', method: 'update_geoip',    expect: {} });
@@ -77,6 +77,10 @@ return baseclass.extend({
 
     readLog: function () {
         return L.resolveDefault(callReadLog(), { content: '' }).then(res => res.content || '');
+    },
+
+    clearLog: function () {
+        return L.resolveDefault(callClearLog(), {});
     },
 
     capabilities: function () {

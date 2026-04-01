@@ -350,6 +350,17 @@ return { content: get_log_content() };
 }
 },
 
+clear_log: {
+call: function() {
+for (let path in LOG_PATHS) {
+if (!access(path, 'r')) continue;
+let f = open(path, 'w');
+if (f) { f.close(); return { success: true }; }
+}
+return { success: false };
+}
+},
+
 capabilities: {
 call: function() {
 return {

@@ -29,5 +29,10 @@
     "title": "系统设置",
     "order": 50,
     "action": { "type": "view", "path": "clash/system" }
+  },
+  "admin/services/clash/log": {
+    "title": "系统日志",
+    "order": 55,
+    "action": { "type": "view", "path": "clash/log" }
   }
 }

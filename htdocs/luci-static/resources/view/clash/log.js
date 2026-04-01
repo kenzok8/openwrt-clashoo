@@ -1,5 +1,6 @@
 'use strict';
 'require view';
+'require form';
 'require poll';
 'require tools.clash as clash';
 
@@ -8,58 +9,48 @@ return view.extend({
         return clash.readLog();
     },
 
-    render: function (content) {
-        const textarea = E('textarea', {
-            id: 'clash_log',
-            style: 'width:100%;height:60vh;background:#1e1e1e;color:#d4d4d4;font-family:monospace;font-size:13px;padding:8px;border:none;resize:vertical;',
-            readonly: ''
-        }, [ content ]);
+    render: function (logContent) {
+        let m, s, o;
 
-        const refreshBtn = E('button', {
-            class: 'btn cbi-button cbi-button-action',
-            click: function () {
-                clash.readLog().then(function (log) {
-                    const el = document.getElementById('clash_log');
-                    if (el) {
-                        el.value = log;
-                        el.scrollTop = el.scrollHeight;
-                    }
-                });
-            }
-        }, [ _('Refresh') ]);
+        m = new form.Map('clash', _('系统日志'));
 
-        const clearBtn = E('button', {
-            class: 'btn cbi-button cbi-button-negative',
-            style: 'margin-left:8px;',
-            click: function () {
-                const el = document.getElementById('clash_log');
-                if (el) el.value = '';
-            }
-        }, [ _('Clear') ]);
+        s = m.section(form.NamedSection, 'config', 'clash', _('运行日志'));
+        s.anonymous = false;
 
-        /* 自动滚动到底部 */
-        textarea.addEventListener('DOMNodeInserted', function () {
-            textarea.scrollTop = textarea.scrollHeight;
-        });
-        setTimeout(function () {
-            textarea.scrollTop = textarea.scrollHeight;
-        }, 100);
+        o = s.option(form.Button, '_clear_log', _(''));
+        o.inputtitle = _('清空日志');
+        o.inputstyle = 'negative';
+        o.onclick = function (_, section_id) {
+            let el = m.lookupOption('_log_content', section_id);
+            if (el && el[0]) el[0].getUIElement(section_id).setValue('');
+            return clash.clearLog();
+        };
 
-        poll.add(function () {
-            return clash.readLog().then(function (log) {
-                const el = document.getElementById('clash_log');
-                if (el) {
-                    el.value = log;
-                    el.scrollTop = el.scrollHeight;
-                }
+        o = s.option(form.TextValue, '_log_content', _(''));
+        o.rows = 25;
+        o.wrap = false;
+        o.cfgvalue = function () { return logContent; };
+        o.write = function () { return true; };
+
+        poll.add(L.bind(function () {
+            let opt = this;
+            return clash.readLog().then(function (content) {
+                let ui = opt.getUIElement('config');
+                if (ui) ui.setValue(content);
             });
-        }, 5);
+        }, o), 5);
 
-        return E([
-            E('h2', {}, [ _('Clash Log') ]),
-            E('div', { style: 'margin-bottom:8px;' }, [ refreshBtn, clearBtn ]),
-            textarea
-        ]);
+        o = s.option(form.Button, '_scroll_bottom', _(''));
+        o.inputtitle = _('滚动到底部');
+        o.onclick = function (_, section_id) {
+            let el = m.lookupOption('_log_content', section_id);
+            if (el && el[0]) {
+                let ta = el[0].getUIElement(section_id).node.firstChild;
+                if (ta) ta.scrollTop = ta.scrollHeight;
+            }
+        };
+
+        return m.render();
     },
 
     handleSaveApply: null,
