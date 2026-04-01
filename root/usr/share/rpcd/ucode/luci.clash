@@ -354,8 +354,7 @@ clear_log: {
 call: function() {
 for (let path in LOG_PATHS) {
 if (!access(path, 'r')) continue;
-let f = open(path, 'w');
-if (f) { f.close(); return { success: true }; }
+return { success: writefile(path, '') !== null };
 }
 return { success: false };
 }
@@ -372,9 +371,7 @@ return { content };
 
 clear_update_log: {
 call: function() {
-let f = open('/usr/share/clash/clash.txt', 'w');
-if (f) { f.close(); return { success: true }; }
-return { success: false };
+return { success: writefile('/usr/share/clash/clash.txt', '') !== null };
 }
 },
 
@@ -389,9 +386,7 @@ return { content };
 
 clear_geoip_log: {
 call: function() {
-let f = open('/tmp/geoip_update.txt', 'w');
-if (f) { f.close(); return { success: true }; }
-return { success: false };
+return { success: writefile('/tmp/geoip_update.txt', '') !== null };
 }
 },
 
@@ -454,6 +449,7 @@ call: function(req) {
 let name = req.args?.name || '';
 let type = req.args?.type || '1';
 if (!name) return { error: 'missing name' };
+if (index(name, '..') >= 0 || index(name, '/') >= 0) return { error: 'invalid name' };
 let type_map = { '1': SUB_DIR, '2': '/usr/share/clash/config/upload', '3': '/usr/share/clash/config/custom' };
 let dir = type_map[type] || SUB_DIR;
 unlink(dir + '/' + name);
@@ -462,6 +458,17 @@ let content = readfile(LIST_FILE) || '';
 let lines = filter(split(content, '\n'), l => index(l, name + '#') != 0);
 writefile(LIST_FILE, join('\n', lines));
 }
+return { success: true };
+}
+},
+
+update_china_ip: {
+call: function() {
+let c = cursor(); c.load('clash');
+let url4 = c.get('clash', 'config', 'china_ip_url')   || 'https://ispip.clang.cn/all_cn.txt';
+let url6 = c.get('clash', 'config', 'china_ipv6_url') || 'https://ispip.clang.cn/all_cn_ipv6.txt';
+system("curl -fsSL '" + url4 + "' -o /usr/share/clash/china_ip.txt   >>/usr/share/clash/clash.txt 2>&1 &");
+system("curl -fsSL '" + url6 + "' -o /usr/share/clash/china_ipv6.txt >>/usr/share/clash/clash.txt 2>&1 &");
 return { success: true };
 }
 },

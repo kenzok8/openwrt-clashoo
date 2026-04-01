@@ -55,11 +55,11 @@ return view.extend({
         o.value('direct', '直连');
 
         o = s.option(form.ListValue, 'level', '日志级别');
-        o.value('info',    'info');
-        o.value('warning', 'warning');
-        o.value('error',   'error');
-        o.value('debug',   'debug');
-        o.value('silent',  'silent');
+        o.value('info',    '信息');
+        o.value('warning', '警告');
+        o.value('error',   '错误');
+        o.value('debug',   '调试');
+        o.value('silent',  '静默');
 
         /* ── 透明代理模式 ── */
         s = m.section(form.NamedSection, 'config', 'clash', '透明代理');
@@ -93,22 +93,18 @@ return view.extend({
         o = s.option(form.Flag, 'ipv4_dns_hijack', 'IPv4 DNS 劫持');
         o.default = '1';
         o.rmempty = false;
-        o.description = '劫持 IPv4 DNS 请求，转发至 Clash DNS 处理';
 
         o = s.option(form.Flag, 'ipv6_dns_hijack', 'IPv6 DNS 劫持');
         o.default = '1';
         o.rmempty = false;
-        o.description = '劫持 IPv6 DNS 请求，转发至 Clash DNS 处理';
 
         o = s.option(form.Flag, 'ipv4_proxy', 'IPv4 代理');
         o.default = '1';
         o.rmempty = false;
-        o.description = '对 IPv4 流量启用透明代理';
 
         o = s.option(form.Flag, 'ipv6_proxy', 'IPv6 代理');
         o.default = '1';
         o.rmempty = false;
-        o.description = '对 IPv6 流量启用透明代理';
 
         o = s.option(form.Flag, 'fake_ip_ping_hijack', 'Fake-IP Ping 劫持');
         o.default = '1';
@@ -119,26 +115,25 @@ return view.extend({
         s = m.section(form.NamedSection, 'config', 'clash', '端口配置');
 
         o = s.option(form.Flag, 'allow_lan', '允许局域网连接');
-        o.default = '1';
-        o.rmempty = false;
+        o.enabled  = 'true';
+        o.disabled = 'false';
+        o.default  = 'true';
+        o.rmempty  = false;
 
         o = s.option(form.Value, 'http_port', 'HTTP 代理端口');
         o.datatype    = 'port';
         o.default     = '8080';
         o.placeholder = '8080';
-        o.description = 'HTTP/HTTPS 代理端口（mihomo: port）';
 
         o = s.option(form.Value, 'socks_port', 'SOCKS5 代理端口');
         o.datatype    = 'port';
         o.default     = '1080';
         o.placeholder = '1080';
-        o.description = 'SOCKS5 代理端口（mihomo: socks-port）';
 
         o = s.option(form.Value, 'mixed_port', '混合端口（HTTPS + SOCKS5）');
         o.datatype    = 'port';
         o.default     = '7890';
         o.placeholder = '7890';
-        o.description = 'HTTP 与 SOCKS5 共用端口（mihomo: mixed-port）';
 
         o = s.option(form.Value, 'redir_port', 'Redirect 端口');
         o.datatype    = 'port';
@@ -153,5 +148,9 @@ return view.extend({
 
 
         return m.render();
+    },
+
+    handleSaveApply: function (ev) {
+        return this.handleSave(ev).then(() => clash.restart());
     }
 });

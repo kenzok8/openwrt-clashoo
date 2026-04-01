@@ -138,7 +138,29 @@ return view.extend({
 
         o = s.option(form.Flag, 'bypass_china', _('绕过中国大陆 IP'));
         o.default = '0';
-        o.description = _('目标为中国大陆 IP 时直连，不经过代理（需要 /usr/share/clash/china_ip.txt）');
+        o.description = _('目标为中国大陆 IP 时直连，不经过代理');
+
+        o = s.option(form.Value, 'china_ip_url', _('大陆 IPv4 段更新 URL'));
+        o.placeholder = 'https://ispip.clang.cn/all_cn.txt';
+        o.default     = 'https://ispip.clang.cn/all_cn.txt';
+        o.rmempty     = true;
+        o.depends('bypass_china', '1');
+
+        o = s.option(form.Value, 'china_ipv6_url', _('大陆 IPv6 段更新 URL'));
+        o.placeholder = 'https://ispip.clang.cn/all_cn_ipv6.txt';
+        o.default     = 'https://ispip.clang.cn/all_cn_ipv6.txt';
+        o.rmempty     = true;
+        o.depends('bypass_china', '1');
+
+        o = s.option(form.Button, '_update_china_ip', _(''));
+        o.inputtitle = _('更新大陆白名单');
+        o.inputstyle = 'apply';
+        o.depends('bypass_china', '1');
+        o.onclick = function () {
+            return m.save().then(() => clash.updateChinaIp()).then(() => {
+                L.ui.addNotification(null, E('p', _('大陆白名单更新任务已启动，稍后可在更新日志中查看进度')));
+            });
+        };
 
         o = s.option(form.Value, 'proxy_tcp_dport', _('要代理的 TCP 目标端口'));
         o.optional    = true;

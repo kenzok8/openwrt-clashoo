@@ -24,6 +24,7 @@ function mkBtn(label, style, fn) {
 }
 
 function renderFileTable(title, rows, activeName, ctype, container) {
+    container.appendChild(E('h3', { style: 'margin:1em 0 .4em' }, title));
     if (!rows || !rows.length) {
         container.appendChild(E('p', { class: 'cbi-value-description' }, _('暂无文件')));
         return;
@@ -55,7 +56,6 @@ function renderFileTable(title, rows, activeName, ctype, container) {
             return E('tr', {}, [nameCell, E('td', {}, f.mtime || '-'), E('td', {}, f.size || '-'), actions]);
         }))
     ]);
-    container.appendChild(E('h3', { style: 'margin:1em 0 .4em' }, title));
     container.appendChild(tbl);
 }
 
@@ -261,7 +261,7 @@ return view.extend({
         o.rmempty = true;
         o.description = _('Encrypted Client Hello 密钥文件路径（可选）');
 
-        o = s.option(form.Value, 'api_secret', _('访问鉴权密钥'));
+        o = s.option(form.Value, 'api_secret', _('面板密钥'));
         o.password = true;
         o.placeholder = _('留空不鉴权');
         o.rmempty = true;

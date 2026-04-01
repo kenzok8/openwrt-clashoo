@@ -60,10 +60,9 @@ return view.extend({
         o.optional = true;
         o.default = 'https://dns.cloudflare.com/dns-query\nhttps://dns.google/dns-query\n8.8.8.8\n1.1.1.1';
 
-        o = s.option(form.Value, 'dns_fake_ip_filter', _('Fake-IP 过滤域名（换行分隔）'), _('匹配的域名返回真实 IP，不走 Fake-IP'));
-        o.rows = 5;
-        o.optional = true;
-        o.default = '*.lan\n*.local\nlocalhost.ptlogin2.qq.com\n+.stun.*.*\n+.stun.*.*.*\ntime.windows.com\ntime.nist.gov\ntime.apple.com';
+        o = s.option(form.DynamicList, 'dns_fake_ip_filter', _('Fake-IP 过滤域名'), _('匹配的域名返回真实 IP，不走 Fake-IP'));
+        o.rmempty = true;
+        o.default = ['*.lan', '*.local', 'localhost.ptlogin2.qq.com', '+.stun.*.*', '+.stun.*.*.*', 'time.windows.com', 'time.nist.gov', 'time.apple.com'];
         o.depends({ enable_dns: '1', enhanced_mode: 'fake-ip' });
 
         /* ─── 上游 DNS 服务器 ─── */
@@ -71,16 +70,20 @@ return view.extend({
         s.addremove = true;
         s.anonymous = true;
 
-        o = s.option(form.Value, 'name', _('名称'));
-        o.placeholder = _('如 alidns');
-        o = s.option(form.Value, 'url', _('DNS URL'));
+        o = s.option(form.ListValue, 'ser_type', _('角色'));
+        o.value('nameserver', 'Nameserver（国内）');
+        o.value('fallback',   'Fallback（境外）');
+        o.default = 'nameserver';
+
+        o = s.option(form.Value, 'ser_address', _('DNS 地址'));
         o.placeholder = 'https://dns.alidns.com/dns-query';
-        o.optional = false;
-        o = s.option(form.Value, 'type', _('类型'));
-        o.value('dns', 'DNS');
-        o.value('https', 'DoH');
-        o.value('tls', 'DoT');
-        o.default = 'https';
+
+        o = s.option(form.ListValue, 'protocol', _('协议'));
+        o.value('udp://',   'UDP');
+        o.value('tcp://',   'TCP');
+        o.value('tls://',   'TLS (DoT)');
+        o.value('https://', 'HTTPS (DoH)');
+        o.default = 'https://';
 
         /* ─── DNS 劫持 ─── */
         s = m.section(form.TypedSection, 'dnshijack', _('DNS 劫持'));
@@ -96,7 +99,18 @@ return view.extend({
         s = m.section(form.TypedSection, 'authentication', _('代理认证'));
         s.addremove = true;
         s.anonymous = true;
-        s.addbtntitle = _('添加　（尚无任何配置）');
+        s.addbtntitle = _('添加');
+        /* hide default left-side placeholder; show hint to the right of the button */
+        s.renderSectionPlaceholder = function() { return E([]); };
+        s.renderSectionAdd = function(config_data) {
+            let node = form.TypedSection.prototype.renderSectionAdd.call(this, config_data);
+            if (node && this.cfgsections(config_data).length === 0) {
+                node.appendChild(E('span', {
+                    style: 'margin-left:10px;color:#888;font-size:.9rem;vertical-align:middle;line-height:2.2rem'
+                }, _('尚无任何配置')));
+            }
+            return node;
+        };
 
         o = s.option(form.Value, 'user', _('用户名'));
         o = s.option(form.Value, 'pass', _('密码'));
