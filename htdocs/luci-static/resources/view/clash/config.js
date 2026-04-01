@@ -246,19 +246,19 @@ return view.extend({
         o.rmempty = true;
         o.description = _('指定 API 完整监听地址（留空则使用面板端口）');
 
-        o = s.option(form.Value, 'api_tls_listen', _('API TLS Listen'));
+        o = s.option(form.Value, 'api_tls_listen', _('API TLS 监听地址'));
         o.placeholder = '[::]:9443';
         o.rmempty = true;
 
-        o = s.option(form.Value, 'api_tls_cert', _('API TLS Cert'));
+        o = s.option(form.Value, 'api_tls_cert', _('API TLS 证书路径'));
         o.placeholder = _('不修改');
         o.rmempty = true;
 
-        o = s.option(form.Value, 'api_tls_key', _('API TLS Key'));
+        o = s.option(form.Value, 'api_tls_key', _('API TLS 密钥路径'));
         o.placeholder = _('不修改');
         o.rmempty = true;
 
-        o = s.option(form.Value, 'api_tls_ech_key', _('API TLS ECH Key'));
+        o = s.option(form.Value, 'api_tls_ech_key', _('API TLS ECH 密钥'));
         o.placeholder = _('不修改');
         o.rmempty = true;
 
