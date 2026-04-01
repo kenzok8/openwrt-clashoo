@@ -123,7 +123,7 @@ return view.extend({
         o.placeholder = '1080';
         o.description = 'SOCKS5 代理端口（mihomo: socks-port）';
 
-        o = s.option(form.Value, 'mixed_port', '混合端口（HTTP + SOCKS5）');
+        o = s.option(form.Value, 'mixed_port', '混合端口（HTTPS + SOCKS5）');
         o.datatype    = 'port';
         o.placeholder = '7890';
         o.description = 'HTTP 与 SOCKS5 共用端口（mihomo: mixed-port）';
