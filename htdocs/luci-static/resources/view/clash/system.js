@@ -246,13 +246,12 @@ return view.extend({
                 geoip:  mkLogPanel(geoipContent,  () => clash.readGeoipLog(),  () => clash.clearGeoipLog())
             };
 
-            /* ─── 子 Tab 样式（只有激活项有蓝色下划线，非激活为灰色） ─── */
-            let TAB_STYLE_BASE   = 'cursor:pointer;padding:8px 16px;margin-right:4px;border-radius:6px 6px 0 0;font-size:14px;border:none;background:transparent;';
-            let TAB_STYLE_ACTIVE = TAB_STYLE_BASE + 'color:#4a76d4;border-bottom:2px solid #4a76d4;font-weight:600;';
-            let TAB_STYLE_INACT  = TAB_STYLE_BASE + 'color:#666;border-bottom:2px solid transparent;';
+            /* ─── 子 Tab 样式（圆角灰底，激活蓝色下划线）─── */
+            let TAB_STYLE_BASE   = 'cursor:pointer;padding:8px 18px;margin-right:6px;border-radius:6px 6px 0 0;font-size:14px;border:none;background:#e8eaed;color:#555;border-bottom:3px solid transparent;';
+            let TAB_STYLE_ACTIVE = 'cursor:pointer;padding:8px 18px;margin-right:6px;border-radius:6px 6px 0 0;font-size:14px;border:none;background:#e8eaed;color:#4a76d4;border-bottom:3px solid #4a76d4;font-weight:600;';
 
             function mkBtn(label, active) {
-                return E('button', { type: 'button', style: active ? TAB_STYLE_ACTIVE : TAB_STYLE_INACT }, [label]);
+                return E('button', { type: 'button', style: active ? TAB_STYLE_ACTIVE : TAB_STYLE_BASE }, [label]);
             }
 
             /* ─── 三级子 Tab ─── */
@@ -263,7 +262,7 @@ return view.extend({
             ];
 
             let subBtns = {};
-            let subBar = E('div', { style: 'border-bottom:1px solid #ddd;margin-bottom:4px' },
+            let subBar = E('div', { style: 'border-bottom:2px solid #ddd;margin-bottom:12px;padding-top:4px' },
                 subTabs.map(function (t) {
                     let b = mkBtn(t.label, t.key === 'run');
                     subBtns[t.key] = b;
@@ -274,7 +273,7 @@ return view.extend({
 
             function switchSub(key) {
                 subTabs.forEach(function (t) {
-                    subBtns[t.key].style.cssText = t.key === key ? TAB_STYLE_ACTIVE : TAB_STYLE_INACT;
+                    subBtns[t.key].style.cssText = t.key === key ? TAB_STYLE_ACTIVE : TAB_STYLE_BASE;
                     panels[t.key].style.display = t.key === key ? '' : 'none';
                 });
             }
@@ -288,7 +287,7 @@ return view.extend({
                 { key: 'system', label: _('系统设置') },
                 { key: 'log',    label: _('系统日志') }
             ];
-            let topBar = E('div', { style: 'border-bottom:1px solid #ddd;margin-bottom:16px' },
+            let topBar = E('div', { style: 'border-bottom:2px solid #ddd;margin-bottom:16px;padding-top:4px' },
                 topDefs.map(function (t) {
                     let b = mkBtn(t.label, t.key === 'system');
                     topBtns[t.key] = b;
@@ -299,7 +298,7 @@ return view.extend({
 
             function switchTop(key) {
                 topDefs.forEach(function (t) {
-                    topBtns[t.key].style.cssText = t.key === key ? TAB_STYLE_ACTIVE : TAB_STYLE_INACT;
+                    topBtns[t.key].style.cssText = t.key === key ? TAB_STYLE_ACTIVE : TAB_STYLE_BASE;
                 });
                 systemNode.style.display = key === 'system' ? '' : 'none';
                 logSection.style.display = key === 'log'    ? '' : 'none';
