@@ -27,7 +27,7 @@ return view.extend({
         let geoipContent  = data[4] || '';
         let m, s, o;
 
-        m = new form.Map('clash', _('系统设置'));
+        m = new form.Map('clash', '');
 
         /* ─── 内核下载 ─── */
         s = m.section(form.NamedSection, 'config', 'clash', _('内核下载'));
@@ -246,6 +246,15 @@ return view.extend({
                 geoip:  mkLogPanel(geoipContent,  () => clash.readGeoipLog(),  () => clash.clearGeoipLog())
             };
 
+            /* ─── 子 Tab 样式（只有激活项有蓝色下划线，非激活为灰色） ─── */
+            let TAB_STYLE_BASE   = 'cursor:pointer;padding:8px 16px;margin-right:4px;border-radius:6px 6px 0 0;font-size:14px;border:none;background:transparent;';
+            let TAB_STYLE_ACTIVE = TAB_STYLE_BASE + 'color:#4a76d4;border-bottom:2px solid #4a76d4;font-weight:600;';
+            let TAB_STYLE_INACT  = TAB_STYLE_BASE + 'color:#666;border-bottom:2px solid transparent;';
+
+            function mkBtn(label, active) {
+                return E('button', { type: 'button', style: active ? TAB_STYLE_ACTIVE : TAB_STYLE_INACT }, [label]);
+            }
+
             /* ─── 三级子 Tab ─── */
             let subTabs = [
                 { key: 'run',    label: _('运行日志') },
@@ -253,53 +262,53 @@ return view.extend({
                 { key: 'geoip',  label: _('GeoIP 日志') }
             ];
 
-            let subTabEls = {};
-            let tabItems = subTabs.map(function (t) {
-                let li = E('li', { class: 'cbi-tab', style: 'cursor:pointer' }, [
-                    E('a', { href: '#', onclick: function(e){ e.preventDefault(); } }, [t.label])
-                ]);
-                subTabEls[t.key] = li;
-                li.addEventListener('click', function () { switchSub(t.key); });
-                return li;
-            });
+            let subBtns = {};
+            let subBar = E('div', { style: 'border-bottom:1px solid #ddd;margin-bottom:4px' },
+                subTabs.map(function (t) {
+                    let b = mkBtn(t.label, t.key === 'run');
+                    subBtns[t.key] = b;
+                    b.addEventListener('click', function () { switchSub(t.key); });
+                    return b;
+                })
+            );
 
             function switchSub(key) {
                 subTabs.forEach(function (t) {
-                    subTabEls[t.key].classList.toggle('cbi-tab-active', t.key === key);
+                    subBtns[t.key].style.cssText = t.key === key ? TAB_STYLE_ACTIVE : TAB_STYLE_INACT;
                     panels[t.key].style.display = t.key === key ? '' : 'none';
                 });
             }
             switchSub('run');
 
-            let logSection = E('div', { style: 'padding:0' }, [
-                E('ul', { class: 'cbi-tabmenu' }, tabItems),
-                panels.run, panels.update, panels.geoip
-            ]);
+            let logSection = E('div', {}, [subBar, panels.run, panels.update, panels.geoip]);
 
             /* ─── 顶层 Tab（系统设置 / 系统日志）─── */
-            function mkTab(label, active) {
-                return E('li', { class: 'cbi-tab' + (active ? ' cbi-tab-active' : ''), style: 'cursor:pointer' }, [
-                    E('a', { href: '#', onclick: function(e){ e.preventDefault(); } }, [label])
-                ]);
+            let topBtns = {};
+            let topDefs = [
+                { key: 'system', label: _('系统设置') },
+                { key: 'log',    label: _('系统日志') }
+            ];
+            let topBar = E('div', { style: 'border-bottom:1px solid #ddd;margin-bottom:16px' },
+                topDefs.map(function (t) {
+                    let b = mkBtn(t.label, t.key === 'system');
+                    topBtns[t.key] = b;
+                    b.addEventListener('click', function () { switchTop(t.key); });
+                    return b;
+                })
+            );
+
+            function switchTop(key) {
+                topDefs.forEach(function (t) {
+                    topBtns[t.key].style.cssText = t.key === key ? TAB_STYLE_ACTIVE : TAB_STYLE_INACT;
+                });
+                systemNode.style.display = key === 'system' ? '' : 'none';
+                logSection.style.display = key === 'log'    ? '' : 'none';
             }
-
-            let tabSys = mkTab(_('系统设置'), true);
-            let tabLog = mkTab(_('系统日志'), false);
-
-            function switchTop(name) {
-                let isLog = name === 'log';
-                systemNode.style.display = isLog ? 'none' : '';
-                logSection.style.display = isLog ? '' : 'none';
-                tabSys.classList.toggle('cbi-tab-active', !isLog);
-                tabLog.classList.toggle('cbi-tab-active', isLog);
-            }
-
-            tabSys.addEventListener('click', function () { switchTop('system'); });
-            tabLog.addEventListener('click', function () { switchTop('log'); });
             switchTop('system');
 
             return E('div', {}, [
-                E('ul', { class: 'cbi-tabmenu', style: 'margin-bottom:16px' }, [tabSys, tabLog]),
+                E('h2', { style: 'margin-bottom:12px' }, [_('系统设置')]),
+                topBar,
                 systemNode,
                 logSection
             ]);
