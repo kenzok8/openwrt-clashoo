@@ -17,6 +17,10 @@ const callSetPanel    = rpc.declare({ object: 'luci.clash', method: 'set_panel',
 const callUpdatePanel = rpc.declare({ object: 'luci.clash', method: 'update_panel',    params: ['name'],         expect: {} });
 const callReadLog     = rpc.declare({ object: 'luci.clash', method: 'read_log',        expect: {} });
 const callClearLog    = rpc.declare({ object: 'luci.clash', method: 'clear_log',       expect: {} });
+const callReadUpdLog  = rpc.declare({ object: 'luci.clash', method: 'read_update_log', expect: {} });
+const callClearUpdLog = rpc.declare({ object: 'luci.clash', method: 'clear_update_log',expect: {} });
+const callReadGeoLog  = rpc.declare({ object: 'luci.clash', method: 'read_geoip_log',  expect: {} });
+const callClearGeoLog = rpc.declare({ object: 'luci.clash', method: 'clear_geoip_log', expect: {} });
 const callGetArch     = rpc.declare({ object: 'luci.clash', method: 'get_cpu_arch',    expect: {} });
 const callDownCore    = rpc.declare({ object: 'luci.clash', method: 'download_core',   expect: {} });
 const callUpdateGeoip = rpc.declare({ object: 'luci.clash', method: 'update_geoip',    expect: {} });
@@ -81,6 +85,22 @@ return baseclass.extend({
 
     clearLog: function () {
         return L.resolveDefault(callClearLog(), {});
+    },
+
+    readUpdateLog: function () {
+        return L.resolveDefault(callReadUpdLog(), { content: '' }).then(r => r.content || '');
+    },
+
+    clearUpdateLog: function () {
+        return L.resolveDefault(callClearUpdLog(), {});
+    },
+
+    readGeoipLog: function () {
+        return L.resolveDefault(callReadGeoLog(), { content: '' }).then(r => r.content || '');
+    },
+
+    clearGeoipLog: function () {
+        return L.resolveDefault(callClearGeoLog(), {});
     },
 
     capabilities: function () {

@@ -361,6 +361,40 @@ return { success: false };
 }
 },
 
+read_update_log: {
+call: function() {
+let p = popen("tail -300 /usr/share/clash/clash.txt 2>/dev/null");
+let content = '';
+if (p) { content = p.read('all'); p.close(); }
+return { content };
+}
+},
+
+clear_update_log: {
+call: function() {
+let f = open('/usr/share/clash/clash.txt', 'w');
+if (f) { f.close(); return { success: true }; }
+return { success: false };
+}
+},
+
+read_geoip_log: {
+call: function() {
+let p = popen("tail -300 /tmp/geoip_update.txt 2>/dev/null");
+let content = '';
+if (p) { content = p.read('all'); p.close(); }
+return { content };
+}
+},
+
+clear_geoip_log: {
+call: function() {
+let f = open('/tmp/geoip_update.txt', 'w');
+if (f) { f.close(); return { success: true }; }
+return { success: false };
+}
+},
+
 capabilities: {
 call: function() {
 return {

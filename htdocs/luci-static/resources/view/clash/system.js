@@ -3,6 +3,7 @@
 'require form';
 'require rpc';
 'require uci';
+'require poll';
 'require tools.clash as clash';
 
 let callGetArch = rpc.declare({ object: 'luci.clash', method: 'get_cpu_arch', expect: { arch: '' } });
@@ -12,12 +13,18 @@ return view.extend({
     load: function () {
         return Promise.all([
             L.resolveDefault(callGetArch(), ''),
-            uci.load('clash')
+            uci.load('clash'),
+            clash.readLog(),
+            clash.readUpdateLog(),
+            clash.readGeoipLog()
         ]);
     },
 
     render: function (data) {
         let cpuArch = (typeof data[0] === 'string' ? data[0] : (data[0]?.arch || '')).trim();
+        let logContent    = data[2] || '';
+        let updateContent = data[3] || '';
+        let geoipContent  = data[4] || '';
         let m, s, o;
 
         m = new form.Map('clash', _('系统设置'));
@@ -202,7 +209,101 @@ return view.extend({
         o.default = '7';
         o.depends('auto_clear_log', '1');
 
-        return m.render();
+        return m.render().then(function (systemNode) {
+            /* ─── 日志 Tab 工具函数 ─── */
+            function mkLogPanel(initialContent, readFn, clearFn) {
+                let ta = E('textarea', {
+                    style: 'width:100%;height:50vh;font-family:monospace;font-size:13px;padding:8px;resize:vertical;box-sizing:border-box;border:1px solid #d0d0d0;border-radius:4px;background:#fafafa;color:#333;'
+                }, [initialContent]);
+                ta.scrollTop = ta.scrollHeight;
+
+                let clearBtn = E('button', {
+                    class: 'btn cbi-button cbi-button-negative',
+                    onclick: function () { ta.value = ''; return clearFn(); }
+                }, [_('清空日志')]);
+
+                let scrollBtn = E('button', {
+                    class: 'btn cbi-button',
+                    style: 'margin-left:8px',
+                    onclick: function () { ta.scrollTop = ta.scrollHeight; }
+                }, [_('滚动到底部')]);
+
+                let panel = E('div', { style: 'padding-top:12px' }, [
+                    E('div', { style: 'margin-bottom:10px' }, [clearBtn, scrollBtn]),
+                    ta
+                ]);
+
+                poll.add(function () {
+                    return readFn().then(function (c) { ta.value = c; });
+                }, 5);
+
+                return panel;
+            }
+
+            let panels = {
+                run:    mkLogPanel(logContent,    () => clash.readLog(),       () => clash.clearLog()),
+                update: mkLogPanel(updateContent, () => clash.readUpdateLog(), () => clash.clearUpdateLog()),
+                geoip:  mkLogPanel(geoipContent,  () => clash.readGeoipLog(),  () => clash.clearGeoipLog())
+            };
+
+            /* ─── 三级子 Tab ─── */
+            let subTabs = [
+                { key: 'run',    label: _('运行日志') },
+                { key: 'update', label: _('更新日志') },
+                { key: 'geoip',  label: _('GeoIP 日志') }
+            ];
+
+            let subTabEls = {};
+            let tabItems = subTabs.map(function (t) {
+                let li = E('li', { class: 'cbi-tab', style: 'cursor:pointer' }, [
+                    E('a', { href: '#', onclick: function(e){ e.preventDefault(); } }, [t.label])
+                ]);
+                subTabEls[t.key] = li;
+                li.addEventListener('click', function () { switchSub(t.key); });
+                return li;
+            });
+
+            function switchSub(key) {
+                subTabs.forEach(function (t) {
+                    subTabEls[t.key].classList.toggle('cbi-tab-active', t.key === key);
+                    panels[t.key].style.display = t.key === key ? '' : 'none';
+                });
+            }
+            switchSub('run');
+
+            let logSection = E('div', { style: 'padding:0' }, [
+                E('ul', { class: 'cbi-tabmenu' }, tabItems),
+                panels.run, panels.update, panels.geoip
+            ]);
+
+            /* ─── 顶层 Tab（系统设置 / 系统日志）─── */
+            function mkTab(label, active) {
+                return E('li', { class: 'cbi-tab' + (active ? ' cbi-tab-active' : ''), style: 'cursor:pointer' }, [
+                    E('a', { href: '#', onclick: function(e){ e.preventDefault(); } }, [label])
+                ]);
+            }
+
+            let tabSys = mkTab(_('系统设置'), true);
+            let tabLog = mkTab(_('系统日志'), false);
+
+            function switchTop(name) {
+                let isLog = name === 'log';
+                systemNode.style.display = isLog ? 'none' : '';
+                logSection.style.display = isLog ? '' : 'none';
+                tabSys.classList.toggle('cbi-tab-active', !isLog);
+                tabLog.classList.toggle('cbi-tab-active', isLog);
+            }
+
+            tabSys.addEventListener('click', function () { switchTop('system'); });
+            tabLog.addEventListener('click', function () { switchTop('log'); });
+            switchTop('system');
+
+            return E('div', {}, [
+                E('ul', { class: 'cbi-tabmenu', style: 'margin-bottom:16px' }, [tabSys, tabLog]),
+                systemNode,
+                logSection
+            ]);
+        });
     },
 
     handleSaveApply: function (ev) {
