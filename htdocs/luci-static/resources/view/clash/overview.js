@@ -19,7 +19,7 @@ return view.extend({
             let sel = E('select', {
                 id: id,
                 class: 'cbi-input-select',
-                style: 'width:100%;max-width:280px'
+                style: 'width:100%;box-sizing:border-box'
             });
             for (let [v, label] of opts) {
                 let o = E('option', { value: v }, label);
@@ -63,8 +63,8 @@ return view.extend({
 
         function mkRow(label, tdId) {
             return E('tr', {}, [
-                E('td', { style: 'width:30%;padding:8px 12px;color:#555;font-size:.95rem;vertical-align:middle;white-space:nowrap' }, label),
-                E('td', { id: tdId, style: 'padding:6px 12px;vertical-align:middle' })
+                E('td', { style: 'width:35%;padding:8px 16px;color:#555;font-size:.95rem;vertical-align:middle;white-space:nowrap' }, label),
+                E('td', { id: tdId, style: 'padding:6px 16px;vertical-align:middle' })
             ]);
         }
 
@@ -85,7 +85,7 @@ return view.extend({
             /* Control table */
             E('div', { class: 'cbi-section' }, [
                 E('div', { class: 'cbi-section-node' }, [
-                    E('table', { style: 'width:100%;border-collapse:collapse' }, [
+                    E('table', { style: 'width:100%;max-width:720px;margin:0 auto;border-collapse:collapse' }, [
                         mkRow('Clash 客户端',  'ov-client'),
                         mkRow('Clash 模式',    'ov-mode'),
                         mkRow('Clash 配置',    'ov-config'),
