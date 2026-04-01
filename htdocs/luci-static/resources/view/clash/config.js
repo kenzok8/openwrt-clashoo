@@ -91,9 +91,12 @@ return view.extend({
         o = s.option(form.Value, 'config_name', _('配置名称'));
         o.placeholder = 'sub-config';
         o.rmempty = true;
+        o.default = '';
         o.description = _('可选：指定基础文件名，多条链接自动追加序号后缀');
 
         o = s.option(form.DynamicList, 'clash_url', _('订阅链接'));
+        o.rmempty = true;
+        o.default = [];
         o.description = _('每条链接对应一个配置文件');
 
         o = s.option(form.Button, '_dl_sub', _(''));
