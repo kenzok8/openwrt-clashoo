@@ -2,6 +2,7 @@
 'require view';
 'require form';
 'require rpc';
+'require uci';
 'require tools.clash as clash';
 
 let callGetArch = rpc.declare({ object: 'luci.clash', method: 'get_cpu_arch', expect: { arch: '' } });

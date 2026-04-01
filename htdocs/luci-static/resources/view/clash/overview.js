@@ -2,7 +2,6 @@
 'require view';
 'require poll';
 'require rpc';
-'require uci';
 'require tools.clash as clash';
 
 return view.extend({
@@ -14,142 +13,125 @@ return view.extend({
     },
 
     render: function (data) {
-        const st      = data[0] || {};
         const cfgData = data[1] || {};
 
-        const view = this;
-        let node = E('div', { class: 'cbi-map' }, [
-            /* ── Hero ── */
-            E('div', { style: 'text-align:center;padding:18px 0 10px' }, [
-                E('img', {
-                    src: '/luci-static/clash/logo.png',
-                    style: 'width:60px;height:60px;object-fit:contain;border-radius:8px',
-                    onerror: "this.style.display='none'",
-                    alt: 'Clash'
-                }),
-                E('div', { style: 'font-size:1.1em;font-weight:bold;color:#336;margin-top:6px' }, 'Clash'),
-                E('div', { style: 'color:#666;font-size:.9em' }, '基于规则的自定义代理客户端')
-            ]),
+        /* ── Helpers ── */
+        function mkBtn(label, bg, onClick) {
+            let b = E('button', {
+                class: 'btn cbi-button',
+                style: 'background:' + bg + ';color:#fff;border:none;border-radius:.5rem;padding:.55rem 1.2rem;font-size:.95rem;cursor:pointer;margin:0 4px'
+            }, label);
+            if (onClick) b.addEventListener('click', onClick);
+            return b;
+        }
 
-            E('hr', { style: 'margin:0 0 12px' }),
-
-            /* ── Status table ── */
-            E('div', { class: 'cbi-section' }, [
-                E('div', { class: 'cbi-section-node' }, [
-                    E('table', { class: 'cbi-tblsection', style: 'width:100%' }, [
-                        E('thead', {}, E('tr', {}, [
-                            E('th', {}, '客户端'),
-                            E('th', {}, 'Clash 模式'),
-                            E('th', {}, 'Clash 配置'),
-                            E('th', {}, '代理模式'),
-                            E('th', {}, '面板类型')
-                        ])),
-                        E('tbody', { id: 'clash-status-row' }, [
-                            E('tr', {}, [
-                                E('td', { id: 'td-client' }),
-                                E('td', { id: 'td-mode' }),
-                                E('td', { id: 'td-config' }),
-                                E('td', { id: 'td-proxy' }),
-                                E('td', { id: 'td-panel' })
-                            ])
-                        ])
-                    ])
-                ])
-            ]),
-
-            E('hr', { style: 'margin:4px 0 12px' }),
-
-            /* ── Panel row ── */
-            E('div', { class: 'cbi-section' }, [
-                E('div', { class: 'cbi-section-node' }, [
-                    E('table', { class: 'cbi-tblsection', style: 'width:100%' }, [
-                        E('thead', {}, E('tr', {}, [E('th', {}, '面板地址')])),
-                        E('tbody', {}, E('tr', {}, [E('td', { id: 'td-panel-row' })]))
-                    ])
-                ])
-            ])
-        ]);
-
-        /* Build selects */
         function mkSelect(id, opts, cur, onChange) {
-            let sel = E('select', { class: 'cbi-input-select', id: id });
+            let sel = E('select', {
+                id: id,
+                style: 'width:260px;max-width:90vw;padding:.5rem .75rem;border:1px solid #ccc;border-radius:.375rem;font-size:.95rem;background:#fff'
+            });
             for (let [v, label] of opts) {
                 let o = E('option', { value: v }, label);
                 if (v === cur) o.selected = true;
                 sel.appendChild(o);
             }
             sel.addEventListener('change', () => onChange(sel.value));
-            return E('div', { class: 'clash-center-box' }, sel);
+            return sel;
         }
 
-        function mkBtn(label, style, onClick) {
-            let b = E('button', {
-                class: 'btn cbi-button',
-                style: 'background:' + style + ';color:#fff;padding:5px 14px;margin:2px'
-            }, label);
-            b.addEventListener('click', onClick);
-            return b;
+        function mkRow(child) {
+            return E('div', {
+                style: 'display:flex;align-items:center;justify-content:center;padding:14px 0;border-bottom:1px solid #eee'
+            }, child);
         }
 
+        /* ── Static structure ── */
+        let node = E('div', { style: 'max-width:700px;margin:0 auto;background:#fff;border-radius:.5rem;overflow:hidden;border:1px solid #e0e0e0' }, [
+            /* Hero */
+            E('div', { style: 'text-align:center;padding:22px 0 18px;border-bottom:1px solid #eee' }, [
+                E('img', {
+                    src: '/luci-static/clash/logo.png',
+                    style: 'width:60px;height:60px;object-fit:contain',
+                    onerror: "this.style.display='none'",
+                    alt: ''
+                }),
+                E('div', { id: 'clash-core-name', style: 'font-size:1.05rem;font-weight:600;margin-top:8px;color:#333' }, 'Clash'),
+                E('div', { style: 'font-size:.85rem;color:#888;margin-top:4px' }, '基于规则的自定义代理客户端')
+            ]),
+            /* Start/Stop row */
+            mkRow(E('span', { id: 'row-client', style: 'display:flex;gap:8px' })),
+            /* Mode */
+            mkRow(E('span', { id: 'row-mode' })),
+            /* Config */
+            mkRow(E('span', { id: 'row-config' })),
+            /* Proxy mode */
+            mkRow(E('span', { id: 'row-proxy' })),
+            /* Panel type */
+            mkRow(E('span', { id: 'row-panel' })),
+            /* Panel buttons */
+            E('div', { style: 'display:flex;align-items:center;justify-content:center;padding:16px 0;gap:8px' }, [
+                E('span', { id: 'row-panel-btns', style: 'display:flex;gap:8px' })
+            ])
+        ]);
+
+        /* ── Render dynamic content ── */
         function renderAll(s) {
-            const running    = !!s.running;
-            const configs    = cfgData.configs || [];
-            const curConf    = s.conf_path || '';
-            const modeValue  = s.mode_value  || 'fake-ip';
-            const proxyMode  = s.proxy_mode  || 'rule';
-            const panelType  = s.panel_type  || 'metacubexd';
-            const dashPort   = s.dash_port   || '9090';
-            const dashPass   = s.dash_pass   || '';
-            const localIp    = s.local_ip    || location.hostname;
-            const dashInstalled = !!s.dashboard_installed;
-            const yacdInstalled = !!s.yacd_installed;
+            const running   = !!s.running;
+            const configs   = cfgData.configs || [];
+            const curConf   = cfgData.current || s.conf_path || '';
+            const modeValue = s.mode_value  || 'fake-ip';
+            const proxyMode = s.proxy_mode  || 'rule';
+            const panelType = s.panel_type  || 'metacubexd';
+            const dashPort  = s.dash_port   || '9090';
+            const dashPass  = s.dash_pass   || '';
+            const localIp   = s.local_ip    || location.hostname;
+            const dashOk    = !!s.dashboard_installed || !!s.yacd_installed;
+            const coreName  = (s.core_version || '').match(/^(\S+)/)?.[1] || 'Clash';
+
+            /* Core name in hero */
+            let nameEl = document.getElementById('clash-core-name');
+            if (nameEl) nameEl.textContent = coreName;
 
             /* Client buttons */
-            let tdClient = document.getElementById('td-client');
-            if (tdClient) {
-                tdClient.innerHTML = '';
-                tdClient.appendChild(E('div', { class: 'clash-center-box' }, [
-                    E('div', { class: 'clash-panel-actions' }, running
-                        ? [
-                            E('span', { class: 'btn cbi-button', style: 'background:#1f8b4c;color:#fff;cursor:default' }, '运行中'),
-                            mkBtn('停止客户端', '#6c757d', () => clash.stop().then(() => poll.restarted = true))
-                          ]
-                        : [
-                            E('span', { class: 'btn cbi-button', style: 'background:#b58900;color:#fff;cursor:default' }, '已停止'),
-                            mkBtn('启用客户端', '#9ca3af', () => clash.start().then(() => poll.restarted = true))
-                          ]
-                    )
-                ]));
+            let elClient = document.getElementById('row-client');
+            if (elClient) {
+                elClient.innerHTML = '';
+                if (running) {
+                    elClient.appendChild(mkBtn('RUNNING', '#1f8b4c', null));
+                    elClient.appendChild(mkBtn('停止客户端', '#6c757d', () => clash.stop()));
+                } else {
+                    elClient.appendChild(mkBtn('STOPPED', '#b58900', null));
+                    elClient.appendChild(mkBtn('启用客户端', '#6366f1', () => clash.start()));
+                }
             }
 
-            /* Mode select */
-            let tdMode = document.getElementById('td-mode');
-            if (tdMode) {
-                tdMode.innerHTML = '';
-                tdMode.appendChild(mkSelect('sel-mode', [
-                    ['fake-ip', 'Fake-IP'],
+            /* Clash mode */
+            let elMode = document.getElementById('row-mode');
+            if (elMode) {
+                elMode.innerHTML = '';
+                elMode.appendChild(mkSelect('sel-mode', [
+                    ['fake-ip', 'fake ip'],
                     ['tun',     'TUN 模式'],
                     ['mixed',   '混合模式']
                 ], modeValue, v => clash.setMode(v)));
             }
 
-            /* Config select */
-            let tdConfig = document.getElementById('td-config');
-            if (tdConfig) {
-                tdConfig.innerHTML = '';
-                let opts = [['', '（未设置）']].concat(configs.map(c => [c, c]));
-                tdConfig.appendChild(mkSelect('sel-config', opts, curConf,
-                    v => v && clash.setConfig(v).then(() => L.ui.showModal(null, [
-                        E('p', {}, '配置已切换，正在重启…'),
-                    ]) && setTimeout(() => location.reload(), 2500)
-                )));
+            /* Config */
+            let elCfg = document.getElementById('row-config');
+            if (elCfg) {
+                elCfg.innerHTML = '';
+                let opts = configs.length ? configs.map(c => [c, c]) : [['', '（无配置）']];
+                if (curConf && !configs.includes(curConf)) opts.unshift([curConf, curConf]);
+                elCfg.appendChild(mkSelect('sel-config', opts, curConf,
+                    v => v && clash.setConfig(v)
+                ));
             }
 
             /* Proxy mode */
-            let tdProxy = document.getElementById('td-proxy');
-            if (tdProxy) {
-                tdProxy.innerHTML = '';
-                tdProxy.appendChild(mkSelect('sel-proxy', [
+            let elProxy = document.getElementById('row-proxy');
+            if (elProxy) {
+                elProxy.innerHTML = '';
+                elProxy.appendChild(mkSelect('sel-proxy', [
                     ['rule',   '规则模式'],
                     ['global', '全局模式'],
                     ['direct', '直连模式']
@@ -157,10 +139,10 @@ return view.extend({
             }
 
             /* Panel type */
-            let tdPanel = document.getElementById('td-panel');
-            if (tdPanel) {
-                tdPanel.innerHTML = '';
-                tdPanel.appendChild(mkSelect('sel-panel', [
+            let elPanel = document.getElementById('row-panel');
+            if (elPanel) {
+                elPanel.innerHTML = '';
+                elPanel.appendChild(mkSelect('sel-panel', [
                     ['metacubexd', 'MetaCubeXD Panel'],
                     ['yacd',       'YACD Panel'],
                     ['zashboard',  'Zashboard'],
@@ -168,47 +150,28 @@ return view.extend({
                 ], panelType, v => clash.setPanel(v)));
             }
 
-            /* Panel address row */
-            let tdPanelRow = document.getElementById('td-panel-row');
-            if (tdPanelRow) {
-                let panelUrls = {
-                    metacubexd: 'http://' + localIp + ':' + dashPort + '/ui',
-                    yacd:       'http://' + localIp + ':' + dashPort + '/ui',
-                    zashboard:  'http://' + localIp + ':' + dashPort + '/ui',
-                    razord:     'http://' + localIp + ':' + dashPort + '/ui'
-                };
+            /* Panel buttons */
+            let elBtns = document.getElementById('row-panel-btns');
+            if (elBtns) {
+                elBtns.innerHTML = '';
                 let authSuffix = dashPass ? '?secret=' + encodeURIComponent(dashPass) : '';
-                let panelUrl   = (panelUrls[panelType] || '') + authSuffix;
-                let canOpen    = dashInstalled || (panelType === 'yacd' && yacdInstalled);
-
-                tdPanelRow.innerHTML = '';
-                tdPanelRow.appendChild(E('div', { class: 'clash-center-box' }, [
-                    E('div', { class: 'clash-panel-actions' }, [
-                        mkBtn('更新面板', '#0d8f5b', () => clash.updatePanel(panelType)),
-                        canOpen
-                            ? Object.assign(E('a', {
-                                href: panelUrl,
-                                target: '_blank',
-                                class: 'btn cbi-button',
-                                style: 'background:#6c757d;color:#fff;padding:5px 14px;margin:2px;text-decoration:none'
-                              }, '打开面板'), {})
-                            : E('button', {
-                                class: 'btn cbi-button',
-                                style: 'background:#aaa;color:#fff;padding:5px 14px;margin:2px',
-                                disabled: ''
-                              }, '打开面板')
-                    ])
-                ]));
+                let panelUrl   = 'http://' + localIp + ':' + dashPort + '/ui' + authSuffix;
+                elBtns.appendChild(mkBtn('更新面板', '#0d8f5b', () => clash.updatePanel(panelType)));
+                if (dashOk) {
+                    let a = E('a', {
+                        href: panelUrl, target: '_blank', rel: 'noopener',
+                        style: 'background:#6c757d;color:#fff;border-radius:.5rem;padding:.55rem 1.2rem;font-size:.95rem;text-decoration:none'
+                    }, '打开面板');
+                    elBtns.appendChild(a);
+                } else {
+                    elBtns.appendChild(mkBtn('打开面板', '#aaa', null));
+                }
             }
         }
 
-        /* Initial render */
-        renderAll(st);
+        renderAll(data[0] || {});
 
-        /* Poll */
-        poll.add(function () {
-            return clash.status().then(s => renderAll(s));
-        }, 3);
+        poll.add(() => clash.status().then(s => renderAll(s)), 3);
 
         return node;
     },
