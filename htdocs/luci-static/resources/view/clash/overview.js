@@ -63,8 +63,8 @@ return view.extend({
 
         function mkRow(label, tdId) {
             return E('tr', {}, [
-                E('td', { style: 'width:40%;padding:8px 12px;color:#555;font-size:.95rem;vertical-align:middle' }, label),
-                E('td', { id: tdId, style: 'padding:6px 12px;vertical-align:middle;text-align:center' })
+                E('td', { style: 'width:30%;padding:8px 12px;color:#555;font-size:.95rem;vertical-align:middle;white-space:nowrap' }, label),
+                E('td', { id: tdId, style: 'padding:6px 12px;vertical-align:middle' })
             ]);
         }
 
