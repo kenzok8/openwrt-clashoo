@@ -82,8 +82,6 @@ return view.extend({
         o.description = 'TPROXY：需内核支持 IP_TRANSPARENT；TUN：与 TCP TUN 模式配合使用';
 
         o = s.option(form.ListValue, 'stack', '网络栈类型');
-        o.optional    = true;
-        o.placeholder = 'mixed';
         o.value('system', 'System（原生 TCP+UDP）');
         o.value('gvisor', 'gVisor（沙箱隔离）');
         o.value('mixed',  'Mixed（推荐：TCP=System, UDP=gVisor）');
