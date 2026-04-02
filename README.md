@@ -1,12 +1,18 @@
 <p align="center">
-  <img src="logo.png" alt="Clashoo" width="160" />
+    <img src="logo.png" width="138" />
 </p>
-
-<h1 align="center">luci-app-clashoo</h1>
-
-<p align="center">
-  基于 <a href="https://github.com/MetaCubeX/mihomo">mihomo</a> 内核的 OpenWrt LuCI 代理管理界面
-</p>
+<h1 align="center">Clashoo</h1>
+<p align="center"><strong>基于 mihomo 内核的 OpenWrt LuCI 代理管理界面</strong></p>
+<div align="center">
+    <a href="https://github.com/kenzok78/luci-app-clashoo/releases" target="_blank">
+    <img alt="GitHub release" src="https://img.shields.io/github/v/release/kenzok78/luci-app-clashoo?style=flat-square"></a>
+    <a href="https://github.com/kenzok78/luci-app-clashoo/releases" target="_blank">
+    <img alt="GitHub downloads" src="https://img.shields.io/github/downloads/kenzok78/luci-app-clashoo/total.svg?style=flat-square"></a>
+    <a href="https://github.com/kenzok78/luci-app-clashoo/commits" target="_blank">
+    <img alt="GitHub commit" src="https://img.shields.io/github/commit-activity/m/kenzok78/luci-app-clashoo?style=flat-square"></a>
+    <a href="https://github.com/kenzok78/luci-app-clashoo/issues?q=is%3Aissue+is%3Aclosed" target="_blank">
+    <img alt="GitHub closed issues" src="https://img.shields.io/github/issues-closed/kenzok78/luci-app-clashoo.svg?style=flat-square"></a>
+</div>
 
 ## 功能特性
 
