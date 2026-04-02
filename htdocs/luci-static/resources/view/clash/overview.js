@@ -15,14 +15,14 @@ const COLORS = {
     running:   '#1f8b4c',   /* 运行中/绿色 */
     stopped:   '#b58900',   /* 已停止/琥珀 */
     primary:   '#4a76d4',   /* 主操作按钮 */
-    secondary: '#6c757d',   /* 次操作按钮 */
+    secondary: '#adb5bd',   /* 次操作按钮 */
     success:   '#28a745',   /* 延迟正常 */
     warning:   '#ffc107',   /* 延迟偏高 */
     danger:    '#dc3545',   /* 超时/错误 */
     muted:     '#adb5bd',   /* 禁用态 */
     accent:    '#0d8f5b',   /* 更新面板按钮 */
     intl:      '#20c997',   /* 国外标签 */
-    domestic:  '#17a2b8',   /* 国内标签 */
+    domestic:  '#20c997',   /* 国内标签 */
     textMuted: '#aaa',      /* 副标题/灰色文字 */
     textLight: '#777',      /* 滚动日志文字 */
     textLabel: '#555',      /* 表格标签 */
@@ -30,18 +30,12 @@ const COLORS = {
 };
 
 const PROBE_SITES = [
-    { id: 'bilibili',  label: 'Bilibili', type: '国内',
-      url: 'https://www.bilibili.com/favicon.ico',
-      icon: 'https://www.bilibili.com/favicon.ico' },
     { id: 'wechat',    label: '微信',     type: '国内',
       url: 'https://res.wx.qq.com/a/wx_fed/assets/res/NTI4MWU5.ico',
       icon: 'https://res.wx.qq.com/a/wx_fed/assets/res/NTI4MWU5.ico' },
     { id: 'youtube',   label: 'YouTube',  type: '国外',
       url: 'https://www.youtube.com/favicon.ico',
       icon: 'https://www.youtube.com/favicon.ico' },
-    { id: 'github',    label: 'GitHub',   type: '国外',
-      url: 'https://github.com/favicon.ico',
-      icon: 'https://github.com/favicon.ico' },
 ];
 
 return view.extend({
@@ -113,6 +107,7 @@ return view.extend({
         let _isRunning   = false;
         /* diff-update: 缓存上次状态，只在数据变化时重绘 */
         let _prev = {};
+        let _firstRender = true;
 
         /* ── structure ── */
         let node = E('div', {}, [
@@ -131,7 +126,7 @@ return view.extend({
                 /* 连接测试 — 紧跟副标题 */
                 E('div', {
                     id: 'probe-grid',
-                    style: 'display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;padding:8px 12px 4px'
+                    style: 'display:flex;gap:10px;padding:8px 12px 4px;max-width:600px;margin:0 auto'
                 }),
                 E('hr', { style: 'border:none;border-top:1px solid #eee;margin:8px 0 4px' }),
                 E('div', { class: 'cbi-section-node' }, [
@@ -151,7 +146,10 @@ return view.extend({
         let _lastRealLog  = '';
         let _stableTicks  = 0;
 
-        function $id(id) { return document.contains(node) ? document.getElementById(id) : null; }
+        function $id(id) {
+            if (document.contains(node)) return document.getElementById(id);
+            return node.querySelector('#' + id);
+        }
 
         poll.add(function () {
             return clash.readRealLog().then(function (c) {
@@ -199,7 +197,7 @@ return view.extend({
 
             /* Client — only rebuild when running state changes */
             let elClient = $id('ov-client');
-            if (elClient && !locked && _prev.running !== running) {
+            if (elClient && !locked && (_firstRender || _prev.running !== running)) {
                 _prev.running = running;
                 elClient.innerHTML = '';
                 let grp = mkBtnGroup();
@@ -221,7 +219,7 @@ return view.extend({
 
             /* Mode — only rebuild when value changes */
             let elMode = $id('ov-mode');
-            if (elMode && _prev.mode !== modeValue) {
+            if (elMode && (_firstRender || _prev.mode !== modeValue)) {
                 _prev.mode = modeValue;
                 elMode.innerHTML = '';
                 elMode.appendChild(mkSel('sel-mode', [
@@ -234,7 +232,7 @@ return view.extend({
             /* Config — only rebuild when config list or selection changes */
             let cfgKey = configs.join(',') + '|' + curConf;
             let elCfg = $id('ov-config');
-            if (elCfg && _prev.cfgKey !== cfgKey) {
+            if (elCfg && (_firstRender || _prev.cfgKey !== cfgKey)) {
                 _prev.cfgKey = cfgKey;
                 elCfg.innerHTML = '';
                 let opts = configs.length ? configs.map(c => [c, c]) : [['', '（无配置）']];
@@ -245,7 +243,7 @@ return view.extend({
 
             /* Proxy mode — only rebuild when value changes */
             let elProxy = $id('ov-proxy');
-            if (elProxy && _prev.proxy !== proxyMode) {
+            if (elProxy && (_firstRender || _prev.proxy !== proxyMode)) {
                 _prev.proxy = proxyMode;
                 elProxy.innerHTML = '';
                 elProxy.appendChild(mkSel('sel-proxy', [
@@ -257,7 +255,7 @@ return view.extend({
 
             /* Panel type — only rebuild when value changes */
             let elPanel = $id('ov-panel');
-            if (elPanel && _prev.panel !== panelType) {
+            if (elPanel && (_firstRender || _prev.panel !== panelType)) {
                 _prev.panel = panelType;
                 elPanel.innerHTML = '';
                 elPanel.appendChild(mkSel('sel-panel', [
@@ -271,7 +269,7 @@ return view.extend({
             /* Panel address — only rebuild when relevant data changes */
             let addrKey = panelType + '|' + dashPort + '|' + dashPass + '|' + localIp + '|' + dashOk;
             let elAddr = $id('ov-panel-addr');
-            if (elAddr && _prev.addrKey !== addrKey) {
+            if (elAddr && (_firstRender || _prev.addrKey !== addrKey)) {
                 _prev.addrKey = addrKey;
                 elAddr.innerHTML = '';
                 let authSuffix = dashPass ? '?secret=' + encodeURIComponent(dashPass) : '';
@@ -289,6 +287,7 @@ return view.extend({
                 }
                 elAddr.appendChild(grp);
             }
+            _firstRender = false;
         }
 
         update(data[0] || {});
@@ -302,7 +301,10 @@ return view.extend({
             let latest  = history[history.length - 1];
 
             let isIntl      = site.type === '国外';
-            let badgeStyle  = 'font-size:.72rem;padding:2px 8px;border-radius:999px;border:1.5px solid;font-weight:600;' +
+            let isSmall = (typeof window !== 'undefined' && window.innerWidth < 480);
+            let pad = isSmall ? '2px 6px' : '2px 8px';
+            let fs  = isSmall ? '.66rem' : '.72rem';
+            let badgeStyle  = 'font-size:' + fs + ';padding:' + pad + ';border-radius:999px;border:1.5px solid;font-weight:600;' +
                 (isIntl ? 'color:' + COLORS.intl + ';border-color:' + COLORS.intl : 'color:' + COLORS.domestic + ';border-color:' + COLORS.domestic);
             let latencyColor = !latest ? COLORS.textNone
                 : !latest.ok           ? COLORS.danger
@@ -311,17 +313,19 @@ return view.extend({
 
             return E('div', {
                 id: 'probe-card-' + site.id,
-                style: 'border-radius:8px;padding:10px 14px;background:#fff;min-width:0'
+                style: 'display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-radius:8px;background:#f8f9fa;flex:1'
             }, [
                 E('div', { style: 'display:flex;align-items:center;gap:8px' }, [
                     E('img', {
                         src: site.icon,
-                        style: 'width:18px;height:18px;object-fit:contain;flex-shrink:0;border-radius:3px',
+                        style: 'width:20px;height:20px;object-fit:contain;border-radius:3px',
                         onerror: "this.style.display='none'"
                     }),
-                    E('span', { style: 'font-weight:600;font-size:14px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, site.label),
+                    E('span', { style: 'font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px' }, site.label)
+                ]),
+                E('div', { style: 'display:flex;align-items:center;gap:8px' }, [
                     E('span', { style: badgeStyle }, site.type),
-                    E('span', { style: 'font-weight:700;font-size:14px;min-width:56px;text-align:right;color:' + latencyColor }, latencyText)
+                    E('span', { style: 'font-weight:600;font-size:13px;min-width:48px;text-align:right;color:' + latencyColor }, latencyText)
                 ])
             ]);
         }
