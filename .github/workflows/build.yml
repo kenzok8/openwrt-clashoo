@@ -69,7 +69,7 @@ jobs:
           set -euo pipefail
           arch="${{ matrix.arch }}"
           sdk="${{ matrix.sdk }}"
-          image="ghcr.io/openwrt/sdk:${sdk}-${arch}"
+          image="ghcr.io/openwrt/sdk:${arch}-${sdk}"
 
           docker run --rm \
             -v "$GITHUB_WORKSPACE:/workspace" \
