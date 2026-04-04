@@ -2,7 +2,7 @@
 
 set -eu
 
-REPO="kenzok8/luci-app-clashoo"
+REPO="kenzok8/openwrt-clashoo"
 API_URL="https://api.github.com/repos/${REPO}/releases/latest"
 TMP_DIR="/tmp/clashoo-install"
 

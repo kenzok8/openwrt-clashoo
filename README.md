@@ -12,14 +12,14 @@
 <h1 align="center">Clashoo</h1>
 <p align="center"><strong>基于 mihomo 内核的 OpenWrt LuCI 代理管理界面</strong></p>
 <div align="center">
-    <a href="https://github.com/kenzok8/luci-app-clashoo/releases" target="_blank">
-    <img alt="GitHub release" src="https://img.shields.io/github/v/release/kenzok8/luci-app-clashoo?style=flat-square"></a>
-    <a href="https://github.com/kenzok8/luci-app-clashoo/releases" target="_blank">
-    <img alt="GitHub downloads" src="https://img.shields.io/github/downloads/kenzok8/luci-app-clashoo/total.svg?style=flat-square"></a>
-    <a href="https://github.com/kenzok8/luci-app-clashoo/commits" target="_blank">
-    <img alt="GitHub commit" src="https://img.shields.io/github/commit-activity/m/kenzok8/luci-app-clashoo?style=flat-square"></a>
-    <a href="https://github.com/kenzok8/luci-app-clashoo/issues?q=is%3Aissue+is%3Aclosed" target="_blank">
-    <img alt="GitHub closed issues" src="https://img.shields.io/github/issues-closed/kenzok8/luci-app-clashoo.svg?style=flat-square"></a>
+    <a href="https://github.com/kenzok8/openwrt-clashoo/releases" target="_blank">
+    <img alt="GitHub release" src="https://img.shields.io/github/v/release/kenzok8/openwrt-clashoo?style=flat-square"></a>
+    <a href="https://github.com/kenzok8/openwrt-clashoo/releases" target="_blank">
+    <img alt="GitHub downloads" src="https://img.shields.io/github/downloads/kenzok8/openwrt-clashoo/total.svg?style=flat-square"></a>
+    <a href="https://github.com/kenzok8/openwrt-clashoo/commits" target="_blank">
+    <img alt="GitHub commit" src="https://img.shields.io/github/commit-activity/m/kenzok8/openwrt-clashoo?style=flat-square"></a>
+    <a href="https://github.com/kenzok8/openwrt-clashoo/issues?q=is%3Aissue+is%3Aclosed" target="_blank">
+    <img alt="GitHub closed issues" src="https://img.shields.io/github/issues-closed/kenzok8/openwrt-clashoo.svg?style=flat-square"></a>
 </div>
 
 ## 功能特性
@@ -56,7 +56,7 @@
 ### A. 一键安装（推荐）
 
 ```bash
-wget -O - https://github.com/kenzok8/luci-app-clashoo/raw/refs/heads/main/scripts/install.sh | ash
+wget -O - https://github.com/kenzok8/openwrt-clashoo/raw/refs/heads/main/scripts/install.sh | ash
 ```
 
 ### B. 从 Release 手动安装
@@ -78,7 +78,7 @@ apk add --allow-untrusted luci-i18n-clashoo-zh-cn_*.apk
 ### C. 从源码编译安装
 
 ```bash
-git clone https://github.com/kenzok8/luci-app-clashoo.git package/luci-app-clashoo
+git clone https://github.com/kenzok8/openwrt-clashoo.git package/openwrt-clashoo
 make package/clashoo/compile V=s
 make package/clashoo-runtime/compile V=s
 make package/luci-app-clashoo/compile V=s
@@ -87,7 +87,7 @@ make package/luci-app-clashoo/compile V=s
 ### 卸载并重置
 
 ```bash
-wget -O - https://github.com/kenzok8/luci-app-clashoo/raw/refs/heads/main/scripts/uninstall.sh | ash
+wget -O - https://github.com/kenzok8/openwrt-clashoo/raw/refs/heads/main/scripts/uninstall.sh | ash
 ```
 
 ## 多架构核心
