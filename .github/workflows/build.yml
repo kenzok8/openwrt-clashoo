@@ -89,20 +89,20 @@ jobs:
         run: |
           mkdir -p public/${{ matrix.branch }}/${{ matrix.arch }}
           cp -r bin/packages/${{ matrix.arch }}/packages_ci/* public/${{ matrix.branch }}/${{ matrix.arch }}/
-          tar -c -z -f feed_clashoo_${{ matrix.arch }}-${{ matrix.branch }}.tar.gz public/${{ matrix.branch }}/${{ matrix.arch }}
+          tar -c -z -f clashoo_${{ matrix.arch }}-${{ matrix.branch }}.tar.gz public/${{ matrix.branch }}/${{ matrix.arch }}
 
       - if: github.event_name == 'push' && startsWith(github.ref_name, 'v')
         name: release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            feed_clashoo_${{ matrix.arch }}-${{ matrix.branch }}.tar.gz
+            clashoo_${{ matrix.arch }}-${{ matrix.branch }}.tar.gz
 
       - name: upload
         uses: actions/upload-artifact@v7
         with:
-          name: feed_clashoo_${{ matrix.arch }}-${{ matrix.branch }}
-          path: feed_clashoo_${{ matrix.arch }}-${{ matrix.branch }}.tar.gz
+          name: clashoo_${{ matrix.arch }}-${{ matrix.branch }}
+          path: clashoo_${{ matrix.arch }}-${{ matrix.branch }}.tar.gz
 
   feed:
     needs: release
@@ -113,20 +113,13 @@ jobs:
       - name: download
         uses: actions/download-artifact@v8
         with:
-          pattern: feed_clashoo_*
+          pattern: clashoo_*
           merge-multiple: true
 
       - name: uncompress
         run: |
           ls -la
-          for file in feed_clashoo_*.tar.gz; do [ -f "$file" ] && tar -x -z -f "$file"; done
-
-      - name: prepare
-        run: |
-          mkdir -p public/clashoo
-          mv public/openwrt-24.10/* public/clashoo/ 2>/dev/null || true
-          tree --dirsfirst --sort name -P '*.apk|*.ipk' --prune --noreport -H "" -T "Clashoo's Feed" --charset utf-8 -o public/index.html public
-          sed -i '/<p class="VERSION">/,/<\/p>/d' public/index.html
+          for file in clashoo_*.tar.gz; do [ -f "$file" ] && tar -x -z -f "$file"; done
 
       - name: Upload packages to Backblaze B2
         run: |
