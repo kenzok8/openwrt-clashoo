@@ -2,6 +2,9 @@ name: Build Clashoo Packages
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  B2_KEY_ID: ${{ secrets.B2_KEY_ID }}
+  B2_APPLICATION_KEY: ${{ secrets.B2_APPLICATION_KEY }}
+  B2_BUCKET: ${{ secrets.B2_BUCKET }}
 
 on:
   workflow_dispatch:
@@ -12,7 +15,7 @@ on:
       - 'v*'
 
 jobs:
-  build:
+  release:
     name: ${{ matrix.arch }}-${{ matrix.branch }} release
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -81,9 +84,8 @@ jobs:
 
       - name: compress
         run: |
-          tar -c -z -f clashoo_${{ matrix.arch }}-${{ matrix.branch }}.tar.gz -C bin/packages/${{ matrix.arch }}/packages_ci .
           mkdir -p public/${{ matrix.branch }}/${{ matrix.arch }}
-          mv bin/packages/${{ matrix.arch }}/packages_ci public/${{ matrix.branch }}/${{ matrix.arch }}
+          cp -r bin/packages/${{ matrix.arch }}/packages_ci/* public/${{ matrix.branch }}/${{ matrix.arch }}/
           tar -c -z -f feed_clashoo_${{ matrix.arch }}-${{ matrix.branch }}.tar.gz public/${{ matrix.branch }}/${{ matrix.arch }}
 
       - if: github.event_name == 'push' && startsWith(github.ref_name, 'v')
@@ -91,10 +93,56 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            clashoo_${{ matrix.arch }}-${{ matrix.branch }}.tar.gz
+            feed_clashoo_${{ matrix.arch }}-${{ matrix.branch }}.tar.gz
 
       - name: upload
         uses: actions/upload-artifact@v7
         with:
           name: feed_clashoo_${{ matrix.arch }}-${{ matrix.branch }}
           path: feed_clashoo_${{ matrix.arch }}-${{ matrix.branch }}.tar.gz
+
+  feed:
+    needs: release
+    name: feed
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: download
+        uses: actions/download-artifact@v8
+        with:
+          pattern: feed_clashoo_*
+          merge-multiple: true
+
+      - name: uncompress
+        run: |
+          for file in feed_clashoo_*.tar.gz; do tar -x -z -f "$file"; done
+
+      - name: prepare
+        run: |
+          mkdir -p public/clashoo
+          mv public/openwrt-24.10/* public/clashoo/ 2>/dev/null || true
+          tree --dirsfirst --sort name -P '*.apk|*.ipk' --prune --noreport -H "" -T "Clashoo's Feed" --charset utf-8 -o public/index.html public
+          sed -i '/<p class="VERSION">/,/<\/p>/d' public/index.html
+
+      - name: Upload packages to Backblaze B2
+        run: |
+          set -euo pipefail
+          [ -n "$B2_KEY_ID" ] || { echo "Missing B2_KEY_ID"; exit 1; }
+          [ -n "$B2_APPLICATION_KEY" ] || { echo "Missing B2_APPLICATION_KEY"; exit 1; }
+          [ -n "$B2_BUCKET" ] || { echo "Missing B2_BUCKET"; exit 1; }
+
+          curl -fsSL https://rclone.org/install.sh | sudo bash
+          mkdir -p ~/.config/rclone
+          cat > ~/.config/rclone/rclone.conf <<EOF
+          [b2]
+          type = b2
+          account = $B2_KEY_ID
+          key = $B2_APPLICATION_KEY
+          hard_delete = true
+          EOF
+
+          rclone sync public/clashoo/ "b2:$B2_BUCKET/clashoo/" \
+            --checksum \
+            --fast-list \
+            --transfers 8 \
+            --checkers 16
