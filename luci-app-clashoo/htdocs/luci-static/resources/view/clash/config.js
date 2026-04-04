@@ -13,6 +13,7 @@ let callDownloadSubs= rpc.declare({ object: 'luci.clash', method: 'download_subs
 let callUpdateSub   = rpc.declare({ object: 'luci.clash', method: 'update_sub', params: ['name'], expect: {} });
 let callSetConfig   = rpc.declare({ object: 'luci.clash', method: 'set_config', params: ['name'], expect: {} });
 let callApplyRewrite= rpc.declare({ object: 'luci.clash', method: 'apply_rewrite', params: ['base_type', 'base_name', 'rewrite_type', 'rewrite_name', 'output_name', 'set_active'], expect: {} });
+let callFetchRewriteUrl = rpc.declare({ object: 'luci.clash', method: 'fetch_rewrite_url', params: ['url', 'name'], expect: {} });
 
 
 function mkBtn(label, style, fn) {
@@ -358,6 +359,44 @@ return view.extend({
                 style: 'min-width:320px'
             });
 
+            let remoteUrl = E('input', {
+                type: 'text',
+                class: 'cbi-input-text',
+                style: 'min-width:520px',
+                value: 'https://raw.githubusercontent.com/kenzok78/ruleset/main/rule/config/Clash/fx.yaml'
+            });
+            let remoteName = E('input', {
+                type: 'text',
+                class: 'cbi-input-text',
+                placeholder: 'fx.yaml（可选）',
+                style: 'min-width:220px'
+            });
+            let remoteBtn = E('button', {
+                type: 'button',
+                class: 'btn cbi-button cbi-button-apply',
+                style: 'white-space:nowrap'
+            }, _('下载远程复写'));
+
+            remoteBtn.addEventListener('click', function () {
+                let url = (remoteUrl.value || '').trim();
+                let name = (remoteName.value || '').trim();
+                if (!url) {
+                    setPageStatus(_('请输入远程复写 URL'), false);
+                    return;
+                }
+                setPageStatus(_('正在下载远程复写文件...'), true);
+                callFetchRewriteUrl(url, name).then(function (r) {
+                    if (r && r.success) {
+                        setPageStatus((r.message || _('下载成功')) + '，页面将自动刷新', true);
+                        setTimeout(() => location.reload(), 1000);
+                    } else {
+                        setPageStatus((r && (r.message || r.error)) || _('下载失败'), false);
+                    }
+                }).catch(function (e) {
+                    setPageStatus(_('下载失败: ') + (e && e.message ? e.message : e), false);
+                });
+            });
+
             let setActive = E('input', { type: 'checkbox' });
             let actLabel = E('label', { style: 'margin-left:6px;user-select:none' }, _('生成后设为当前配置'));
 
@@ -420,6 +459,12 @@ return view.extend({
                 E('div', { style: 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0' }, [
                     E('span', { style: 'min-width:84px' }, _('输出文件名')),
                     outName
+                ]),
+                E('div', { style: 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0' }, [
+                    E('span', { style: 'min-width:84px' }, _('远程复写 URL')),
+                    remoteUrl,
+                    remoteName,
+                    remoteBtn
                 ]),
                 E('div', { style: 'display:flex;align-items:center;gap:6px;margin:8px 0' }, [
                     setActive,

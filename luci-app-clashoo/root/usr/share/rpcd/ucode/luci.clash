@@ -208,6 +208,14 @@ name = name + '.yaml';
 return name;
 }
 
+function file_name_from_url(url) {
+url = trim(url || '');
+if (!url) return '';
+url = replace(url, /[?#].*$/, '');
+let name = replace(url, /^.*\//, '');
+return ensure_yaml_name(name);
+}
+
 function shell_quote(s) {
 return "'" + replace(s || '', /'/g, "'\\''") + "'";
 }
@@ -807,6 +815,49 @@ success: true,
 output_name,
 output_path: out_path,
 message: '复写成功: ' + output_name
+};
+}
+},
+
+fetch_rewrite_url: {
+args: { url: 'url', name: 'name' },
+call: function(req) {
+let url = trim(req.args?.url || '');
+let name = ensure_yaml_name(req.args?.name || '');
+
+if (!url || !match(url, /^https?:\/\//))
+return { success: false, error: 'invalid_url', message: '无效的 URL' };
+
+if (!name)
+name = file_name_from_url(url);
+if (!name)
+name = 'rewrite-remote.yaml';
+
+let out_dir = '/usr/share/clash/config/sub';
+let out_path = out_dir + '/' + name;
+let tmp_path = '/tmp/rewrite_remote.yaml';
+
+system('mkdir -p ' + shell_quote(out_dir));
+
+let dl_cmd = '(curl -fL --connect-timeout 15 --max-time 90 ' + shell_quote(url) + ' -o ' + shell_quote(tmp_path)
+  + ' || wget -O ' + shell_quote(tmp_path) + ' ' + shell_quote(url) + ') >/dev/null 2>&1';
+
+if (system(dl_cmd) != 0 || !access(tmp_path, 'r'))
+return { success: false, error: 'download_failed', message: '远程复写文件下载失败' };
+
+if (system('yq e \'.\' ' + shell_quote(tmp_path) + ' >/dev/null 2>&1') != 0) {
+system('rm -f ' + shell_quote(tmp_path));
+return { success: false, error: 'invalid_yaml', message: '远程复写文件 YAML 格式无效' };
+}
+
+if (system('mv -f ' + shell_quote(tmp_path) + ' ' + shell_quote(out_path)) != 0)
+return { success: false, error: 'write_failed', message: '保存远程复写文件失败' };
+
+return {
+success: true,
+name,
+path: out_path,
+message: '远程复写文件已保存: ' + name
 };
 }
 },
