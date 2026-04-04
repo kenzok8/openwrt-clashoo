@@ -27,6 +27,15 @@ sanitize_name() {
 	printf '%s' "$name"
 }
 
+sanitize_custom_name() {
+	local name
+	name="$1"
+	name="$(printf '%s' "$name" | sed -e 's/\.yaml$//' -e 's/\.yml$//')"
+	name="$(printf '%s' "$name" | tr ' /' '--')"
+	name="$(printf '%s' "$name" | sed -e 's/[\\]//g' -e 's/\.\.+/-/g' -e 's/--\+/-/g' -e 's/^[._-]*//' -e 's/[._-]*$//')"
+	printf '%s' "$name"
+}
+
 url_to_name() {
 	local url host qname
 	url="$1"
@@ -47,7 +56,10 @@ url_to_name() {
 
 next_available_name() {
 	local base try idx
-	base="$(sanitize_name "$1")"
+	base="$1"
+	base="$(printf '%s' "$base" | sed -e 's/\.yaml$//' -e 's/\.yml$//')"
+	base="$(printf '%s' "$base" | tr ' /' '--')"
+	base="$(printf '%s' "$base" | sed -e 's/[\\]//g' -e 's/\.\.+/-/g' -e 's/--\+/-/g' -e 's/^[._-]*//' -e 's/[._-]*$//')"
 	[ -n "$base" ] || base="sub"
 
 	if [ ! -f "$SUB_DIR/${base}.yaml" ]; then
@@ -106,7 +118,7 @@ download_subscription() {
 	tmp="${TMP_PREFIX}.yaml"
 
 	rm -f "$tmp" >/dev/null 2>&1
-	wget -q -c4 --no-check-certificate --user-agent="Clash/OpenWRT" "$url" -O "$tmp"
+	wget -q --tries=4 --timeout=20 --no-check-certificate --user-agent="Clash/OpenWRT" "$url" -O "$tmp"
 	if [ "$?" -ne 0 ]; then
 		rm -f "$tmp" >/dev/null 2>&1
 		return 1
@@ -163,7 +175,7 @@ fi
 ensure_system_dns
 log_text "Downloading subscription..." "开始下载订阅..."
 
-base_name="$(sanitize_name "$config_name_raw")"
+base_name="$(sanitize_custom_name "$config_name_raw")"
 timestamp="$(date +%Y%m%d%H%M%S)"
 
 success=0

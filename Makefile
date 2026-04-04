@@ -1,27 +1,113 @@
-include $(TOPDIR)/rules.mk 
+include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-clashoo
-PKG_VERSION:=v1.9.0
-PKG_MAINTAINER:=frainzy1477
+PKG_VERSION:=1.9.0
+PKG_RELEASE:=15
+PKG_MAINTAINER:=kenzok8
 
 include $(INCLUDE_DIR)/package.mk
 
-define Package/$(PKG_NAME)
-	SECTION:=luci
-	CATEGORY:=LuCI
-	SUBMENU:=3. Applications
-	TITLE:=LuCI app for Clashoo
-	DEPENDS:=+luci-base +bash +ca-bundle +curl +yq +firewall4 +ip-full +kmod-inet-diag +kmod-nft-socket +kmod-nft-tproxy +kmod-tun +kmod-dummy
-	PKGARCH:=all
-	MAINTAINER:=frainzy1477
+define Package/clashoo
+  SECTION:=net
+  CATEGORY:=Network
+  TITLE:=Clashoo bundled core
+  PROVIDES:=mihomo clash-meta
+  PKGARCH:=$(ARCH_PACKAGES)
+  MAINTAINER:=kenzok8
 endef
 
-define Package/$(PKG_NAME)/description
-	Luci Interface for clash.
+define Package/clashoo/description
+  Bundled Mihomo core binary for Clashoo.
+endef
+
+define Package/clashoo/install
+	$(INSTALL_DIR) $(1)/usr/bin
+	[ -x ./core/mihomo/$(ARCH_PACKAGES)/mihomo ] || { echo "Missing bundled core for $(ARCH_PACKAGES): core/mihomo/$(ARCH_PACKAGES)/mihomo" >&2; exit 1; }
+	$(INSTALL_BIN) ./core/mihomo/$(ARCH_PACKAGES)/mihomo $(1)/usr/bin/mihomo
+	ln -sf /usr/bin/mihomo $(1)/usr/bin/clash-meta
+endef
+
+define Package/clashoo-runtime
+  SECTION:=net
+  CATEGORY:=Network
+  TITLE:=Clashoo runtime for Mihomo
+  DEPENDS:=+clashoo +bash +ca-bundle +curl +yq +firewall4 +ip-full +kmod-inet-diag +kmod-nft-socket +kmod-nft-tproxy +kmod-tun +kmod-dummy
+  PROVIDES:=clash-meta
+  PKGARCH:=all
+  MAINTAINER:=kenzok8
+endef
+
+define Package/clashoo-runtime/description
+  Clashoo runtime scripts and init integration for Mihomo core.
+endef
+
+define Package/clashoo-runtime/conffiles
+/etc/config/clash
+endef
+
+define Package/clashoo-runtime/install
+	$(INSTALL_DIR) $(1)/etc/init.d
+	$(INSTALL_DIR) $(1)/etc/config
+	$(INSTALL_DIR) $(1)/etc/clash
+	$(INSTALL_DIR) $(1)/etc/clash/provider
+	$(INSTALL_DIR) $(1)/etc/clash/proxyprovider
+	$(INSTALL_DIR) $(1)/etc/clash/ruleprovider
+	$(INSTALL_DIR) $(1)/usr/share
+	$(INSTALL_DIR) $(1)/usr/share/clash
+	$(INSTALL_DIR) $(1)/usr/share/clashbackup
+	$(INSTALL_DIR) $(1)/usr/share/clash/config
+	$(INSTALL_DIR) $(1)/usr/share/clash/config/sub
+	$(INSTALL_DIR) $(1)/usr/share/clash/config/upload
+	$(INSTALL_DIR) $(1)/usr/share/clash/config/custom
+
+	$(INSTALL_BIN) ./root/etc/init.d/clash $(1)/etc/init.d/clash
+	$(INSTALL_CONF) ./root/etc/config/clash $(1)/etc/config/clash
+	$(CP) ./root/usr/share/clash/* $(1)/usr/share/clash/
+
+	$(RM) $(1)/usr/share/clash/dashboard
+	$(RM) $(1)/usr/share/clash/yacd
+	$(RM) $(1)/usr/share/clash/clash.txt
+	$(RM) $(1)/usr/share/clash/update.log
+	$(RM) $(1)/usr/share/clash/geoip.log
+	$(RM) $(1)/usr/share/clash/core_down_complete
+endef
+
+define Package/clashoo-runtime/postinst
+#!/bin/sh
+if [ -z "$${IPKG_INSTROOT}" ]; then
+	[ -x /usr/bin/mihomo ] && [ ! -x /usr/bin/clash-meta ] && ln -sf /usr/bin/mihomo /usr/bin/clash-meta
+	/etc/init.d/clash disable 2>/dev/null
+fi
+exit 0
+endef
+
+define Package/clashoo-runtime/prerm
+#!/bin/sh
+if [ -z "$${IPKG_INSTROOT}" ]; then
+	/etc/init.d/clash disable 2>/dev/null
+	/etc/init.d/clash stop >/dev/null 2>&1
+fi
+exit 0
+endef
+
+define Package/luci-app-clashoo
+  SECTION:=luci
+  CATEGORY:=LuCI
+  SUBMENU:=3. Applications
+  TITLE:=LuCI app for Clashoo
+  DEPENDS:=+luci-base +clashoo-runtime
+  PKGARCH:=all
+  MAINTAINER:=kenzok8
+endef
+
+define Package/luci-app-clashoo/description
+  LuCI web interface for Clashoo.
 endef
 
 define Build/Prepare
-	po2lmo ${CURDIR}/po/zh-cn/clash.po ${CURDIR}/po/zh-cn/clash.zh-cn.lmo
+	if [ -f ${CURDIR}/po/zh-cn/clash.po ] && command -v po2lmo >/dev/null 2>&1; then \
+		po2lmo ${CURDIR}/po/zh-cn/clash.po ${CURDIR}/po/zh-cn/clash.zh-cn.lmo; \
+	fi
 endef
 
 define Build/Configure
@@ -30,150 +116,42 @@ endef
 define Build/Compile
 endef
 
-define Package/$(PKG_NAME)/conffiles
-/etc/config/clash
-endef
-
-define Package/$(PKG_NAME)/prerm
-#!/bin/sh
-# check if we are on real system
-if [ -z "$${IPKG_INSTROOT}" ]; then
-    echo "Removing rc.d symlink for clash"
-    /etc/init.d/clash disable
-    /etc/init.d/clash stop
-    echo "Removing firewall rule for clash"
-	uci -q batch <<-EOF >/dev/null
-	delete firewall.clash
-	commit firewall
-EOF
-fi
-
-exit 0
-endef
-
-define Package/$(PKG_NAME)/preinst
-#!/bin/sh
-/etc/init.d/clash disable 2>/dev/null
-if [ -z "$${IPKG_INSTROOT}" ]; then
-	rm -rf /tmp/dnsmasq.d/custom_list.conf 2>/dev/null
-	rm -rf /tmp/dnsmasq.clash 2>/dev/null
-	mv /etc/config/clash /etc/config/clash.bak 2>/dev/null
-	rm -rf /usr/lib/lua/luci/model/cbi/clash 2>/dev/null
-	rm -rf /usr/lib/lua/luci/view/clash 2>/dev/null
-	rm -rf /usr/share/clash/new_core_version 2>/dev/null
-	rm -rf /usr/share/clash/new_clashr_core_version 2>/dev/null
-	rm -rf /usr/share/clash/new_luci_version 2>/dev/null
-	rm -rf /usr/share/clash/web 2>/dev/null
-	mv /usr/share/clash/config/sub/config.yaml /usr/share/clashbackup/config.bak1 2>/dev/null
-	mv /usr/share/clash/config/upload/config.yaml /usr/share/clashbackup/config.bak2 2>/dev/null
-	mv /usr/share/clash/config/custom/config.yaml /usr/share/clashbackup/config.bak3 2>/dev/null
-	mv /usr/share/clash/rule.yaml /usr/share/clashbackup/rule.bak 2>/dev/null
-fi
-
-
-exit 0
-endef
-
-define Package/$(PKG_NAME)/postinst
-#!/bin/sh
-
-if [ -z "$${IPKG_INSTROOT}" ]; then
-	rm -rf /tmp/luci*
-	mv /etc/config/clash.bak /etc/config/clash 2>/dev/null
-	mv /usr/share/clashbackup/config.bak1 /usr/share/clash/config/sub/config.yaml 2>/dev/null
-	mv /usr/share/clashbackup/config.bak2 /usr/share/clash/config/upload/config.yaml 2>/dev/null
-	mv /usr/share/clashbackup/config.bak3 /usr/share/clash/config/custom/config.yaml 2>/dev/null
-	mv /usr/share/clashbackup/rule.bak /usr/share/clash/rule.yaml 2>/dev/null
-	/etc/init.d/clash disable 2>/dev/null
-	/etc/init.d/uhttpd restart >/dev/null 2>&1 || true
-fi
-/etc/init.d/clash disable 2>/dev/null
-
-exit 0
-endef
-
-define Package/$(PKG_NAME)/install
+define Package/luci-app-clashoo/install
 	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/controller
-	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model/cbi/clash
-	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model/cbi/clash/config
-	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model/cbi/clash/dns
-	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model/cbi/clash/client
-	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model/cbi/clash/geoip
-	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model/cbi/clash/logs
-	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model/cbi/clash/update
-	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/view/clash
-	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/i18n
-	$(INSTALL_DIR) $(1)/etc/init.d
-	$(INSTALL_DIR) $(1)/etc/config
-	$(INSTALL_DIR) $(1)/etc/clash
-	$(INSTALL_DIR) $(1)/usr/lib/lua/luci
-	$(INSTALL_DIR) $(1)/usr/share/
-	$(INSTALL_DIR) $(1)/usr/share/clash
-	$(INSTALL_DIR) $(1)/usr/share/rpcd	
-	$(INSTALL_DIR) $(1)/usr/share/rpcd/acl.d	
-	$(INSTALL_DIR) $(1)/etc/clash/dashboard
-	$(INSTALL_DIR) $(1)/etc/clash/dashboard/img
-	$(INSTALL_DIR) $(1)/etc/clash/dashboard/js
-	$(INSTALL_DIR) $(1)/usr/share/clash/yacd
-	$(INSTALL_DIR) $(1)/usr/share/clashbackup
-	$(INSTALL_DIR) $(1)/usr/share/clash/create
-	$(INSTALL_DIR) $(1)/etc/clash/provider
-	$(INSTALL_DIR) $(1)/etc/clash/proxyprovider
-	$(INSTALL_DIR) $(1)/etc/clash/ruleprovider
-	$(INSTALL_DIR) $(1)/usr/share/clash/config
-	$(INSTALL_DIR) $(1)/usr/share/clash/config/sub
-	$(INSTALL_DIR) $(1)/usr/share/clash/config/upload
-	$(INSTALL_DIR) $(1)/usr/share/clash/config/custom
-
-	
-	$(INSTALL_BIN) 	./root/etc/init.d/clash $(1)/etc/init.d/clash
-	$(INSTALL_CONF) ./root/etc/config/clash $(1)/etc/config/clash
-	$(INSTALL_CONF) ./root/etc/clash/Country.mmdb $(1)/etc/clash
-	$(INSTALL_BIN) ./root/usr/share/clash/create/* $(1)/usr/share/clash/create
-	$(INSTALL_BIN) ./root/usr/share/clash/*.sh $(1)/usr/share/clash
-	$(INSTALL_BIN) ./root/usr/share/rpcd/acl.d/luci-app-clashoo.json $(1)/usr/share/rpcd/acl.d
-	
-	$(INSTALL_BIN) ./root/usr/share/clash/luci_version $(1)/usr/share/clash
-	$(INSTALL_BIN) ./root/usr/share/clash/rule.yaml $(1)/usr/share/clash
-	$(INSTALL_BIN) ./root/usr/share/clash/server.list $(1)/usr/share/clash
-	$(INSTALL_BIN) ./root/usr/share/clash/clash_real.txt $(1)/usr/share/clash
-	$(INSTALL_BIN) ./root/usr/share/clash/logstatus_check $(1)/usr/share/clash
-	$(INSTALL_BIN) ./root/usr/share/clash/clash.txt $(1)/usr/share/clash
-	$(INSTALL_BIN) ./root/usr/share/clash/chinaipset.sh $(1)/usr/share/clash
-	$(INSTALL_BIN) ./root/usr/share/clash/china_ip.txt $(1)/usr/share/clash
-	
-	$(INSTALL_BIN) ./root/usr/share/clash/dashboard/index.html $(1)/etc/clash/dashboard
-	$(INSTALL_BIN) ./root/usr/share/clash/dashboard/main.658aa6a6e3feec8f168b.css $(1)/etc/clash/dashboard
-	$(INSTALL_BIN) ./root/usr/share/clash/dashboard/img/ffac0fa1d89f15922b4594863b8b32e9.png $(1)/etc/clash/dashboard/img
-	$(INSTALL_BIN) ./root/usr/share/clash/dashboard/js/1.bundle.658aa6a6e3feec8f168b.min.js $(1)/etc/clash/dashboard/js
-	$(INSTALL_BIN) ./root/usr/share/clash/dashboard/js/bundle.658aa6a6e3feec8f168b.min.js $(1)/etc/clash/dashboard/js
-	$(INSTALL_BIN) ./root/usr/share/clash/yacd/* $(1)/usr/share/clash/yacd
-
-	$(INSTALL_DATA) ./luasrc/clash.lua $(1)/usr/lib/lua/luci
-	$(INSTALL_DATA) ./luasrc/controller/*.lua $(1)/usr/lib/lua/luci/controller
-	$(INSTALL_DATA) ./luasrc/model/cbi/clash/*.lua $(1)/usr/lib/lua/luci/model/cbi/clash
-	$(INSTALL_DATA) ./luasrc/model/cbi/clash/config/*.lua $(1)/usr/lib/lua/luci/model/cbi/clash/config
-	$(INSTALL_DATA) ./luasrc/model/cbi/clash/client/*.lua $(1)/usr/lib/lua/luci/model/cbi/clash/client
-	$(INSTALL_DATA) ./luasrc/model/cbi/clash/dns/*.lua $(1)/usr/lib/lua/luci/model/cbi/clash/dns
-	$(INSTALL_DATA) ./luasrc/model/cbi/clash/geoip/*.lua $(1)/usr/lib/lua/luci/model/cbi/clash/geoip
-	$(INSTALL_DATA) ./luasrc/model/cbi/clash/logs/*.lua $(1)/usr/lib/lua/luci/model/cbi/clash/logs
-	$(INSTALL_DATA) ./luasrc/model/cbi/clash/update/*.lua $(1)/usr/lib/lua/luci/model/cbi/clash/update
-	$(INSTALL_DATA) ./luasrc/view/clash/* $(1)/usr/lib/lua/luci/view/clash
-	
-	# luci 24.10+ JS 视图（htdocs）
+	$(INSTALL_DIR) $(1)/usr/share/rpcd/ucode
+	$(INSTALL_DIR) $(1)/usr/share/rpcd/acl.d
+	$(INSTALL_DIR) $(1)/usr/share/luci/menu.d
 	$(INSTALL_DIR) $(1)/www/luci-static/resources/tools
 	$(INSTALL_DIR) $(1)/www/luci-static/resources/view/clash
-	$(INSTALL_DATA) ./htdocs/luci-static/resources/tools/clash.js $(1)/www/luci-static/resources/tools
-	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/clash/app.js $(1)/www/luci-static/resources/view/clash
-	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/clash/log.js $(1)/www/luci-static/resources/view/clash
-	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/clash/index.js $(1)/www/luci-static/resources/view/clash
+	$(INSTALL_DIR) $(1)/www/luci-static/clash
 
-	# rpcd ucode 后端；完整菜单先交给旧 controller 注册，避免功能入口缺失
-	$(INSTALL_DIR) $(1)/usr/share/rpcd/ucode
-	$(INSTALL_BIN)  ./root/usr/share/rpcd/ucode/luci.clash $(1)/usr/share/rpcd/ucode
+	$(INSTALL_DATA) ./luasrc/controller/clash.lua $(1)/usr/lib/lua/luci/controller/clash.lua
+	$(INSTALL_BIN) ./root/usr/share/rpcd/ucode/luci.clash $(1)/usr/share/rpcd/ucode/luci.clash
+	$(INSTALL_DATA) ./root/usr/share/rpcd/acl.d/luci-app-clashoo.json $(1)/usr/share/rpcd/acl.d/luci-app-clashoo.json
+	$(INSTALL_DATA) ./root/usr/share/luci/menu.d/luci-app-clashoo.json $(1)/usr/share/luci/menu.d/luci-app-clashoo.json
+
+	$(INSTALL_DATA) ./htdocs/luci-static/resources/tools/clash.js $(1)/www/luci-static/resources/tools/clash.js
+	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/clash/index.js $(1)/www/luci-static/resources/view/clash/index.js
+	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/clash/overview.js $(1)/www/luci-static/resources/view/clash/overview.js
+	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/clash/app.js $(1)/www/luci-static/resources/view/clash/app.js
+	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/clash/config.js $(1)/www/luci-static/resources/view/clash/config.js
+	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/clash/dns.js $(1)/www/luci-static/resources/view/clash/dns.js
+	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/clash/system.js $(1)/www/luci-static/resources/view/clash/system.js
+	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/clash/log.js $(1)/www/luci-static/resources/view/clash/log.js
+	$(INSTALL_DATA) ./logo.png $(1)/www/luci-static/clash/logo.png
 endef
 
-define Package/luci-i18n-clash-zh-cn
+define Package/luci-app-clashoo/postinst
+#!/bin/sh
+if [ -z "$${IPKG_INSTROOT}" ]; then
+	rm -rf /tmp/luci*
+	/etc/init.d/rpcd restart >/dev/null 2>&1 || true
+	/etc/init.d/uhttpd restart >/dev/null 2>&1 || true
+fi
+exit 0
+endef
+
+define Package/luci-i18n-clashoo-zh-cn
 	SECTION:=luci
 	CATEGORY:=LuCI
 	TITLE:=luci-app-clashoo - Simplified Chinese (zh-cn)
@@ -181,12 +159,16 @@ define Package/luci-i18n-clash-zh-cn
 	PKGARCH:=all
 endef
 
-define Package/luci-i18n-clash-zh-cn/install
+define Package/luci-i18n-clashoo-zh-cn/install
 	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/i18n
-	$(INSTALL_DATA) ./po/zh-cn/clash.zh-cn.lmo $(1)/usr/lib/lua/luci/i18n
+	if [ -f ./po/zh-cn/clash.zh-cn.lmo ]; then \
+		$(INSTALL_DATA) ./po/zh-cn/clash.zh-cn.lmo $(1)/usr/lib/lua/luci/i18n; \
+	else \
+		$(INSTALL_DATA) ./dist/clash.zh-cn.lmo $(1)/usr/lib/lua/luci/i18n; \
+	fi
 endef
 
-define Package/luci-i18n-clash-zh-cn/postinst
+define Package/luci-i18n-clashoo-zh-cn/postinst
 #!/bin/sh
 if [ -z "$${IPKG_INSTROOT}" ]; then
 	rm -rf /tmp/luci*
@@ -195,5 +177,7 @@ fi
 exit 0
 endef
 
-$(eval $(call BuildPackage,$(PKG_NAME)))
-$(eval $(call BuildPackage,luci-i18n-clash-zh-cn))
+$(eval $(call BuildPackage,clashoo))
+$(eval $(call BuildPackage,clashoo-runtime))
+$(eval $(call BuildPackage,luci-app-clashoo))
+$(eval $(call BuildPackage,luci-i18n-clashoo-zh-cn))

@@ -2,6 +2,7 @@
 'require view';
 'require form';
 'require rpc';
+'require ui';
 'require uci';
 'require tools.clash as clash';
 
@@ -15,47 +16,68 @@ let callSetConfig   = rpc.declare({ object: 'luci.clash', method: 'set_config', 
 
 function mkBtn(label, style, fn) {
     let b = E('button', {
+        type: 'button',
         class: 'btn cbi-button cbi-button-' + style,
         style: 'margin:1px 2px'
     }, label);
-    b.addEventListener('click', fn);
+    b.addEventListener('click', function (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        fn();
+    });
     return b;
 }
 
-function renderFileTable(title, rows, activeName, ctype, container) {
+function fmtMtime(v) {
+    if (!v) return '-';
+    let s = String(v).trim();
+    if (!/^\d+$/.test(s)) return s;
+    let n = parseInt(s, 10);
+    if (!isFinite(n) || n <= 0) return s;
+    let d = new Date(n * 1000);
+    if (isNaN(d.getTime())) return s;
+    let p = n => (n < 10 ? '0' + n : '' + n);
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+
+function renderFileTable(title, rows, activeName, ctype, container, setPageStatus) {
+    if (!rows || !rows.length)
+        return false;
+
     container.appendChild(E('h3', { style: 'margin:1em 0 .4em' }, title));
-    if (!rows || !rows.length) {
-        container.appendChild(E('p', { class: 'cbi-value-description' }, _('暂无文件')));
-        return;
-    }
     let tbl = E('table', { class: 'table cbi-section-table', style: 'width:100%' }, [
         E('thead', {}, E('tr', {}, [
-            E('th', {}, _('文件名')),
-            E('th', {}, _('更新时间')),
-            E('th', {}, _('大小')),
-            E('th', {}, _('操作'))
+            E('th', { style: 'text-align:left' }, _('文件名')),
+            E('th', { style: 'text-align:center;width:190px' }, _('更新时间')),
+            E('th', { style: 'text-align:center;width:100px' }, _('大小')),
+            E('th', { style: 'text-align:right;width:220px' }, _('操作'))
         ])),
         E('tbody', {}, rows.map(f => {
             let isActive = f.name === activeName || f.active;
             let nameCell = isActive
                 ? E('td', {}, E('strong', { style: 'color:#4CAF50' }, '▶ ' + f.name))
                 : E('td', {}, f.name);
-            let actions = E('td', {}, [
+            let actions = E('td', { style: 'text-align:right;white-space:nowrap' }, [
                 mkBtn(_('使用'), 'apply', () => {
                     callSetConfig(f.name).then(() => {
-                        L.ui.addNotification(null, E('p', _('配置已切换：') + f.name));
+                        setPageStatus(_('配置已切换：') + f.name, true);
                         container.dataset.refresh = '1';
                     });
                 }),
                 mkBtn(_('删除'), 'remove', () => {
-                    if (!confirm(_('确认删除 ') + f.name + '？')) return;
                     callDeleteCfg(f.name, ctype).then(() => location.reload());
                 })
             ]);
-            return E('tr', {}, [nameCell, E('td', {}, f.mtime || '-'), E('td', {}, f.size || '-'), actions]);
+            return E('tr', {}, [
+                nameCell,
+                E('td', { style: 'text-align:center' }, fmtMtime(f.mtime)),
+                E('td', { style: 'text-align:center' }, f.size || '-'),
+                actions
+            ]);
         }))
     ]);
     container.appendChild(tbl);
+    return true;
 }
 
 return view.extend({
@@ -76,6 +98,41 @@ return view.extend({
 
         let m, s, o;
         m = new form.Map('clash', _('配置管理'));
+        this._map = m;
+
+        function inferDarkMode() {
+            if (typeof window === 'undefined') return false;
+            let de = document.documentElement || null;
+            let body = document.body || null;
+            let rootStyle = de ? window.getComputedStyle(de) : null;
+            let colorScheme = (rootStyle && rootStyle.colorScheme) ? String(rootStyle.colorScheme).toLowerCase() : '';
+            let dataTheme = ((de && de.getAttribute('data-theme')) || (body && body.getAttribute('data-theme')) || '').toLowerCase();
+            return (
+                (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ||
+                (de && /dark|night/i.test((de.className || '') + ' ' + (de.id || ''))) ||
+                (body && /dark|night/i.test((body.className || '') + ' ' + (body.id || ''))) ||
+                /dark/.test(dataTheme) ||
+                /dark/.test(colorScheme)
+            );
+        }
+        const isDark = inferDarkMode();
+
+        let pageStatus = E('div', {
+            id: 'cfg-inline-status',
+            style: 'margin:0 0 12px 0;padding:8px 10px;border-radius:6px;background:' + (isDark ? '#1f2937' : '#f7f9fc') + ';color:' + (isDark ? '#cbd5e1' : '#4b5563') + ';font-size:.92rem;display:none'
+        }, '');
+
+        function setPageStatus(msg, ok) {
+            pageStatus.style.display = '';
+            if (isDark) {
+                pageStatus.style.background = ok ? '#0b2f26' : '#3a1f27';
+                pageStatus.style.color = ok ? '#86efac' : '#fca5a5';
+            } else {
+                pageStatus.style.background = ok ? '#ecfdf5' : '#fef2f2';
+                pageStatus.style.color = ok ? '#065f46' : '#991b1b';
+            }
+            pageStatus.textContent = msg;
+        }
 
         /* ─── 配置来源 ─── */
         s = m.section(form.NamedSection, 'config', 'clash', _('配置来源'));
@@ -102,8 +159,16 @@ return view.extend({
         o.inputtitle = _('下载订阅');
         o.inputstyle = 'apply';
         o.onclick = function () {
-            return m.save().then(() => callDownloadSubs()).then(() => {
-                L.ui.addNotification(null, E('p', _('订阅下载任务已启动，稍后刷新页面查看结果')));
+            setPageStatus('正在下载订阅，请稍候...', true);
+            return m.save().then(() => callDownloadSubs()).then((r) => {
+                if (r && r.success) {
+                    setPageStatus((r.message || '订阅下载成功') + '，页面将自动刷新', true);
+                    setTimeout(() => location.reload(), 1200);
+                } else {
+                    setPageStatus((r && (r.message || r.error)) || '订阅下载失败，请检查链接', false);
+                }
+            }).catch((e) => {
+                setPageStatus('订阅下载失败: ' + (e && e.message ? e.message : e), false);
             });
         };
 
@@ -118,12 +183,12 @@ return view.extend({
                     E('div', { class: 'cbi-section-node' }, [
                         E('table', { class: 'table cbi-section-table', style: 'width:100%' }, [
                             E('thead', {}, E('tr', {}, [
-                                E('th', {}, _('文件名')),
-                                E('th', {}, _('类型')),
-                                E('th', {}, _('链接')),
-                                E('th', {}, _('更新时间')),
-                                E('th', {}, _('大小')),
-                                E('th', {}, _('操作'))
+                                E('th', { style: 'text-align:left' }, _('文件名')),
+                                E('th', { style: 'text-align:center;width:90px' }, _('类型')),
+                                E('th', { style: 'text-align:left' }, _('链接')),
+                                E('th', { style: 'text-align:center;width:190px' }, _('更新时间')),
+                                E('th', { style: 'text-align:center;width:100px' }, _('大小')),
+                                E('th', { style: 'text-align:right;width:270px' }, _('操作'))
                             ])),
                             E('tbody', {}, subs.map(sub => {
                                 let isActive = sub.name === activeName;
@@ -138,21 +203,38 @@ return view.extend({
                                     title: sub.url,
                                     style: 'max-width:240px;display:inline-block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle'
                                 }, shortUrl));
-                                let actions = E('td', {}, [
+                                let actions = E('td', { style: 'text-align:right;white-space:nowrap' }, [
                                     sub.has_file ? mkBtn(_('使用'), 'apply', () => {
-                                        callSetConfig(sub.name).then(() => location.reload());
+                                        callSetConfig(sub.name).then(() => {
+                                            setPageStatus(_('配置已切换：') + sub.name, true);
+                                            setTimeout(() => location.reload(), 800);
+                                        });
                                     }) : '',
                                     sub.url ? mkBtn(_('更新'), 'apply', () => {
-                                        callUpdateSub(sub.name).then(() =>
-                                            L.ui.addNotification(null, E('p', _('更新任务已启动：') + sub.name)));
+                                        setPageStatus('正在更新订阅：' + sub.name + ' ...', true);
+                                        callUpdateSub(sub.name).then((r) => {
+                                            if (r && r.success) {
+                                                setPageStatus((r.message || ('更新完成：' + sub.name)) + '，页面将自动刷新', true);
+                                                setTimeout(() => location.reload(), 1200);
+                                            } else {
+                                                setPageStatus((r && (r.message || r.error)) || ('更新失败：' + sub.name), false);
+                                            }
+                                        }).catch((e) => {
+                                            setPageStatus('更新失败: ' + (e && e.message ? e.message : e), false);
+                                        });
                                     }) : '',
                                     mkBtn(_('删除'), 'remove', () => {
-                                        if (!confirm(_('确认删除 ') + sub.name + '？')) return;
                                         callDeleteCfg(sub.name, '1').then(() => location.reload());
                                     })
                                 ]);
-                                return E('tr', {}, [nameCell, E('td', {}, sub.type || '-'), urlCell,
-                                    E('td', {}, sub.mtime || '-'), E('td', {}, sub.size || '-'), actions]);
+                                return E('tr', {}, [
+                                    nameCell,
+                                    E('td', { style: 'text-align:center' }, sub.type || '-'),
+                                    urlCell,
+                                    E('td', { style: 'text-align:center' }, fmtMtime(sub.mtime)),
+                                    E('td', { style: 'text-align:center' }, sub.size || '-'),
+                                    actions
+                                ]);
                             }))
                         ])
                     ])
@@ -162,7 +244,7 @@ return view.extend({
         }
 
         /* ─── 上传配置 ─── */
-        s = m.section(form.NamedSection, 'config', 'clash', _('上传配置文件'));
+        s = m.section(form.NamedSection, 'config', 'clash', _('上传配置'));
         s.anonymous = false;
         s.render = function () {
             let input = E('input', {
@@ -193,7 +275,7 @@ return view.extend({
                 reader.readAsArrayBuffer(file);
             });
             let node = E('div', { class: 'cbi-section' }, [
-                E('h3', {}, _('上传配置文件')),
+                E('h3', {}, _('上传配置')),
                 E('p', { class: 'cbi-value-description', style: 'margin-bottom:10px' },
                     _('上传本地 .yaml / .yml 文件作为配置来源（存入 upload/ 目录）')),
                 E('div', { style: 'display:flex;align-items:center;gap:0;max-width:540px' },
@@ -201,6 +283,23 @@ return view.extend({
             ]);
             return Promise.resolve(node);
         };
+
+        /* ─── 已上传文件列表（紧跟上传区域，集中管理） ─── */
+        let uploadFiles = uploadData.files || [];
+        let customFiles = customData.files || [];
+
+        if (uploadFiles.length || customFiles.length) {
+            s = m.section(form.NamedSection, 'config', 'clash', _('文件列表'));
+            s.anonymous = false;
+            s.render = function () {
+                let node = E('div', { class: 'cbi-section' });
+                let hasUpload = renderFileTable(_('已上传配置'), uploadFiles, activeName, '2', node, setPageStatus);
+                let hasCustom = renderFileTable(_('自定义文件'), customFiles, activeName, '3', node, setPageStatus);
+                if (hasUpload && hasCustom)
+                    node.appendChild(E('hr', { style: 'border:none;border-top:1px solid #eee;margin:8px 0' }));
+                return Promise.resolve(node);
+            };
+        }
 
         /* ─── 面板配置 ─── */
         s = m.section(form.NamedSection, 'config', 'clash', _('面板配置'));
@@ -254,9 +353,9 @@ return view.extend({
 
         o = s.option(form.Value, 'api_secret', _('面板密钥'));
         o.password = true;
-        o.placeholder = _('留空不鉴权');
+        o.placeholder = _('请设置密码（推荐）');
         o.rmempty = true;
-        o.description = _('访问 RESTful API 及面板所需的 Bearer Token，留空则无需鉴权');
+        o.description = _('访问 RESTful API 及面板所需的 Bearer Token，建议设置强密码');
 
         o = s.option(form.ListValue, 'selection_cache', _('记忆代理节点选择'));
         o.optional = true;
@@ -266,29 +365,29 @@ return view.extend({
         o.default = '1';
         o.description = _('重启后保留上次选择的代理节点与策略组');
 
-        /* ─── 已上传文件列表 ─── */
-        let uploadFiles = uploadData.files || [];
-        let customFiles = customData.files || [];
-
-        s = m.section(form.NamedSection, 'config', 'clash', _('文件列表'));
-        s.anonymous = false;
-        s.render = function () {
-            let node = E('div', { class: 'cbi-section' });
-            if (!uploadFiles.length && !customFiles.length) {
-                node.appendChild(E('p', { style: 'color:#999;padding:8px 0' }, _('暂无配置文件')));
-                return Promise.resolve(node);
-            }
-            renderFileTable(_('已上传文件'), uploadFiles, activeName, '2', node);
-            if (uploadFiles.length && customFiles.length)
-                node.appendChild(E('hr', { style: 'border:none;border-top:1px solid #eee;margin:8px 0' }));
-            renderFileTable(_('自定义文件'), customFiles, activeName, '3', node);
-            return Promise.resolve(node);
-        };
-
-        return m.render();
+        return m.render().then(function (node) {
+            node.insertBefore(pageStatus, node.firstChild || null);
+            return node;
+        });
     },
 
     handleSaveApply: function (ev) {
-        return this.handleSave(ev).then(() => clash.restart());
+        return this.handleSave(ev).then(function () {
+            return Promise.resolve(ui.changes.apply(true)).then(function () {
+                return clash.restart();
+            });
+        });
+    },
+
+    handleSave: function (ev) {
+        if (!this._map)
+            return Promise.resolve();
+        return this._map.save(ev);
+    },
+
+    handleReset: function () {
+        if (!this._map)
+            return Promise.resolve();
+        return this._map.reset();
     }
 });

@@ -12,6 +12,7 @@
 		mode=$(uci get clash.config.mode 2>/dev/null)
 		p_mode=$(uci get clash.config.p_mode 2>/dev/null)
 		da_password=$(uci get clash.config.dash_pass 2>/dev/null)
+		safe_password=$(printf '%s' "$da_password" | sed 's/[\\/&]/\\\\&/g')
 		redir_port=$(uci get clash.config.redir_port 2>/dev/null)
 		http_port=$(uci get clash.config.http_port 2>/dev/null)
 		socks_port=$(uci get clash.config.socks_port 2>/dev/null)
@@ -359,7 +360,28 @@ rm -rf /tmp/tun.yaml /tmp/enable_dns.yaml /tmp/fallback.yaml /tmp/nameservers.ya
 			cat $TEMP_FILE /etc/clash/dns.yaml > $CONFIG_YAML 2>/dev/null
 			rm -rf /etc/clash/dns.yaml
 			sed -i '/#=============/ d' $CONFIG_YAML 2>/dev/null
+			# 兼容部分订阅中 dns.listen 缩进异常（4 空格），修正为标准 2 空格
+			sed -i 's/^    listen:/  listen:/g' $CONFIG_YAML 2>/dev/null
 		fi
+
+		if grep -Eq '^external-controller:' "$CONFIG_YAML"; then
+			sed -i "s@^external-controller:.*@external-controller: 0.0.0.0:${dash_port}@g" "$CONFIG_YAML" 2>/dev/null
+		else
+			sed -i "/^mixed-port:/a\external-controller: 0.0.0.0:${dash_port}" "$CONFIG_YAML" 2>/dev/null
+		fi
+
+		if grep -Eq '^secret:' "$CONFIG_YAML"; then
+			sed -i "s@^secret:.*@secret: \"${safe_password}\"@g" "$CONFIG_YAML" 2>/dev/null
+		else
+			sed -i "/^external-controller:/a\secret: \"${safe_password}\"" "$CONFIG_YAML" 2>/dev/null
+		fi
+
+		if grep -Eq '^external-ui:' "$CONFIG_YAML"; then
+			sed -i 's@^external-ui:.*@external-ui: "./dashboard"@g' "$CONFIG_YAML" 2>/dev/null
+		else
+			sed -i '/^secret:/a\external-ui: "./dashboard"' "$CONFIG_YAML" 2>/dev/null
+		fi
+
 		rm -rf  $TEMP_FILE 2>/dev/null
 		
 add_address(){
@@ -430,13 +452,8 @@ add_address(){
 				 echo "正在设置Fake-IP黑名单" >$REAL_LOG
 			fi	
 
-			sed -i '/fake-ip-filter:/d' "/etc/clash/config.yaml" 2>/dev/null
-			if [ ! -z "$(egrep '^ {0,}fake-ip-range:' "/etc/clash/config.yaml")" ];then	
-				sed -i '/fake-ip-range/a\  fake-ip-filter:' /etc/clash/config.yaml 2>/dev/null
-				sed -i '/fake-ip-filter:/r/usr/share/clash/fake_filter.list' "/etc/clash/config.yaml" 2>/dev/null	
-			elif [ ! -z "$(egrep '^ {0,}enhanced-mode:' "/etc/clash/config.yaml")" ];then
-				sed -i '/^enhanced-mode:/a\  fake-ip-filter:' /etc/clash/config.yaml 2>/dev/null
-				sed -i '/fake-ip-filter:/r/usr/share/clash/fake_filter.list' "/etc/clash/config.yaml" 2>/dev/null
-			fi	
+			# fake-ip-filter is already rendered in the generated DNS block above.
+			# Do not delete/reinsert it here, otherwise list items may be orphaned
+			# and break the DNS listen line parsing.
 		fi	
 	

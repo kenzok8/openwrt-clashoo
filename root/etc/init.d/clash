@@ -132,6 +132,19 @@ _require_runtime_network_stack() {
 	return 0
 }
 
+_service_enabled() {
+	local svc="$1"
+	[ -x "/etc/init.d/${svc}" ] || return 1
+	"/etc/init.d/${svc}" enabled >/dev/null 2>&1
+}
+
+_openclash_conflict() {
+	if [ "$(uci -q get openclash.config.enable 2>/dev/null)" = "1" ]; then
+		return 0
+	fi
+	_service_enabled openclash
+}
+
 # 按优先级自动检测内核二进制：mihomo > clash-meta > 内置 clash
 _detect_core() {
 	for _bin in $(_core_candidates); do
@@ -150,13 +163,71 @@ CUSLITT="/tmp/dnsmasq.clash"
 CUSLISTV="/var/dnsmasq.d/custom_list.conf" 
 CUSLITTV="/var/dnsmasq.clash" 
 REAL_LOG="/usr/share/clash/clash_real.txt"
+DNS_STATE_DIR="/tmp/clashoo"
+DNS_STATE_SERVER_FILE="${DNS_STATE_DIR}/dnsmasq_server.before"
+DNS_STATE_NORESOLV_FILE="${DNS_STATE_DIR}/dnsmasq_noresolv.before"
+DNS_STATE_CACHE_FILE="${DNS_STATE_DIR}/dnsmasq_cachesize.before"
+DNS_STATE_RESOLV_FILE="${DNS_STATE_DIR}/dnsmasq_resolvfile.before"
+
+backup_dnsmasq_state() {
+#===========================================================================================================================
+	[ -f "$DNS_STATE_SERVER_FILE" ] && return 0
+	mkdir -p "$DNS_STATE_DIR" >/dev/null 2>&1
+	uci -q get dhcp.@dnsmasq[0].server >"$DNS_STATE_SERVER_FILE" 2>/dev/null || : >"$DNS_STATE_SERVER_FILE"
+	uci -q get dhcp.@dnsmasq[0].noresolv >"$DNS_STATE_NORESOLV_FILE" 2>/dev/null || : >"$DNS_STATE_NORESOLV_FILE"
+	uci -q get dhcp.@dnsmasq[0].cachesize >"$DNS_STATE_CACHE_FILE" 2>/dev/null || : >"$DNS_STATE_CACHE_FILE"
+	uci -q get dhcp.@dnsmasq[0].resolvfile >"$DNS_STATE_RESOLV_FILE" 2>/dev/null || : >"$DNS_STATE_RESOLV_FILE"
+#===========================================================================================================================
+}
+
+add_clash_dns_server() {
+#===========================================================================================================================
+	local dns_port="$1"
+	printf '%s' "$dns_port" | grep -Eq '^[0-9]+$' || return 1
+	uci del_list dhcp.@dnsmasq[0].server="127.0.0.1#${dns_port}" >/dev/null 2>&1 || true
+	uci add_list dhcp.@dnsmasq[0].server="127.0.0.1#${dns_port}" >/dev/null 2>&1
+#===========================================================================================================================
+}
+
+restore_dnsmasq_state() {
+#===========================================================================================================================
+	local token saved
+	[ -d "$DNS_STATE_DIR" ] || return 0
+
+	if [ -f "$DNS_STATE_SERVER_FILE" ]; then
+		saved="$(cat "$DNS_STATE_SERVER_FILE" 2>/dev/null)"
+		uci -q delete dhcp.@dnsmasq[0].server >/dev/null 2>&1
+		for token in $saved; do
+			uci add_list dhcp.@dnsmasq[0].server="$token" >/dev/null 2>&1
+		done
+	fi
+
+	if [ -s "$DNS_STATE_NORESOLV_FILE" ]; then
+		uci set dhcp.@dnsmasq[0].noresolv="$(cat "$DNS_STATE_NORESOLV_FILE" 2>/dev/null)" >/dev/null 2>&1
+	else
+		uci -q delete dhcp.@dnsmasq[0].noresolv >/dev/null 2>&1
+	fi
+
+	if [ -s "$DNS_STATE_CACHE_FILE" ]; then
+		uci set dhcp.@dnsmasq[0].cachesize="$(cat "$DNS_STATE_CACHE_FILE" 2>/dev/null)" >/dev/null 2>&1
+	else
+		uci -q delete dhcp.@dnsmasq[0].cachesize >/dev/null 2>&1
+	fi
+
+	if [ -s "$DNS_STATE_RESOLV_FILE" ]; then
+		uci set dhcp.@dnsmasq[0].resolvfile="$(cat "$DNS_STATE_RESOLV_FILE" 2>/dev/null)" >/dev/null 2>&1
+	else
+		uci -q delete dhcp.@dnsmasq[0].resolvfile >/dev/null 2>&1
+	fi
+
+	rm -f "$DNS_STATE_SERVER_FILE" "$DNS_STATE_NORESOLV_FILE" "$DNS_STATE_CACHE_FILE" "$DNS_STATE_RESOLV_FILE" >/dev/null 2>&1
+	rmdir "$DNS_STATE_DIR" >/dev/null 2>&1 || true
+#===========================================================================================================================
+}
 
 revert_dns() {
 #===========================================================================================================================  
-    dns_port=$(grep "^ \{0,\}listen:" "$CONFIG_YAML" |awk -F ':' '{print $3}' 2>/dev/null) 
-	uci del_list dhcp.@dnsmasq[0].server="127.0.0.1#${dns_port}" >/dev/null 2>&1
-	uci set dhcp.@dnsmasq[0].noresolv=0
-	uci delete dhcp.@dnsmasq[0].cachesize
+	restore_dnsmasq_state
 	rm -rf "$CUSLIST" "$CUSLITT" "$CUSLISTV" "$CUSLITTV" 2>/dev/null
 	uci commit dhcp
 	/etc/init.d/dnsmasq restart >/dev/null 2>&1
@@ -339,6 +410,8 @@ yml_change() {
 		return 0
 	fi
 	sh /usr/share/clash/yum_change.sh 2>/dev/null
+	# 兼容订阅内置 dns.listen 缩进异常，避免 YAML 语法错误导致启动失败
+	sed -i 's/^    listen:/  listen:/g' /etc/clash/config.yaml 2>/dev/null
 #===========================================================================================================================
 }
 
@@ -362,19 +435,18 @@ yml_dns_change(){
 	fi
 	dnsforwader=$(uci get clash.config.dnsforwader 2>/dev/null)
 	dnscache=$(uci get clash.config.dnscache 2>/dev/null)
+	backup_dnsmasq_state
 	if [ "${dns_port:-0}" -eq 53 ]; then
 			sed -i "s@^\([[:space:]]*listen:[[:space:]]*\)0\.0\.0\.0:53@\10.0.0.0:${listen_port}@g" "$CONFIG_YAML"
 			dns_port="$listen_port"
 	fi	
 
 	if [ "${dnsforwader:-0}" -ne 0 ]; then	
-	   if [ "${dns_port:-0}" -eq 53 ]; then
+		   if [ "${dns_port:-0}" -eq 53 ]; then
 	   
 			log_msg "Setting dns forwarder" "设置dns转发器"
 
-			  uci del_list dhcp.@dnsmasq[0].server=127.0.0.1# >/dev/null 2>&1
-			  uci del_list dhcp.@dnsmasq[0].server=127.0.0.1#$dns_port >/dev/null 2>&1
-	          uci add_list dhcp.@dnsmasq[0].server=127.0.0.1#5300 >/dev/null 2>&1
+			  add_clash_dns_server 5300
 	          uci delete dhcp.@dnsmasq[0].resolvfile
 	          uci set dhcp.@dnsmasq[0].noresolv=1
 			  uci commit dhcp
@@ -385,9 +457,7 @@ yml_dns_change(){
 		  fi  
 	    else
 		  echo "Setting dns forwarder" >$REAL_LOG
-			  uci del_list dhcp.@dnsmasq[0].server=127.0.0.1# >/dev/null 2>&1
-			  uci del_list dhcp.@dnsmasq[0].server=127.0.0.1#$dns_port >/dev/null 2>&1 	
-	          uci add_list dhcp.@dnsmasq[0].server=127.0.0.1#$dns_port >/dev/null 2>&1 
+			  add_clash_dns_server "$dns_port"
 	          uci delete dhcp.@dnsmasq[0].resolvfile
 	          uci set dhcp.@dnsmasq[0].noresolv=1
 			  uci commit dhcp
@@ -515,12 +585,10 @@ _start_prepare_config() {
 
 	sleep 1
 	yml_change >/dev/null 2>&1
+	sed -i 's/^    listen:/  listen:/g' /etc/clash/config.yaml 2>/dev/null
 
 	if [ ! -f /etc/clash/Country.mmdb ];then
-		log_msg "Cannot find Country.mmdb" "找不到Country.mmdb"
-		sleep 1
-		echo "Clashoo" > "$REAL_LOG"
-		exit 0
+		log_msg "Country.mmdb not found, continue without local MMDB" "未找到 Country.mmdb，继续启动（可在系统页更新 GeoIP）"
 	fi
 
 	if [ ! -f /etc/clash/config.yaml ];then
@@ -537,7 +605,13 @@ _start_prepare_config() {
 }
 
 _start_launch_core() {
-	nohup "$CLASH" -d "$CLASH_CONFIG" > /usr/share/clash/clash.txt 2>&1 &
+	disable_quic_gso=$(uci get clash.config.disable_quic_gso 2>/dev/null)
+	if [ "$disable_quic_gso" = "1" ]; then
+		nohup env QUIC_GO_DISABLE_GSO=1 "$CLASH" -d "$CLASH_CONFIG" > /usr/share/clash/clash.txt 2>&1 &
+		log_msg "Disable quic-go GSO support" "已启用：禁用 quic-go GSO 支持"
+	else
+		nohup "$CLASH" -d "$CLASH_CONFIG" > /usr/share/clash/clash.txt 2>&1 &
+	fi
 	log_msg "mihomo Core Started Successfully " "mihomo 计划任务,启动进程守护程序..."
 	sleep 1
 	ln -s /usr/share/clash/yacd /www/luci-static/yacd 2>/dev/null
@@ -574,6 +648,7 @@ _start_launch_core() {
 	if ! _core_running; then
 		echo "  $(date "+%Y-%m-%d %H:%M:%S") - clash core failed to stay running after start" >> /usr/share/clash/clash.txt
 		backend_remove_rules >/dev/null 2>&1
+		revert_dns >/dev/null 2>&1
 		_kill_core
 		sleep 1
 		echo "Clashoo" > "$REAL_LOG"
@@ -587,6 +662,11 @@ enable=$(uci get clash.config.enable 2>/dev/null)
 core=$(uci get clash.config.core 2>/dev/null)
 mode=$(uci get clash.config.mode 2>/dev/null)
 tun_mode=$(uci get clash.config.tun_mode 2>/dev/null)
+
+if _openclash_conflict; then
+	_log_runtime_error "OpenClash is enabled; skip Clashoo start to avoid firewall/DNS conflicts"
+	return 0
+fi
 
 
 
@@ -660,6 +740,7 @@ stop(){
 		log_msg "Stopping Client..." "正在停止客户端..."
 		sleep 1
 		backend_remove_rules >/dev/null 2>&1
+		revert_dns >/dev/null 2>&1
 		
 		log_msg "Removing mihomo $(backend_name) rules" "清理 mihomo 网络规则"
 		sleep 1

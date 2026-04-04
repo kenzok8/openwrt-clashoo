@@ -2,6 +2,7 @@
 'require view';
 'require form';
 'require rpc';
+'require ui';
 'require uci';
 'require poll';
 'require tools.clash as clash';
@@ -26,8 +27,73 @@ return view.extend({
         let updateContent = data[3] || '';
         let geoipContent  = data[4] || '';
         let m, s, o;
+        function luminanceFromRgb(s) {
+            if (!s) return null;
+            let m = String(s).match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+            if (!m) return null;
+            let r = parseInt(m[1], 10), g = parseInt(m[2], 10), b = parseInt(m[3], 10);
+            return (0.299 * r + 0.587 * g + 0.114 * b);
+        }
+        function firstSolidBg() {
+            if (typeof window === 'undefined') return '';
+            let sels = ['.main', '#maincontent', 'body', 'html'];
+            for (let i = 0; i < sels.length; i++) {
+                let el = document.querySelector(sels[i]);
+                if (!el) continue;
+                let bg = window.getComputedStyle(el).backgroundColor || '';
+                if (!/rgba\(0,\s*0,\s*0,\s*0\)/i.test(bg) && bg !== 'transparent')
+                    return bg;
+            }
+            return '';
+        }
+        function inferDarkMode() {
+            if (typeof window === 'undefined') return false;
+            let de = document.documentElement || null;
+            let body = document.body || null;
+            let rootStyle = de ? window.getComputedStyle(de) : null;
+            let bodyStyle = body ? window.getComputedStyle(body) : null;
+            let bodyColor = bodyStyle ? bodyStyle.color : '';
+            let textLuma = luminanceFromRgb(bodyColor);
+            let pageBg = firstSolidBg();
+            let bgLuma = luminanceFromRgb(pageBg);
+            let colorScheme = (rootStyle && rootStyle.colorScheme) ? String(rootStyle.colorScheme).toLowerCase() : '';
+            let dataTheme = ((de && de.getAttribute('data-theme')) || (body && body.getAttribute('data-theme')) || '').toLowerCase();
+            return (
+                (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ||
+                (de && /dark|night/i.test((de.className || '') + ' ' + (de.id || ''))) ||
+                (body && /dark|night/i.test((body.className || '') + ' ' + (body.id || ''))) ||
+                /dark/.test(dataTheme) ||
+                /dark/.test(colorScheme) ||
+                (textLuma !== null && textLuma > 170) ||
+                (bgLuma !== null && bgLuma < 120)
+            );
+        }
+        const isDark = inferDarkMode();
+        const TAB_BG = isDark ? '#23272f' : '#e8eaed';
+        const TAB_TEXT = isDark ? '#d2d8e1' : '#555';
+        const TAB_ACTIVE_TEXT = isDark ? '#8db5ff' : '#4a76d4';
+        const BORDER = isDark ? '#3a404c' : '#ddd';
+        const LOG_BG = isDark ? '#1a1f27' : '#fafafa';
+        const LOG_TEXT = isDark ? '#d6dbe5' : '#333';
+        const LOG_BORDER = isDark ? '#3a404c' : '#d0d0d0';
+        let statusBar = E('div', {
+            style: 'margin:0 0 12px 0;padding:8px 10px;border-radius:6px;background:' + (isDark ? '#1f2937' : '#f7f9fc') + ';color:' + (isDark ? '#cbd5e1' : '#4b5563') + ';font-size:.92rem;display:none'
+        }, '');
+
+        function setActionStatus(msg, ok) {
+            statusBar.style.display = '';
+            if (isDark) {
+                statusBar.style.background = ok ? '#0b2f26' : '#3a1f27';
+                statusBar.style.color = ok ? '#86efac' : '#fca5a5';
+            } else {
+                statusBar.style.background = ok ? '#ecfdf5' : '#fef2f2';
+                statusBar.style.color = ok ? '#065f46' : '#991b1b';
+            }
+            statusBar.textContent = msg;
+        }
 
         m = new form.Map('clash', '');
+        this._map = m;
 
         /* ─── 内核下载 ─── */
         s = m.section(form.NamedSection, 'config', 'clash', _('内核下载'));
@@ -37,7 +103,7 @@ return view.extend({
         o = s.option(form.ListValue, 'dcore', _('版本类型'));
         o.value('2', 'mihomo（稳定版）');
         o.value('3', 'Alpha（预发布版）');
-        o.default = '3';
+        o.default = '2';
 
         o = s.option(form.ListValue, 'download_core', _('CPU 架构'));
         o.value('aarch64_cortex-a53');
@@ -50,18 +116,32 @@ return view.extend({
         o.default = cpuArch || 'x86_64';
         o.description = cpuArch ? _('当前设备：<strong>%s</strong>').format(cpuArch) : '';
 
-        o = s.option(form.Value, 'core_mirror_prefix', _('下载镜像前缀（可选）'));
-        o.placeholder = 'https://gh-proxy.com/';
+        o = s.option(form.ListValue, 'core_mirror_prefix', _('下载镜像前缀'));
+        o.value('', _('直连 GitHub（海外网络）'));
+        o.value('https://gh-proxy.com/', 'gh-proxy（推荐）');
+        o.value('https://mirror.ghproxy.com/', 'mirror.ghproxy');
+        o.value('https://gh-proxy.net/', 'gh-proxy.net');
+        o.default = 'https://gh-proxy.com/';
+        o.description = _('自动拼接完整内核下载地址；普通用户只需选择镜像');
+
+        o = s.option(form.Flag, 'core_download_advanced', _('显示高级下载选项'));
+        o.default = '0';
+        o.rmempty = false;
+        o.description = _('仅排障时启用：可手动填写完整下载 URL');
+
+        o = s.option(form.Value, 'core_download_url', _('内核完整下载链接（可选）'));
+        o.placeholder = 'https://mirror.example.com/mihomo-linux-amd64-compatible-v1.19.10.gz';
         o.rmempty = true;
-        o.description = _('留空直连 GitHub；国内可填镜像前缀提升成功率');
+        o.description = _('填完整 URL 时优先使用该链接下载内核（不再拼接镜像前缀）');
+        o.depends('core_download_advanced', '1');
 
         o = s.option(form.Button, '_download_core', _(''));
         o.inputtitle = _('下载内核');
         o.inputstyle = 'apply';
         o.onclick = function () {
             return m.save().then(() => clash.downloadCore()).then(() => {
-                L.ui.addNotification(null, E('p', _('下载任务已启动，请稍后刷新查看结果')));
-            }).catch(function(e) { L.ui.addNotification(null, E('p', '操作失败: ' + (e.message || e))); });
+                setActionStatus(_('下载任务已启动，请稍后查看更新日志'), true);
+            }).catch(function(e) { setActionStatus('下载失败: ' + (e && e.message ? e.message : e), false); });
         };
 
         /* ─── GeoIP / GeoSite ─── */
@@ -128,8 +208,8 @@ return view.extend({
         o.inputstyle = 'apply';
         o.onclick = function () {
             return m.save().then(() => clash.updateGeoip()).then(() => {
-                L.ui.addNotification(null, E('p', _('GeoIP 更新任务已启动')));
-            }).catch(function(e) { L.ui.addNotification(null, E('p', '操作失败: ' + (e.message || e))); });
+                setActionStatus(_('GeoIP 更新任务已启动'), true);
+            }).catch(function(e) { setActionStatus('GeoIP 更新失败: ' + (e && e.message ? e.message : e), false); });
         };
 
         /* ─── 绕过 ─── */
@@ -158,8 +238,8 @@ return view.extend({
         o.depends('bypass_china', '1');
         o.onclick = function () {
             return m.save().then(() => clash.updateChinaIp()).then(() => {
-                L.ui.addNotification(null, E('p', _('大陆白名单更新任务已启动，稍后可在更新日志中查看进度')));
-            }).catch(function(e) { L.ui.addNotification(null, E('p', '操作失败: ' + (e.message || e))); });
+                setActionStatus(_('大陆白名单更新任务已启动，稍后可在更新日志中查看进度'), true);
+            }).catch(function(e) { setActionStatus('大陆白名单更新失败: ' + (e && e.message ? e.message : e), false); });
         };
 
         o = s.option(form.Value, 'proxy_tcp_dport', _('要代理的 TCP 目标端口'));
@@ -236,23 +316,78 @@ return view.extend({
             function mkLogPanel(initialContent, readFn, clearFn) {
                 function processLog(raw) {
                     if (!raw) return '';
-                    return raw.trim().split('\n').reverse().join('\n');
+                    return raw;
                 }
 
+                let stickBottom = false;
+
                 let ta = E('textarea', {
-                    style: 'width:100%;height:50vh;font-family:monospace;font-size:13px;padding:8px;resize:vertical;box-sizing:border-box;border:1px solid #d0d0d0;border-radius:4px;background:#fafafa;color:#333;'
+                    style: 'width:100%;height:50vh;font-family:monospace;font-size:13px;padding:8px;resize:vertical;box-sizing:border-box;border:1px solid ' + LOG_BORDER + ';border-radius:4px;background:' + LOG_BG + ';color:' + LOG_TEXT + ';'
                 }, [processLog(initialContent)]);
 
                 let clearBtn = E('button', {
+                    type: 'button',
                     class: 'btn cbi-button cbi-button-negative',
-                    onclick: function () { ta.value = ''; return clearFn().catch(function(e) { L.ui.addNotification(null, E('p', '操作失败: ' + (e.message || e))); }); }
+                    style: 'transition:all .18s ease'
                 }, [_('清空日志')]);
 
                 let scrollBtn = E('button', {
+                    type: 'button',
                     class: 'btn cbi-button',
                     style: 'margin-left:8px',
-                    onclick: function () { ta.scrollTop = 0; }
-                }, [_('回到顶部')]);
+                }, [_('回到底部')]);
+
+                clearBtn.addEventListener('click', function (ev) {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    clearBtn.disabled = true;
+                    let prevText = clearBtn.textContent;
+                    let prevBg = clearBtn.style.background;
+                    clearBtn.textContent = '清空中...';
+                    clearBtn.style.background = '#f97316';
+                    Promise.resolve(clearFn()).then(function () {
+                        ta.value = '';
+                        ta.scrollTop = 0;
+                        stickBottom = false;
+                        return readFn().then(function (c) {
+                            ta.value = processLog(c);
+                        });
+                    }).then(function () {
+                        clearBtn.textContent = '已清空';
+                        clearBtn.style.background = '#10b981';
+                        setTimeout(function () {
+                            clearBtn.textContent = prevText;
+                            clearBtn.style.background = prevBg;
+                        }, 900);
+                    }).catch(function (e) {
+                        clearBtn.textContent = prevText;
+                        clearBtn.style.background = prevBg;
+                        setActionStatus('清空日志失败: ' + (e && e.message ? e.message : e), false);
+                    }).finally(function () {
+                        clearBtn.disabled = false;
+                    });
+                });
+
+                scrollBtn.addEventListener('click', function (ev) {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    stickBottom = true;
+                    ta.scrollTop = ta.scrollHeight;
+                    requestAnimationFrame(function () {
+                        ta.scrollTop = ta.scrollHeight;
+                    });
+                    let prevText = scrollBtn.textContent;
+                    let prevBg = scrollBtn.style.background;
+                    let prevColor = scrollBtn.style.color;
+                    scrollBtn.textContent = '已到底部';
+                    scrollBtn.style.background = '#20c997';
+                    scrollBtn.style.color = '#fff';
+                    setTimeout(function () {
+                        scrollBtn.textContent = prevText;
+                        scrollBtn.style.background = prevBg;
+                        scrollBtn.style.color = prevColor;
+                    }, 900);
+                });
 
                 let panel = E('div', { style: 'padding-top:12px' }, [
                     E('div', { style: 'margin-bottom:10px' }, [clearBtn, scrollBtn]),
@@ -260,7 +395,11 @@ return view.extend({
                 ]);
 
                 poll.add(function () {
-                    return readFn().then(function (c) { ta.value = processLog(c); }).catch(function() {});
+                    return readFn().then(function (c) {
+                        ta.value = processLog(c);
+                        if (stickBottom)
+                            ta.scrollTop = ta.scrollHeight;
+                    }).catch(function() {});
                 }, 5);
 
                 return panel;
@@ -273,8 +412,8 @@ return view.extend({
             };
 
             /* ─── 子 Tab 样式（圆角灰底，激活蓝色下划线）─── */
-            let TAB_STYLE_BASE   = 'cursor:pointer;padding:8px 18px;margin-right:6px;border-radius:6px 6px 0 0;font-size:14px;border:none;background:#e8eaed;color:#555;border-bottom:3px solid transparent;';
-            let TAB_STYLE_ACTIVE = 'cursor:pointer;padding:8px 18px;margin-right:6px;border-radius:6px 6px 0 0;font-size:14px;border:none;background:#e8eaed;color:#4a76d4;border-bottom:3px solid #4a76d4;font-weight:600;';
+            let TAB_STYLE_BASE   = 'cursor:pointer;padding:8px 18px;margin-right:6px;border-radius:6px 6px 0 0;font-size:14px;border:none;background:' + TAB_BG + ';color:' + TAB_TEXT + ';border-bottom:3px solid transparent;';
+            let TAB_STYLE_ACTIVE = 'cursor:pointer;padding:8px 18px;margin-right:6px;border-radius:6px 6px 0 0;font-size:14px;border:none;background:' + TAB_BG + ';color:' + TAB_ACTIVE_TEXT + ';border-bottom:3px solid ' + TAB_ACTIVE_TEXT + ';font-weight:600;';
 
             function mkBtn(label, active) {
                 return E('button', { type: 'button', style: active ? TAB_STYLE_ACTIVE : TAB_STYLE_BASE }, [label]);
@@ -288,7 +427,7 @@ return view.extend({
             ];
 
             let subBtns = {};
-            let subBar = E('div', { style: 'border-bottom:2px solid #ddd;margin-bottom:12px;padding-top:4px' },
+            let subBar = E('div', { style: 'border-bottom:2px solid ' + BORDER + ';margin-bottom:12px;padding-top:4px' },
                 subTabs.map(function (t) {
                     let b = mkBtn(t.label, t.key === 'run');
                     subBtns[t.key] = b;
@@ -313,7 +452,7 @@ return view.extend({
                 { key: 'system', label: _('系统设置') },
                 { key: 'log',    label: _('系统日志') }
             ];
-            let topBar = E('div', { style: 'border-bottom:2px solid #ddd;margin-bottom:16px;padding-top:4px' },
+            let topBar = E('div', { style: 'border-bottom:2px solid ' + BORDER + ';margin-bottom:16px;padding-top:4px' },
                 topDefs.map(function (t) {
                     let b = mkBtn(t.label, t.key === 'system');
                     topBtns[t.key] = b;
@@ -334,6 +473,7 @@ return view.extend({
             return E('div', {}, [
                 E('h2', { style: 'margin-bottom:12px' }, [_('系统设置')]),
                 topBar,
+                statusBar,
                 systemNode,
                 logSection
             ]);
@@ -341,6 +481,22 @@ return view.extend({
     },
 
     handleSaveApply: function (ev) {
-        return this.handleSave(ev).then(() => clash.restart()).catch(function(e) { L.ui.addNotification(null, E('p', '保存失败: ' + (e.message || e))); });
+        return this.handleSave(ev).then(function () {
+            return Promise.resolve(ui.changes.apply(true)).then(function () {
+                return clash.restart();
+            });
+        });
+    },
+
+    handleSave: function (ev) {
+        if (!this._map)
+            return Promise.resolve();
+        return this._map.save(ev);
+    },
+
+    handleReset: function () {
+        if (!this._map)
+            return Promise.resolve();
+        return this._map.reset();
     }
 });

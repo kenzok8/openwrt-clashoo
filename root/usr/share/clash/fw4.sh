@@ -36,12 +36,36 @@ config_tproxy_port() {
 	fi
 }
 
-config_enable_udp() {
-	uci_get clash.config.enable_udp
+config_tcp_mode() {
+	uci_get clash.config.tcp_mode
+}
+
+config_udp_mode() {
+	uci_get clash.config.udp_mode
 }
 
 config_access_control() {
 	uci_get clash.config.access_control
+}
+
+config_bypass_china() {
+	uci_get clash.config.bypass_china
+}
+
+config_proxy_tcp_dport() {
+	uci_get clash.config.proxy_tcp_dport
+}
+
+config_proxy_udp_dport() {
+	uci_get clash.config.proxy_udp_dport
+}
+
+config_bypass_dscp() {
+	uci_list clash.config.bypass_dscp
+}
+
+config_bypass_fwmark() {
+	uci_list clash.config.bypass_fwmark
 }
 
 config_fake_ip_range() {
@@ -80,6 +104,13 @@ remove_firewall_include() {
 	uci -q delete firewall."${name}" >/dev/null 2>&1 || true
 }
 
+render_common_returns() {
+	cat <<'EOF'
+meta nfproto ipv4 ip daddr { 0.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16, 224.0.0.0/4, 240.0.0.0/4 } return
+meta nfproto ipv6 ip6 daddr { ::1/128, fc00::/7, fe80::/10, ff00::/8 } return
+EOF
+}
+
 render_ip_elements() {
 	local list="$1"
 	local first=1 entry
@@ -94,6 +125,38 @@ render_ip_elements() {
 
 render_china_elements() {
 	awk '!/^$/&&!/^#/{printf sep $0; sep=", "}' /usr/share/clash/china_ip.txt 2>/dev/null
+}
+
+render_china6_elements() {
+	awk '!/^$/&&!/^#/{printf sep $0; sep=", "}' /usr/share/clash/china_ipv6.txt 2>/dev/null
+}
+
+render_token_elements() {
+	printf '%s\n' "$1" | tr ',\t' '  ' | awk '
+		BEGIN { first = 1 }
+		{
+			for (i = 1; i <= NF; i++) {
+				if ($i == "")
+					continue
+				if (!first)
+					printf ", "
+				printf "%s", $i
+				first = 0
+			}
+		}'
+}
+
+render_port_match() {
+	local proto="$1"
+	local ports="$2"
+	local port_elements
+
+	port_elements="$(render_token_elements "$ports")"
+	if [ -n "$port_elements" ]; then
+		printf 'meta l4proto %s %s dport { %s }' "$proto" "$proto" "$port_elements"
+	else
+		printf 'meta l4proto %s' "$proto"
+	fi
 }
 
 apply_local_output_rule() {
@@ -117,63 +180,102 @@ remove_local_output_rule() {
 }
 
 generate_rules() {
-	local redir_port tproxy_port enable_udp access_control fake_ip_range proxy_lan_ips reject_lan_ips
+	local redir_port tproxy_port tcp_mode udp_mode access_control fake_ip_range proxy_lan_ips reject_lan_ips
+	local proxy_tcp_dport proxy_udp_dport bypass_dscp bypass_fwmark
 	redir_port="$(config_redir_port)"
 	tproxy_port="$(config_tproxy_port)"
-	enable_udp="$(config_enable_udp)"
+	tcp_mode="$(config_tcp_mode)"
+	udp_mode="$(config_udp_mode)"
 	access_control="$(config_access_control)"
+	bypass_china="$(config_bypass_china)"
+	proxy_tcp_dport="$(config_proxy_tcp_dport)"
+	proxy_udp_dport="$(config_proxy_udp_dport)"
+	bypass_dscp="$(config_bypass_dscp)"
+	bypass_fwmark="$(config_bypass_fwmark)"
 	fake_ip_range="$(config_fake_ip_range)"
 	proxy_lan_ips="$(uci_list clash.config.proxy_lan_ips)"
 	reject_lan_ips="$(uci_list clash.config.reject_lan_ips)"
 
 	mkdir -p "$NFT_DIR"
 
-	cat > "$SETS_RULES" <<EOF
-set clash_localnetwork {
-	type ipv4_addr;
-	flags interval;
-	auto-merge;
-	elements = { 0.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16, 224.0.0.0/4, 240.0.0.0/4 }
-}
+	# Build optional elements lines (nftables rejects empty elements = {})
+	local china_elements china6_elements proxy_elements reject_elements dscp_elements fwmark_elements
+	china_elements="$(render_china_elements)"
+	china6_elements="$(render_china6_elements)"
+	proxy_elements="$(render_ip_elements "$proxy_lan_ips")"
+	reject_elements="$(render_ip_elements "$reject_lan_ips")"
+	dscp_elements="$(render_token_elements "$bypass_dscp")"
+	fwmark_elements="$(render_token_elements "$bypass_fwmark")"
 
-set clash_china {
-	type ipv4_addr;
-	flags interval;
-	auto-merge;
-	elements = { $(render_china_elements) }
-}
+	{
+		printf 'set clash_localnetwork {\n\ttype ipv4_addr;\n\tflags interval;\n\tauto-merge;\n'
+		printf '\telements = { 0.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16, 224.0.0.0/4, 240.0.0.0/4 }\n}\n\n'
 
-set clash_proxy_lan {
-	type ipv4_addr;
-	flags interval;
-	auto-merge;
-	elements = { $(render_ip_elements "$proxy_lan_ips") }
-}
+		printf 'set clash_china {\n\ttype ipv4_addr;\n\tflags interval;\n\tauto-merge;\n'
+		[ -n "$china_elements" ] && printf '\telements = { %s }\n' "$china_elements"
+		printf '}\n\n'
 
-set clash_reject_lan {
-	type ipv4_addr;
-	flags interval;
-	auto-merge;
-	elements = { $(render_ip_elements "$reject_lan_ips") }
-}
-EOF
+		printf 'set clash_china6 {\n\ttype ipv6_addr;\n\tflags interval;\n\tauto-merge;\n'
+		[ -n "$china6_elements" ] && printf '\telements = { %s }\n' "$china6_elements"
+		printf '}\n\n'
+
+		printf 'set clash_proxy_lan {\n\ttype ipv4_addr;\n\tflags interval;\n\tauto-merge;\n'
+		[ -n "$proxy_elements" ] && printf '\telements = { %s }\n' "$proxy_elements"
+		printf '}\n\n'
+
+		printf 'set clash_reject_lan {\n\ttype ipv4_addr;\n\tflags interval;\n\tauto-merge;\n'
+		[ -n "$reject_elements" ] && printf '\telements = { %s }\n' "$reject_elements"
+		printf '}\n'
+	} > "$SETS_RULES"
 
 	: > "$OUTPUT_RULES"
 
-	cat > "$DSTNAT_RULES" <<EOF
+	# TCP rules: redirect or tproxy (tun mode needs no nftables rule)
+	case "$tcp_mode" in
+		redirect)
+			tcp_match="$(render_port_match tcp "$proxy_tcp_dport")"
+			cat > "$DSTNAT_RULES" <<EOF
 ip daddr @clash_localnetwork return
+$( bool_enabled "$bypass_china" && printf '%s\n' 'ip6 daddr @clash_china6 return' )
+$( bool_enabled "$bypass_china" && printf '%s\n' 'ip daddr @clash_china return' )
 $( [ "$access_control" = "1" ] && printf '%s\n' 'ip saddr != @clash_proxy_lan return' )
 $( [ "$access_control" = "2" ] && printf '%s\n' 'ip saddr @clash_reject_lan return' )
-meta l4proto tcp redirect to :${redir_port}
+$( [ -n "$dscp_elements" ] && printf '%s\n' "ip dscp { ${dscp_elements} } return" )
+$( [ -n "$dscp_elements" ] && printf '%s\n' "ip6 dscp { ${dscp_elements} } return" )
+$( [ -n "$fwmark_elements" ] && printf '%s\n' "meta mark { ${fwmark_elements} } return" )
+${tcp_match} redirect to :${redir_port}
 EOF
+			;;
+		tproxy)
+			: > "$DSTNAT_RULES"
+			;;
+		*)
+			# tun or unset: no TCP nftables rules
+			: > "$DSTNAT_RULES"
+			;;
+	esac
 
-	if bool_enabled "$enable_udp"; then
-		cat > "$MANGLE_RULES" <<EOF
-ip daddr @clash_localnetwork return
-$( [ "$access_control" = "1" ] && printf '%s\n' 'ip saddr != @clash_proxy_lan return' )
-$( [ "$access_control" = "2" ] && printf '%s\n' 'ip saddr @clash_reject_lan return' )
-meta l4proto udp tproxy to :${tproxy_port} meta mark set ${PROXY_FWMARK} accept
-EOF
+	# UDP rules: tproxy via mangle (tun mode needs no nftables rule)
+	# Also handle TCP tproxy mode here (both TCP+UDP in mangle)
+	local need_mangle=0
+	[ "$tcp_mode" = "tproxy" ] && need_mangle=1
+	[ "$udp_mode" = "tproxy" ] && need_mangle=1
+
+	if [ "$need_mangle" -eq 1 ]; then
+		tcp_match="$(render_port_match tcp "$proxy_tcp_dport")"
+		udp_match="$(render_port_match udp "$proxy_udp_dport")"
+		{
+			printf 'ip daddr @clash_localnetwork return\n'
+			bool_enabled "$bypass_china" && printf 'meta nfproto ipv6 ip6 daddr @clash_china6 return\n'
+			bool_enabled "$bypass_china" && printf 'ip daddr @clash_china return\n'
+			[ "$access_control" = "1" ] && printf 'ip saddr != @clash_proxy_lan return\n'
+			[ "$access_control" = "2" ] && printf 'ip saddr @clash_reject_lan return\n'
+			[ -n "$dscp_elements" ] && printf 'ip dscp { %s } return\n' "$dscp_elements"
+			[ -n "$dscp_elements" ] && printf 'ip6 dscp { %s } return\n' "$dscp_elements"
+			[ -n "$fwmark_elements" ] && printf 'meta mark { %s } return\n' "$fwmark_elements"
+			[ "$tcp_mode" = "tproxy" ] && printf '%s tproxy to :%s meta mark set %s accept\n' "$tcp_match" "$tproxy_port" "$PROXY_FWMARK"
+			[ "$udp_mode" = "tproxy" ] && printf '%s tproxy to :%s meta mark set %s accept\n' "$udp_match" "$tproxy_port" "$PROXY_FWMARK"
+		} > "$MANGLE_RULES"
 	else
 		: > "$MANGLE_RULES"
 	fi

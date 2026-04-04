@@ -1,6 +1,7 @@
 'use strict';
 'require form';
 'require view';
+'require ui';
 'require uci';
 'require tools.clash as clash';
 
@@ -8,7 +9,14 @@ return view.extend({
     load: function () {
         return Promise.all([
             uci.load('clash'),
-            clash.listConfigs()
+            Promise.race([
+                clash.listConfigs(),
+                new Promise(function(resolve) {
+                    setTimeout(function() { resolve({ configs: [], current: '' }); }, 1200);
+                })
+            ]).catch(function() {
+                return { configs: [], current: '' };
+            })
         ]);
     },
 
@@ -19,6 +27,7 @@ return view.extend({
         let m, s, o;
 
         m = new form.Map('clash', '代理配置', '');
+        this._map = m;
 
         /* ── 基本配置 ── */
         s = m.section(form.NamedSection, 'config', 'clash', '基本配置');
@@ -91,6 +100,11 @@ return view.extend({
         o.depends('tcp_mode', 'tun');
         o.depends('udp_mode', 'tun');
 
+        o = s.option(form.Flag, 'disable_quic_gso', '禁用 quic-go GSO 支持');
+        o.default = '1';
+        o.rmempty = false;
+        o.description = '遇到 QUIC/UDP 连接不稳定时建议开启（稳定优先，可能略降吞吐）';
+
         o = s.option(form.Flag, 'ipv4_dns_hijack', 'IPv4 DNS 劫持');
         o.default = '1';
         o.rmempty = false;
@@ -144,14 +158,31 @@ return view.extend({
 
         o = s.option(form.Value, 'tproxy_port', 'TPROXY 端口');
         o.datatype    = 'port';
-        o.placeholder = '7892';
+        o.default     = '7982';
+        o.placeholder = '7982';
         o.description = 'TPROXY 模式监听端口（mihomo: tproxy-port），TCP/UDP TPROXY 任一启用时生效';
 
 
         return m.render();
     },
 
+    handleSave: function (ev) {
+        if (!this._map)
+            return Promise.resolve();
+        return this._map.save(ev);
+    },
+
     handleSaveApply: function (ev) {
-        return this.handleSave(ev).then(() => clash.restart());
+        return this.handleSave(ev).then(function () {
+            return Promise.resolve(ui.changes.apply(true)).then(function () {
+                return clash.restart();
+            });
+        });
+    },
+
+    handleReset: function () {
+        if (!this._map)
+            return Promise.resolve();
+        return this._map.reset();
     }
 });

@@ -1,31 +1,17 @@
 {
-    "luci-app-clashoo": {
-        "description": "Grant access to Clash procedures",
-        "read": {
-            "uci": [ "clash" ],
-            "ubus": {
-                "rc":          [ "*" ],
-                "luci.clash":  [ "*" ]
-            },
-            "file": {
-                "/etc/clash/*.yaml":          [ "read" ],
-                "/etc/clash/*.yml":           [ "read" ],
-                "/etc/clash/profiles/*.yaml": [ "read" ],
-                "/etc/clash/profiles/*.yml":  [ "read" ],
-                "/var/log/clash.log":         [ "read" ],
-                "/var/log/clash/*.log":       [ "read" ],
-                "/tmp/clash.log":             [ "read" ],
-                "/usr/share/clash/clash.txt": [ "read" ]
-            }
-        },
-        "write": {
-            "uci": [ "clash" ],
-            "file": {
-                "/etc/clash/*.yaml":          [ "write" ],
-                "/etc/clash/*.yml":           [ "write" ],
-                "/etc/clash/profiles/*.yaml": [ "write" ],
-                "/etc/clash/profiles/*.yml":  [ "write" ]
-            }
-        }
-    }
+	"luci-app-clashoo": {
+		"description": "Grant UCI access for luci-app-clashoo",
+		"read": {
+			"uci": [ "clash" ],
+			"ubus": {
+				"luci.clash": [ "*" ]
+			}
+		},
+		"write": {
+			"uci": [ "clash" ],
+			"ubus": {
+				"luci.clash": [ "*" ]
+			}
+		}
+	}
 }

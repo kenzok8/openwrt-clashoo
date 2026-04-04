@@ -1,33 +1,79 @@
 {
-  "admin/services/clash": {
+  "admin/services/clashoo": {
     "title": "Clashoo",
-    "order": 50,
-    "action": { "type": "firstchild" },
-    "icon": "/luci-static/clash/logo.png"
+    "order": 90,
+    "action": {
+      "type": "firstchild"
+    },
+    "depends": {
+      "acl": [
+        "luci-app-clashoo"
+      ]
+    }
   },
-  "admin/services/clash/overview": {
+  "admin/services/clashoo/overview": {
     "title": "概览",
     "order": 10,
-    "action": { "type": "view", "path": "clash/overview" }
+    "action": {
+      "type": "view",
+      "path": "clash/overview"
+    },
+    "depends": {
+      "acl": [
+        "luci-app-clashoo"
+      ]
+    }
   },
-  "admin/services/clash/app": {
+  "admin/services/clashoo/app": {
     "title": "代理配置",
     "order": 20,
-    "action": { "type": "view", "path": "clash/app" }
+    "action": {
+      "type": "view",
+      "path": "clash/app"
+    },
+    "depends": {
+      "acl": [
+        "luci-app-clashoo"
+      ]
+    }
   },
-  "admin/services/clash/config_manager": {
+  "admin/services/clashoo/config": {
     "title": "配置管理",
     "order": 30,
-    "action": { "type": "view", "path": "clash/config" }
+    "action": {
+      "type": "view",
+      "path": "clash/config"
+    },
+    "depends": {
+      "acl": [
+        "luci-app-clashoo"
+      ]
+    }
   },
-  "admin/services/clash/dns_settings": {
+  "admin/services/clashoo/dns": {
     "title": "DNS 设置",
     "order": 40,
-    "action": { "type": "view", "path": "clash/dns" }
+    "action": {
+      "type": "view",
+      "path": "clash/dns"
+    },
+    "depends": {
+      "acl": [
+        "luci-app-clashoo"
+      ]
+    }
   },
-  "admin/services/clash/system": {
+  "admin/services/clashoo/system": {
     "title": "系统设置",
     "order": 50,
-    "action": { "type": "view", "path": "clash/system" }
+    "action": {
+      "type": "view",
+      "path": "clash/system"
+    },
+    "depends": {
+      "acl": [
+        "luci-app-clashoo"
+      ]
+    }
   }
 }

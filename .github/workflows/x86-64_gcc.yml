@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         sdk:
-          - 23.05.5
+          - 24.10.4
         arch:
           - aarch64_cortex-a53
           - aarch64_cortex-a72
@@ -111,5 +111,4 @@ jobs:
           replacesArtifacts: true
           bodyFile: "release.txt"
           tag: ${{ github.run_number }}-${{ matrix.arch }}
-
 

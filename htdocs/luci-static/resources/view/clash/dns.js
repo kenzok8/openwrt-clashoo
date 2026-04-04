@@ -1,6 +1,7 @@
 'use strict';
 'require view';
 'require form';
+'require ui';
 'require uci';
 'require tools.clash as clash';
 
@@ -12,7 +13,28 @@ return view.extend({
     render: function () {
         let m, s, o;
 
+        function useInlineEmptyHint(section) {
+            section.addbtntitle = _('添加');
+            section.renderSectionPlaceholder = function() { return E([]); };
+            section.renderSectionAdd = function(config_data) {
+                let node = form.TypedSection.prototype.renderSectionAdd.call(this, config_data);
+                if (node && this.cfgsections(config_data).length === 0) {
+                    let children = Array.from(node.childNodes || []);
+                    for (let child of children) {
+                        if (child && child.nodeType === 3 && child.textContent && child.textContent.trim()) {
+                            node.removeChild(child);
+                        }
+                    }
+                    node.appendChild(E('span', {
+                        style: 'margin-left:10px;color:#888;font-size:.9rem;vertical-align:middle;line-height:2.2rem'
+                    }, _('尚无任何配置')));
+                }
+                return node;
+            };
+        }
+
         m = new form.Map('clash', _('DNS 设置'), _('配置 Clash DNS 解析规则'));
+        this._map = m;
 
         /* ─── 基础 DNS ─── */
         s = m.section(form.NamedSection, 'config', 'clash', _('基础 DNS'));
@@ -22,7 +44,7 @@ return view.extend({
         o.default = '1';
 
         o = s.option(form.Value, 'listen_port', _('DNS 监听端口'));
-        o.default = '1053';
+        o.default = '5300';
         o.datatype = 'port';
         o.depends('enable_dns', '1');
 
@@ -63,19 +85,20 @@ return view.extend({
         o.default = 'nameserver';
 
         o = s.option(form.Value, 'ser_address', _('DNS 地址'));
-        o.placeholder = 'https://dns.alidns.com/dns-query';
+        o.placeholder = '114.114.114.114';
 
         o = s.option(form.ListValue, 'protocol', _('协议'));
         o.value('udp://',   'UDP');
         o.value('tcp://',   'TCP');
         o.value('tls://',   'TLS (DoT)');
         o.value('https://', 'HTTPS (DoH)');
-        o.default = 'https://';
+        o.default = 'udp://';
 
         /* ─── DNS 劫持 ─── */
         s = m.section(form.TypedSection, 'dnshijack', _('DNS 劫持'));
         s.addremove = true;
         s.anonymous = true;
+        useInlineEmptyHint(s);
 
         o = s.option(form.ListValue, 'type', _('协议类型'));
         o.value('none', _('无（仅 IP）'));
@@ -93,18 +116,7 @@ return view.extend({
         s = m.section(form.TypedSection, 'authentication', _('代理认证'));
         s.addremove = true;
         s.anonymous = true;
-        s.addbtntitle = _('添加');
-        /* hide default left-side placeholder; show hint to the right of the button */
-        s.renderSectionPlaceholder = function() { return E([]); };
-        s.renderSectionAdd = function(config_data) {
-            let node = form.TypedSection.prototype.renderSectionAdd.call(this, config_data);
-            if (node && this.cfgsections(config_data).length === 0) {
-                node.appendChild(E('span', {
-                    style: 'margin-left:10px;color:#888;font-size:.9rem;vertical-align:middle;line-height:2.2rem'
-                }, _('尚无任何配置')));
-            }
-            return node;
-        };
+        useInlineEmptyHint(s);
 
         o = s.option(form.Value, 'username', _('用户名'));
         o = s.option(form.Value, 'password', _('密码'));
@@ -114,6 +126,22 @@ return view.extend({
     },
 
     handleSaveApply: function (ev) {
-        return this.handleSave(ev).then(() => clash.restart()).catch(function(e) { L.ui.addNotification(null, E('p', '保存失败: ' + (e.message || e))); });
+        return this.handleSave(ev).then(function () {
+            return Promise.resolve(ui.changes.apply(true)).then(function () {
+                return clash.restart();
+            });
+        });
+    },
+
+    handleSave: function (ev) {
+        if (!this._map)
+            return Promise.resolve();
+        return this._map.save(ev);
+    },
+
+    handleReset: function () {
+        if (!this._map)
+            return Promise.resolve();
+        return this._map.reset();
     }
 });

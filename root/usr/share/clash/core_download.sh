@@ -4,6 +4,7 @@ LOG_FILE="/tmp/clash_update.txt"
 MODELTYPE=$(uci get clash.config.download_core 2>/dev/null)
 CORETYPE=$(uci get clash.config.dcore 2>/dev/null)
 MIRROR_PREFIX=$(uci get clash.config.core_mirror_prefix 2>/dev/null)
+CUSTOM_CORE_URL=$(uci get clash.config.core_download_url 2>/dev/null)
 CONNECT_TIMEOUT=15
 REQUEST_TIMEOUT=30
 DOWNLOAD_TIMEOUT=150
@@ -357,8 +358,88 @@ install_binary() {
 	chmod 755 "$target"
 }
 
+backup_binary() {
+	target="$1"
+	bak="${target}.bak"
+	if [ -x "$target" ]; then
+		cp -f "$target" "$bak" 2>/dev/null || true
+	fi
+}
+
+restore_binary() {
+	target="$1"
+	bak="${target}.bak"
+	if [ -f "$bak" ]; then
+		cp -f "$bak" "$target" 2>/dev/null || return 1
+		chmod 755 "$target" 2>/dev/null || true
+		return 0
+	fi
+	return 1
+}
+
+verify_binary() {
+	target="$1"
+	[ -x "$target" ] || return 1
+	"$target" -v >/dev/null 2>&1 && return 0
+	"$target" version >/dev/null 2>&1 && return 0
+	return 1
+}
+
+install_with_rollback() {
+	tmpfile="$1"
+	target="$2"
+
+	backup_binary "$target"
+	if ! install_binary "$tmpfile" "$target"; then
+		write_log "Core install failed, restoring previous binary"
+		restore_binary "$target" >/dev/null 2>&1 || true
+		return 1
+	fi
+
+	if ! verify_binary "$target"; then
+		write_log "Core verify failed, rolling back to previous binary"
+		restore_binary "$target" >/dev/null 2>&1 || true
+		return 1
+	fi
+
+	return 0
+}
+
 rm -f /tmp/clash.gz /tmp/clash /usr/share/clash/core_down_complete 2>/dev/null
 : > "$LOG_FILE"
+
+if [ -n "$CUSTOM_CORE_URL" ]; then
+	write_log "Using custom core URL"
+	URL="$CUSTOM_CORE_URL"
+	if [ "$CORETYPE" = "3" ]; then
+		TARGET="/usr/bin/mihomo"
+		VERSION_FILE="/usr/share/clash/mihomo_version"
+	else
+		TARGET="/usr/bin/clash-meta"
+		VERSION_FILE="/usr/share/clash/clash_meta_version"
+	fi
+	TAG="custom"
+	ASSET="custom"
+	VERSION_VALUE="custom-url"
+
+	if ! download_file_try "$URL" /tmp/clash.gz; then
+		write_log "Custom core URL download failed"
+		exit 1
+	fi
+
+	if ! gunzip -f /tmp/clash.gz; then
+		write_log "Custom core unzip failed"
+		exit 1
+	fi
+
+	if ! install_with_rollback /tmp/clash "$TARGET"; then
+		exit 1
+	fi
+	printf '%s\n' "${VERSION_VALUE}" > "$VERSION_FILE"
+	touch /usr/share/clash/core_down_complete
+	write_log "Core update successful (custom URL)"
+	exit 0
+fi
 
 if [ "$CORETYPE" = "1" ]; then
 	write_log "Clash core source is not configured (no dedicated release repo)"
@@ -409,7 +490,9 @@ if ! gunzip -f /tmp/clash.gz; then
 	exit 1
 fi
 
-install_binary /tmp/clash "$TARGET"
+if ! install_with_rollback /tmp/clash "$TARGET"; then
+	exit 1
+fi
 printf '%s\n' "${VERSION_VALUE:-$TAG}" > "$VERSION_FILE"
 touch /usr/share/clash/core_down_complete
 write_log "Core update successful"

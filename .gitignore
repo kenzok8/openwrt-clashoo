@@ -28,3 +28,15 @@ root/usr/share/clash/dashboard/
 
 # macOS
 .DS_Store
+
+# build artifacts
+dist/
+
+# local test helpers
+test-http/
+
+# runtime generated state files
+root/usr/share/clash/new_*
+root/usr/share/clash/*_version
+root/usr/share/clash/fake_filter.list
+root/usr/share/clash/rules/

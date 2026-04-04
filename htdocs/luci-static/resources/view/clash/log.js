@@ -23,7 +23,7 @@ return view.extend({
         o.onclick = function (_, section_id) {
             let el = m.lookupOption('_log_content', section_id);
             if (el && el[0]) el[0].getUIElement(section_id).setValue('');
-            return clash.clearLog().catch(function(e) { L.ui.addNotification(null, E('p', '操作失败: ' + (e.message || e))); });
+            return clash.clearLog().catch(function() {});
         };
 
         o = s.option(form.TextValue, '_log_content', _(''));
