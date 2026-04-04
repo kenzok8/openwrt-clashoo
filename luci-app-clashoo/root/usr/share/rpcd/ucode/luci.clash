@@ -782,7 +782,7 @@ system('mkdir -p ' + shell_quote(out_dir));
 if (system('command -v yq >/dev/null 2>&1') != 0)
 return { success: false, error: 'missing_yq', message: '缺少 yq，无法执行复写' };
 
-let cmd = "yq eval-all 'select(fileIndex == 0) * select(fileIndex == 1)' "
+let cmd = "yq eval-all 'select(fileIndex == 0) * (select(fileIndex == 1) | explode(.))' "
 + shell_quote(base_path) + ' ' + shell_quote(rewrite_path)
 + ' > ' + shell_quote(tmp_path);
 
