@@ -6,6 +6,9 @@ env:
   B2_APPLICATION_KEY: ${{ secrets.B2_APPLICATION_KEY }}
   B2_BUCKET: ${{ secrets.B2_BUCKET }}
 
+permissions:
+  contents: write
+
 on:
   workflow_dispatch:
   push:
@@ -115,7 +118,8 @@ jobs:
 
       - name: uncompress
         run: |
-          for file in feed_clashoo_*.tar.gz; do tar -x -z -f "$file"; done
+          ls -la
+          for file in feed_clashoo_*.tar.gz; do [ -f "$file" ] && tar -x -z -f "$file"; done
 
       - name: prepare
         run: |
