@@ -1,5 +1,9 @@
 name: Build Clashoo Packages
 
+permissions:
+  contents: write
+  issues: write
+
 on:
   workflow_dispatch:
   push:
@@ -34,7 +38,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tag="v1.19.22"
+          tag="$(tr -d '\r\n' < .github/mihomo_tag.txt)"
+          [ -n "$tag" ] || { echo "mihomo tag file is empty"; exit 1; }
           arch="${{ matrix.arch }}"
           case "$arch" in
             x86_64) core_arch="linux-amd64" ;;
@@ -104,3 +109,17 @@ jobs:
           tag: ${{ github.ref_name }}
           body: |
             Auto-built packages for `${{ matrix.arch }}` on SDK `${{ matrix.sdk }}`.
+
+  notify-on-failure:
+    if: failure() && startsWith(github.ref, 'refs/tags/v')
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create failure issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "CI failed for ${{ github.ref_name }}" \
+            --body "Auto release build failed for tag \\`${{ github.ref_name }}\\`. Please check workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
