@@ -12,6 +12,7 @@ let callDeleteCfg   = rpc.declare({ object: 'luci.clash', method: 'delete_config
 let callDownloadSubs= rpc.declare({ object: 'luci.clash', method: 'download_subs', expect: {} });
 let callUpdateSub   = rpc.declare({ object: 'luci.clash', method: 'update_sub', params: ['name'], expect: {} });
 let callSetConfig   = rpc.declare({ object: 'luci.clash', method: 'set_config', params: ['name'], expect: {} });
+let callApplyRewrite= rpc.declare({ object: 'luci.clash', method: 'apply_rewrite', params: ['base_type', 'base_name', 'rewrite_type', 'rewrite_name', 'output_name', 'set_active'], expect: {} });
 
 
 function mkBtn(label, style, fn) {
@@ -85,15 +86,17 @@ return view.extend({
         return Promise.all([
             uci.load('clash'),
             callListSubs(),
+            callListDir('1'),
             callListDir('2'),
             callListDir('3')
         ]);
     },
 
     render: function (data) {
-        let subData    = data[1] || {};
-        let uploadData = data[2] || {};
-        let customData = data[3] || {};
+        let subData      = data[1] || {};
+        let subFileData  = data[2] || {};
+        let uploadData   = data[3] || {};
+        let customData   = data[4] || {};
         let activeName = subData.active || '';
 
         let m, s, o;
@@ -300,6 +303,131 @@ return view.extend({
                 return Promise.resolve(node);
             };
         }
+
+        /* ─── 复写设置（主配置 + 复写配置） ─── */
+        s = m.section(form.NamedSection, 'config', 'clash', _('复写设置'));
+        s.anonymous = false;
+        s.render = function () {
+            let subFiles = (subFileData.files || []).map(f => f.name);
+            let upFiles  = uploadFiles.map(f => f.name);
+            let cuFiles  = customFiles.map(f => f.name);
+
+            function filesByType(t) {
+                if (t === '1') return subFiles;
+                if (t === '2') return upFiles;
+                if (t === '3') return cuFiles;
+                return [];
+            }
+
+            function labelOfType(t) {
+                if (t === '1') return _('远程订阅');
+                if (t === '2') return _('本地上传');
+                return _('自定义');
+            }
+
+            function refillFileSelect(sel, t) {
+                let arr = filesByType(t);
+                while (sel.firstChild) sel.removeChild(sel.firstChild);
+                if (!arr.length) {
+                    sel.appendChild(E('option', { value: '' }, _('无可用文件')));
+                    sel.disabled = true;
+                    return;
+                }
+                arr.forEach(n => sel.appendChild(E('option', { value: n }, n)));
+                sel.disabled = false;
+            }
+
+            let baseType = E('select', { class: 'cbi-input-select', style: 'min-width:150px' }, [
+                E('option', { value: '2' }, _('本地上传')),
+                E('option', { value: '1' }, _('远程订阅')),
+                E('option', { value: '3' }, _('自定义'))
+            ]);
+            let baseFile = E('select', { class: 'cbi-input-select', style: 'min-width:320px' });
+
+            let rewriteType = E('select', { class: 'cbi-input-select', style: 'min-width:150px' }, [
+                E('option', { value: '1' }, _('远程订阅')),
+                E('option', { value: '2' }, _('本地上传')),
+                E('option', { value: '3' }, _('自定义'))
+            ]);
+            let rewriteFile = E('select', { class: 'cbi-input-select', style: 'min-width:320px' });
+
+            let outName = E('input', {
+                type: 'text',
+                class: 'cbi-input-text',
+                placeholder: 'merged-rewrite.yaml',
+                style: 'min-width:320px'
+            });
+
+            let setActive = E('input', { type: 'checkbox' });
+            let actLabel = E('label', { style: 'margin-left:6px;user-select:none' }, _('生成后设为当前配置'));
+
+            refillFileSelect(baseFile, baseType.value);
+            refillFileSelect(rewriteFile, rewriteType.value);
+
+            baseType.addEventListener('change', () => refillFileSelect(baseFile, baseType.value));
+            rewriteType.addEventListener('change', () => refillFileSelect(rewriteFile, rewriteType.value));
+
+            let btn = E('button', {
+                type: 'button',
+                class: 'btn cbi-button cbi-button-apply',
+                style: 'margin-top:6px'
+            }, _('应用复写'));
+
+            btn.addEventListener('click', function () {
+                let bt = baseType.value;
+                let bn = baseFile.value || '';
+                let rt = rewriteType.value;
+                let rn = rewriteFile.value || '';
+                let on = (outName.value || '').trim();
+
+                if (!bn) {
+                    setPageStatus(_('请选择主配置文件'), false);
+                    return;
+                }
+                if (!rn) {
+                    setPageStatus(_('请选择复写配置文件'), false);
+                    return;
+                }
+
+                setPageStatus(_('正在应用复写：') + labelOfType(bt) + ' + ' + labelOfType(rt), true);
+                callApplyRewrite(bt, bn, rt, rn, on, setActive.checked ? '1' : '0').then(function (r) {
+                    if (r && r.success) {
+                        let msg = r.message || (_('复写成功，输出文件：') + (r.output_name || '-'));
+                        setPageStatus(msg, true);
+                        setTimeout(() => location.reload(), 1200);
+                    } else {
+                        setPageStatus((r && (r.message || r.error)) || _('复写失败'), false);
+                    }
+                }).catch(function (e) {
+                    setPageStatus(_('复写失败: ') + (e && e.message ? e.message : e), false);
+                });
+            });
+
+            return Promise.resolve(E('div', { class: 'cbi-section' }, [
+                E('h3', {}, _('复写设置')),
+                E('p', { class: 'cbi-value-description', style: 'margin-bottom:10px' },
+                    _('将“主配置文件”与“复写配置文件”合并，生成到 custom 目录，可用于覆盖本地规则配置。')),
+                E('div', { style: 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0' }, [
+                    E('span', { style: 'min-width:84px' }, _('主配置来源')),
+                    baseType,
+                    baseFile
+                ]),
+                E('div', { style: 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0' }, [
+                    E('span', { style: 'min-width:84px' }, _('复写来源')),
+                    rewriteType,
+                    rewriteFile
+                ]),
+                E('div', { style: 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0' }, [
+                    E('span', { style: 'min-width:84px' }, _('输出文件名')),
+                    outName
+                ]),
+                E('div', { style: 'display:flex;align-items:center;gap:6px;margin:8px 0' }, [
+                    setActive,
+                    actLabel
+                ]),
+                btn
+            ]));
+        };
 
         /* ─── 面板配置 ─── */
         s = m.section(form.NamedSection, 'config', 'clash', _('面板配置'));

@@ -186,6 +186,32 @@ p.close();
 return arch;
 }
 
+function config_dir_by_type(type) {
+if (type == '1') return '/usr/share/clash/config/sub';
+if (type == '2') return '/usr/share/clash/config/upload';
+if (type == '3') return '/usr/share/clash/config/custom';
+return '';
+}
+
+function safe_name(name) {
+name = trim(name || '');
+if (!name) return '';
+if (index(name, '/') >= 0 || index(name, '..') >= 0) return '';
+return name;
+}
+
+function ensure_yaml_name(name) {
+name = safe_name(name);
+if (!name) return '';
+if (!match(name, /\.(yaml|yml)$/))
+name = name + '.yaml';
+return name;
+}
+
+function shell_quote(s) {
+return "'" + replace(s || '', /'/g, "'\\''") + "'";
+}
+
 function read_subscriptions() {
 let rows = [];
 if (!access(LIST_FILE, 'r')) return rows;
@@ -587,7 +613,7 @@ return { subs: rows, active: active_name };
 list_dir_files: {
 args: { type: 'type' },
 call: function(req) {
-let type_map = { '2': '/usr/share/clash/config/upload', '3': '/usr/share/clash/config/custom' };
+let type_map = { '1': '/usr/share/clash/config/sub', '2': '/usr/share/clash/config/upload', '3': '/usr/share/clash/config/custom' };
 let dir = type_map[req.args?.type || '2'];
 if (!dir) return { files: [] };
 let active = uci_get('clash', 'config', 'use_config');
@@ -706,6 +732,82 @@ c.commit('clash');
 let rc = system('sh /usr/share/clash/update.sh >/dev/null 2>&1');
 let msg = rc == 0 ? ('更新完成: ' + name) : ('更新失败: ' + name);
 return { success: rc == 0, code: rc, message: msg };
+}
+},
+
+apply_rewrite: {
+args: {
+base_type: 'base_type',
+base_name: 'base_name',
+rewrite_type: 'rewrite_type',
+rewrite_name: 'rewrite_name',
+output_name: 'output_name',
+set_active: 'set_active'
+},
+call: function(req) {
+let base_type = req.args?.base_type || '';
+let base_name = safe_name(req.args?.base_name || '');
+let rewrite_type = req.args?.rewrite_type || '';
+let rewrite_name = safe_name(req.args?.rewrite_name || '');
+let output_name = ensure_yaml_name(req.args?.output_name || '');
+let set_active = (req.args?.set_active || '') == '1';
+
+let base_dir = config_dir_by_type(base_type);
+let rewrite_dir = config_dir_by_type(rewrite_type);
+
+if (!base_dir || !base_name)
+return { success: false, error: 'invalid_base', message: '主配置无效' };
+if (!rewrite_dir || !rewrite_name)
+return { success: false, error: 'invalid_rewrite', message: '复写配置无效' };
+
+let base_path = base_dir + '/' + base_name;
+let rewrite_path = rewrite_dir + '/' + rewrite_name;
+
+if (!access(base_path, 'r'))
+return { success: false, error: 'base_not_found', message: '主配置文件不存在' };
+if (!access(rewrite_path, 'r'))
+return { success: false, error: 'rewrite_not_found', message: '复写配置文件不存在' };
+
+if (!output_name) {
+let stem = replace(base_name, /\.(yaml|yml)$/, '');
+output_name = stem + '_rewrite.yaml';
+}
+
+let out_dir = '/usr/share/clash/config/custom';
+let out_path = out_dir + '/' + output_name;
+let tmp_path = '/tmp/clash_rewrite_merged.yaml';
+
+system('mkdir -p ' + shell_quote(out_dir));
+
+if (system('command -v yq >/dev/null 2>&1') != 0)
+return { success: false, error: 'missing_yq', message: '缺少 yq，无法执行复写' };
+
+let cmd = "yq eval-all 'select(fileIndex == 0) * select(fileIndex == 1)' "
++ shell_quote(base_path) + ' ' + shell_quote(rewrite_path)
++ ' > ' + shell_quote(tmp_path);
+
+if (system(cmd) != 0 || !access(tmp_path, 'r'))
+return { success: false, error: 'merge_failed', message: '复写合并失败，请检查 YAML 格式' };
+
+if (system('mv -f ' + shell_quote(tmp_path) + ' ' + shell_quote(out_path)) != 0)
+return { success: false, error: 'write_failed', message: '写入复写文件失败' };
+
+if (set_active) {
+let c = cursor();
+c.load('clash');
+c.set('clash', 'config', 'use_config', out_path);
+c.set('clash', 'config', 'config_type', '3');
+c.commit('clash');
+if (is_running())
+system('service clash restart >/dev/null 2>&1');
+}
+
+return {
+success: true,
+output_name,
+output_path: out_path,
+message: '复写成功: ' + output_name
+};
 }
 },
 
