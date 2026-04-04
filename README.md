@@ -24,7 +24,7 @@
 
 ## 功能特性
 
-- **概览面板** — 一键启停、实时状态滚动、连接测试（Bilibili / 微信 / YouTube / GitHub）
+- **概览面板** — 一键启停、实时状态滚动、连接测试（微信 / YouTube）
 - **代理配置** — 多配置文件管理、运行模式切换（Fake-IP / TUN / 混合）
 - **DNS 设置** — 自定义上游 DNS、Fake-IP 过滤、DNS 劫持规则
 - **配置管理** — YAML 配置在线编辑与上传
@@ -45,15 +45,51 @@
 - 仅支持新版本 OpenWrt，最低 `24.10+`（推荐 `24.10/25.x`）
 - 不再维护旧版 LuCI / OpenWrt（如 `18.06`、`21.02`、`23.05`）
 
-## 安装
+## 安装方式
+
+### A. 一键安装（推荐）
 
 ```bash
-# 从源码编译
+wget -O - https://github.com/kenzok8/luci-app-clashoo/raw/refs/heads/main/install.sh | ash
+```
+
+### B. 从 Release 手动安装
+
+```bash
+# opkg
+opkg install clashoo_*.ipk
+opkg install clashoo-runtime_*.ipk
+opkg install luci-app-clashoo_*.ipk
+opkg install luci-i18n-clashoo-zh-cn_*.ipk
+
+# apk
+apk add --allow-untrusted clashoo_*.apk
+apk add --allow-untrusted clashoo-runtime_*.apk
+apk add --allow-untrusted luci-app-clashoo_*.apk
+apk add --allow-untrusted luci-i18n-clashoo-zh-cn_*.apk
+```
+
+### C. 从源码编译安装
+
+```bash
 git clone https://github.com/kenzok8/luci-app-clashoo.git package/luci-app-clashoo
 make package/luci-app-clashoo/compile V=s
+```
 
-# 或直接安装 ipk
-opkg install clashoo_*.ipk clashoo-runtime_*.ipk luci-app-clashoo_*.ipk
+### 卸载并重置
+
+```bash
+wget -O - https://github.com/kenzok8/luci-app-clashoo/raw/refs/heads/main/uninstall.sh | ash
+```
+
+## 多架构核心
+
+- `core/mihomo/x86_64` 只是当前仓库内置示例。
+- 其他架构通过 `core/mihomo/<arch>/mihomo` 同样支持。
+- 可用脚本批量拉取多架构核心：
+
+```bash
+scripts/fetch_mihomo_cores.sh v1.19.22 ./core/mihomo
 ```
 
 ## 截图
