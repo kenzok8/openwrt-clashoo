@@ -25,7 +25,6 @@ jobs:
           - i386_pentium4
           - mips_24kc
           - mipsel_24kc
-          - riscv64
           - x86_64
 
     steps:
@@ -49,32 +48,57 @@ jobs:
           esac
 
           mkdir -p "core/mihomo/${arch}"
-          url="https://gh-proxy.com/https://github.com/MetaCubeX/mihomo/releases/download/${tag}/mihomo-${core_arch}-${tag}.gz"
-          curl -fL --connect-timeout 20 --max-time 300 "$url" -o "core/mihomo/${arch}/mihomo.gz"
+          urls=(
+            "https://gh-proxy.com/https://github.com/MetaCubeX/mihomo/releases/download/${tag}/mihomo-${core_arch}-${tag}.gz"
+            "https://github.com/MetaCubeX/mihomo/releases/download/${tag}/mihomo-${core_arch}-${tag}.gz"
+          )
+          ok=0
+          for url in "${urls[@]}"; do
+            if curl -fL --connect-timeout 20 --max-time 300 "$url" -o "core/mihomo/${arch}/mihomo.gz"; then
+              ok=1
+              break
+            fi
+          done
+          [ "$ok" -eq 1 ] || { echo "Failed to download core for ${arch}"; exit 1; }
           gunzip -f "core/mihomo/${arch}/mihomo.gz"
           chmod 0755 "core/mihomo/${arch}/mihomo"
 
-      - name: Build packages
-        uses: kenzok8/gh-action-sdk@main
-        env:
-          ARCH: ${{ matrix.arch }}-${{ matrix.sdk }}
-          FEEDNAME: packages_ci
-          PACKAGES: luci-app-clashoo
-          NO_REFRESH_CHECK: true
-          IGNORE_ERRORS: true
+      - name: Build packages in SDK container
+        shell: bash
+        run: |
+          set -euo pipefail
+          arch="${{ matrix.arch }}"
+          sdk="${{ matrix.sdk }}"
+          image="ghcr.io/openwrt/sdk:${sdk}-${arch}"
+
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/workspace" \
+            "$image" /bin/bash -lc '
+              set -e
+              cd /builder
+              mkdir -p /tmp/myfeed
+              ln -sf /workspace /tmp/myfeed/luci-app-clashoo
+              { echo "src-link packages_ci /tmp/myfeed"; cat feeds.conf.default; } > feeds.conf
+              ./scripts/feeds update -a
+              ./scripts/feeds install -a
+              make defconfig
+              make package/luci-app-clashoo/compile -j$(nproc) V=s
+              mkdir -p /workspace/artifacts/'"${arch}"'
+              find bin/packages/'"${arch}"'/packages_ci -maxdepth 1 -type f -name "*.ipk" -exec cp {} /workspace/artifacts/'"${arch}"'/ \;
+            '
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.arch }}-${{ matrix.sdk }}
-          path: bin/packages/${{ matrix.arch }}/packages_ci/*.ipk
+          path: artifacts/${{ matrix.arch }}/*.ipk
 
       - name: Publish release assets
         if: startsWith(github.ref, 'refs/tags/v')
         uses: ncipollo/release-action@v1
         with:
           token: ${{ secrets.ACCESS_TOKEN }}
-          artifacts: bin/packages/${{ matrix.arch }}/packages_ci/*.ipk
+          artifacts: artifacts/${{ matrix.arch }}/*.ipk
           allowUpdates: true
           replacesArtifacts: true
           tag: ${{ github.ref_name }}
