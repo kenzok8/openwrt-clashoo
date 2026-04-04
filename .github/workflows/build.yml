@@ -1,12 +1,5 @@
 name: Build Clashoo Packages
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
-permissions:
-  contents: write
-  issues: write
-
 on:
   workflow_dispatch:
   push:
@@ -17,12 +10,12 @@ on:
 
 jobs:
   build:
-    name: build ${{ matrix.arch }}-${{ matrix.sdk }}
+    name: ${{ matrix.arch }}-${{ matrix.branch }} release
     runs-on: ubuntu-latest
+    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
-        sdk: ["24.10.4"]
         arch:
           - aarch64_cortex-a53
           - aarch64_cortex-a72
@@ -33,9 +26,12 @@ jobs:
           - mips_24kc
           - mipsel_24kc
           - x86_64
+        branch:
+          - openwrt-24.10
 
     steps:
-      - uses: actions/checkout@v4
+      - name: checkout
+        uses: actions/checkout@v4
 
       - name: Prepare mihomo core binary
         shell: bash
@@ -71,58 +67,31 @@ jobs:
           gunzip -f "clashoo/core/mihomo/${arch}/mihomo.gz"
           chmod 0755 "clashoo/core/mihomo/${arch}/mihomo"
 
-      - name: Build packages in SDK container
-        shell: bash
-        run: |
-          set -euo pipefail
-          arch="${{ matrix.arch }}"
-          sdk="${{ matrix.sdk }}"
-          image="ghcr.io/openwrt/sdk:${arch}-${sdk}"
-
-          docker run --rm \
-            -v "$GITHUB_WORKSPACE:/workspace" \
-            "$image" /bin/bash -lc '
-              set -e
-              cd /builder
-              mkdir -p /tmp/myfeed
-              ln -sf /workspace /tmp/myfeed/luci-app-clashoo
-              { echo "src-link packages_ci /tmp/myfeed"; cat feeds.conf.default; } > feeds.conf
-              ./scripts/feeds update -a
-              ./scripts/feeds install -a
-              make defconfig
-              make package/luci-app-clashoo/compile -j$(nproc) V=s
-              mkdir -p /workspace/artifacts/'"${arch}"'
-              find bin/packages/'"${arch}"'/packages_ci -maxdepth 1 -type f -name "*.ipk" -exec cp {} /workspace/artifacts/'"${arch}"'/ \;
-            '
-
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.arch }}-${{ matrix.sdk }}
-          path: artifacts/${{ matrix.arch }}/*.ipk
-
-      - name: Publish release assets
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: ncipollo/release-action@v1
-        with:
-          token: ${{ secrets.ACCESS_TOKEN }}
-          artifacts: artifacts/${{ matrix.arch }}/*.ipk
-          allowUpdates: true
-          replacesArtifacts: true
-          tag: ${{ github.ref_name }}
-          body: |
-            Auto-built packages for `${{ matrix.arch }}` on SDK `${{ matrix.sdk }}`.
-
-  notify-on-failure:
-    if: failure() && startsWith(github.ref, 'refs/tags/v')
-    needs: [build]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Create failure issue
+      - name: build
+        uses: openwrt/gh-action-sdk@main
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ARCH: ${{ matrix.arch }}-${{ matrix.branch }}
+          FEEDNAME: packages_ci
+          PACKAGES: luci-app-clashoo
+          INDEX: 1
+          NO_REFRESH_CHECK: true
+
+      - name: compress
         run: |
-          gh issue create \
-            --repo "${{ github.repository }}" \
-            --title "CI failed for ${{ github.ref_name }}" \
-            --body "Auto release build failed for tag \\`${{ github.ref_name }}\\`. Please check workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          tar -c -z -f clashoo_${{ matrix.arch }}-${{ matrix.branch }}.tar.gz -C bin/packages/${{ matrix.arch }}/packages_ci .
+          mkdir -p public/${{ matrix.branch }}/${{ matrix.arch }}
+          mv bin/packages/${{ matrix.arch }}/packages_ci public/${{ matrix.branch }}/${{ matrix.arch }}
+          tar -c -z -f feed_clashoo_${{ matrix.arch }}-${{ matrix.branch }}.tar.gz public/${{ matrix.branch }}/${{ matrix.arch }}
+
+      - if: github.event_name == 'push' && startsWith(github.ref_name, 'v')
+        name: release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            clashoo_${{ matrix.arch }}-${{ matrix.branch }}.tar.gz
+
+      - name: upload
+        uses: actions/upload-artifact@v7
+        with:
+          name: feed_clashoo_${{ matrix.arch }}-${{ matrix.branch }}
+          path: feed_clashoo_${{ matrix.arch }}-${{ matrix.branch }}.tar.gz
