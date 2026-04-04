@@ -107,4 +107,6 @@ scripts/fetch_mihomo_cores.sh v1.19.22 ./core/mihomo
 
 ## 许可证
 
-GPL-3.0
+本项目遵循仓库内现有开源许可证（见 `LICENSE`），并保留上游项目的版权与许可声明。
+
+维护者版权声明：Copyright (c) 2026 kenzok8（详见 `NOTICE`）
