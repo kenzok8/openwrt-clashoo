@@ -138,7 +138,7 @@ define Package/luci-app-clashoo/install
 	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/clash/dns.js $(1)/www/luci-static/resources/view/clash/dns.js
 	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/clash/system.js $(1)/www/luci-static/resources/view/clash/system.js
 	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/clash/log.js $(1)/www/luci-static/resources/view/clash/log.js
-	$(INSTALL_DATA) ./logo.png $(1)/www/luci-static/clash/logo.png
+	$(INSTALL_DATA) ./htdocs/luci-static/clash/logo.png $(1)/www/luci-static/clash/logo.png
 endef
 
 define Package/luci-app-clashoo/postinst

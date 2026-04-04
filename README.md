@@ -7,7 +7,7 @@
 > 把复杂留给自己，把简单留给用户。
 
 <p align="center">
-    <img src="logo.png" width="138" />
+    <img src="htdocs/luci-static/clash/logo.png" width="138" />
 </p>
 <h1 align="center">Clashoo</h1>
 <p align="center"><strong>基于 mihomo 内核的 OpenWrt LuCI 代理管理界面</strong></p>
@@ -50,7 +50,8 @@
 ### A. 一键安装（推荐）
 
 ```bash
-wget -O - https://github.com/kenzok8/luci-app-clashoo/raw/refs/heads/main/install.sh | ash
+wget -O - https://github.com/kenzok8/luci-app-clashoo/raw/refs/heads/main/scripts/install.sh | ash
+
 ```
 
 ### B. 从 Release 手动安装
@@ -79,7 +80,7 @@ make package/luci-app-clashoo/compile V=s
 ### 卸载并重置
 
 ```bash
-wget -O - https://github.com/kenzok8/luci-app-clashoo/raw/refs/heads/main/uninstall.sh | ash
+wget -O - https://github.com/kenzok8/luci-app-clashoo/raw/refs/heads/main/scripts/uninstall.sh | ash
 ```
 
 ## 多架构核心
@@ -108,5 +109,3 @@ scripts/fetch_mihomo_cores.sh v1.19.22 ./core/mihomo
 ## 许可证
 
 本项目遵循仓库内现有开源许可证（见 `LICENSE`），并保留上游项目的版权与许可声明。
-
-维护者版权声明：Copyright (c) 2026 kenzok8（详见 `NOTICE`）
