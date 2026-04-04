@@ -20,6 +20,9 @@ define Package/clashoo/description
   Bundled Mihomo core binary for Clashoo.
 endef
 
+define Build/Compile
+endef
+
 define Package/clashoo/install
 	$(INSTALL_DIR) $(1)/usr/bin
 	[ -x ./core/mihomo/$(ARCH_PACKAGES)/mihomo ] || { echo "Missing bundled core for $(ARCH_PACKAGES): core/mihomo/$(ARCH_PACKAGES)/mihomo" >&2; exit 1; }
