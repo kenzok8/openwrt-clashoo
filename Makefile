@@ -117,7 +117,6 @@ define Build/Compile
 endef
 
 define Package/luci-app-clashoo/install
-	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/controller
 	$(INSTALL_DIR) $(1)/usr/share/rpcd/ucode
 	$(INSTALL_DIR) $(1)/usr/share/rpcd/acl.d
 	$(INSTALL_DIR) $(1)/usr/share/luci/menu.d
@@ -125,7 +124,6 @@ define Package/luci-app-clashoo/install
 	$(INSTALL_DIR) $(1)/www/luci-static/resources/view/clash
 	$(INSTALL_DIR) $(1)/www/luci-static/clash
 
-	$(INSTALL_DATA) ./luasrc/controller/clash.lua $(1)/usr/lib/lua/luci/controller/clash.lua
 	$(INSTALL_BIN) ./root/usr/share/rpcd/ucode/luci.clash $(1)/usr/share/rpcd/ucode/luci.clash
 	$(INSTALL_DATA) ./root/usr/share/rpcd/acl.d/luci-app-clashoo.json $(1)/usr/share/rpcd/acl.d/luci-app-clashoo.json
 	$(INSTALL_DATA) ./root/usr/share/luci/menu.d/luci-app-clashoo.json $(1)/usr/share/luci/menu.d/luci-app-clashoo.json
