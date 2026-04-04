@@ -51,7 +51,6 @@
 
 ```bash
 wget -O - https://github.com/kenzok8/luci-app-clashoo/raw/refs/heads/main/scripts/install.sh | ash
-
 ```
 
 ### B. 从 Release 手动安装
@@ -85,8 +84,8 @@ wget -O - https://github.com/kenzok8/luci-app-clashoo/raw/refs/heads/main/script
 
 ## 多架构核心
 
-- `core/mihomo/x86_64` 只是当前仓库内置示例。
-- 其他架构通过 `core/mihomo/<arch>/mihomo` 同样支持。
+- 仓库不长期存放大体积内核二进制，核心在 CI/Release 流程中按架构拉取并打包。
+- 构建时核心路径为 `core/mihomo/<arch>/mihomo`。
 - 可用脚本批量拉取多架构核心：
 
 ```bash

@@ -40,3 +40,6 @@ root/usr/share/clash/new_*
 root/usr/share/clash/*_version
 root/usr/share/clash/fake_filter.list
 root/usr/share/clash/rules/
+
+# core binaries are fetched in CI/release pipeline
+core/mihomo/*/mihomo
