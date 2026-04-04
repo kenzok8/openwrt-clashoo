@@ -7,7 +7,7 @@
 > 把复杂留给自己，把简单留给用户。
 
 <p align="center">
-    <img src="htdocs/luci-static/clash/logo.png" width="138" />
+    <img src="luci-app-clashoo/htdocs/luci-static/clash/logo.png" width="138" />
 </p>
 <h1 align="center">Clashoo</h1>
 <p align="center"><strong>基于 mihomo 内核的 OpenWrt LuCI 代理管理界面</strong></p>
@@ -29,6 +29,12 @@
 - **DNS 设置** — 自定义上游 DNS、Fake-IP 过滤、DNS 劫持规则
 - **配置管理** — YAML 配置在线编辑与上传
 - **系统设置** — GeoIP 更新、大陆白名单、日志查看
+
+## 仓库结构
+
+- `clashoo/`：核心包与运行时包（`clashoo` / `clashoo-runtime`）
+- `luci-app-clashoo/`：LuCI 前端与 i18n 包
+- `scripts/`：安装/卸载脚本
 
 ## 依赖
 
@@ -73,6 +79,8 @@ apk add --allow-untrusted luci-i18n-clashoo-zh-cn_*.apk
 
 ```bash
 git clone https://github.com/kenzok8/luci-app-clashoo.git package/luci-app-clashoo
+make package/clashoo/compile V=s
+make package/clashoo-runtime/compile V=s
 make package/luci-app-clashoo/compile V=s
 ```
 
@@ -85,11 +93,11 @@ wget -O - https://github.com/kenzok8/luci-app-clashoo/raw/refs/heads/main/script
 ## 多架构核心
 
 - 仓库不长期存放大体积内核二进制，核心在 CI/Release 流程中按架构拉取并打包。
-- 构建时核心路径为 `core/mihomo/<arch>/mihomo`。
+- 构建时核心路径为 `clashoo/core/mihomo/<arch>/mihomo`。
 - 可用脚本批量拉取多架构核心：
 
 ```bash
-scripts/fetch_mihomo_cores.sh v1.19.22 ./core/mihomo
+clashoo/scripts/fetch_mihomo_cores.sh v1.19.22 ./clashoo/core/mihomo
 ```
 
 ## 截图

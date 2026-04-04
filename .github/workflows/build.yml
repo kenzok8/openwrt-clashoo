@@ -47,21 +47,21 @@ jobs:
             *) echo "Unsupported arch: $arch"; exit 1 ;;
           esac
 
-          mkdir -p "core/mihomo/${arch}"
+          mkdir -p "clashoo/core/mihomo/${arch}"
           urls=(
             "https://gh-proxy.com/https://github.com/MetaCubeX/mihomo/releases/download/${tag}/mihomo-${core_arch}-${tag}.gz"
             "https://github.com/MetaCubeX/mihomo/releases/download/${tag}/mihomo-${core_arch}-${tag}.gz"
           )
           ok=0
           for url in "${urls[@]}"; do
-            if curl -fL --connect-timeout 20 --max-time 300 "$url" -o "core/mihomo/${arch}/mihomo.gz"; then
+            if curl -fL --connect-timeout 20 --max-time 300 "$url" -o "clashoo/core/mihomo/${arch}/mihomo.gz"; then
               ok=1
               break
             fi
           done
           [ "$ok" -eq 1 ] || { echo "Failed to download core for ${arch}"; exit 1; }
-          gunzip -f "core/mihomo/${arch}/mihomo.gz"
-          chmod 0755 "core/mihomo/${arch}/mihomo"
+          gunzip -f "clashoo/core/mihomo/${arch}/mihomo.gz"
+          chmod 0755 "clashoo/core/mihomo/${arch}/mihomo"
 
       - name: Build packages in SDK container
         shell: bash
