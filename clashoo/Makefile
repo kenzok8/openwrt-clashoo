@@ -1,6 +1,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=clashoo
+PKG_VERSION:=2026.04.07
 PKG_RELEASE:=1
 
 PKG_SOURCE_PROTO:=git
