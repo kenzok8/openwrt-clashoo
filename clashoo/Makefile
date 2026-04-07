@@ -30,32 +30,22 @@ include $(TOPDIR)/feeds/packages/lang/golang/golang-package.mk
 define Package/clashoo
   SECTION:=net
   CATEGORY:=Network
-  TITLE:=Clashoo Core (Mihomo)
-  DEPENDS:=$(GO_ARCH_DEPENDS)
+  TITLE:=Clashoo (Mihomo)
+  DEPENDS:=$(GO_ARCH_DEPENDS) +bash +ca-bundle +curl +yq +firewall4 +ip-full +kmod-inet-diag +kmod-nft-socket +kmod-nft-tproxy +kmod-tun +kmod-dummy
   PROVIDES:=mihomo clash-meta
 endef
 
 define Package/clashoo/description
-  Compiled Mihomo core for Clashoo.
+  Mihomo proxy core with runtime environment for Clashoo.
 endef
 
-define Package/clashoo-runtime
-  SECTION:=net
-  CATEGORY:=Network
-  TITLE:=Clashoo Runtime Environment
-  DEPENDS:=+clashoo +bash +ca-bundle +curl +yq +firewall4 +ip-full +kmod-inet-diag +kmod-nft-socket +kmod-nft-tproxy +kmod-tun +kmod-dummy
-  PKGARCH:=all
-endef
-
-define Package/clashoo-runtime/description
-  Runtime scripts, config files and init integration for Clashoo.
-endef
-
-define Package/clashoo-runtime/conffiles
+define Package/clashoo/conffiles
 /etc/config/clash
 endef
 
-define Package/clashoo-runtime/install
+define Package/clashoo/install
+	$(call GoPackage/Package/Install/Bin,$(1))
+
 	$(INSTALL_DIR) $(1)/usr/bin
 	ln -sf /usr/bin/mihomo $(1)/usr/bin/clash-meta
 
@@ -83,7 +73,7 @@ define Package/clashoo-runtime/install
 	$(RM) $(1)/usr/share/clash/core_down_complete
 endef
 
-define Package/clashoo-runtime/postinst
+define Package/clashoo/postinst
 #!/bin/sh
 if [ -z "$${IPKG_INSTROOT}" ]; then
 	[ -x /usr/bin/mihomo ] && [ ! -x /usr/bin/clash-meta ] && ln -sf /usr/bin/mihomo /usr/bin/clash-meta
@@ -92,7 +82,7 @@ fi
 exit 0
 endef
 
-define Package/clashoo-runtime/prerm
+define Package/clashoo/prerm
 #!/bin/sh
 if [ -z "$${IPKG_INSTROOT}" ]; then
 	/etc/init.d/clash stop >/dev/null 2>&1
@@ -108,4 +98,3 @@ endef
 
 $(eval $(call GoBinPackage,clashoo))
 $(eval $(call BuildPackage,clashoo))
-$(eval $(call BuildPackage,clashoo-runtime))
