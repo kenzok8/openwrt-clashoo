@@ -12,63 +12,78 @@ permissions:
   contents: write
 
 jobs:
-  bump:
+  get_current_info:
+    runs-on: ubuntu-latest
+    outputs:
+      pkg_version: ${{ steps.info.outputs.pkg_version }}
+      pkg_mirror_hash: ${{ steps.info.outputs.pkg_mirror_hash }}
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: info
+        id: info
+        run: |
+          echo "pkg_version=$(grep 'PKG_VERSION:=' clashoo/Makefile | cut -d '=' -f 2)" >> $GITHUB_OUTPUT
+          echo "pkg_mirror_hash=$(grep 'PKG_MIRROR_HASH:=' clashoo/Makefile | cut -d '=' -f 2)" >> $GITHUB_OUTPUT
+
+  get_latest_info:
+    runs-on: ubuntu-latest
+    outputs:
+      latest_tag: ${{ steps.info.outputs.latest_tag }}
+      latest_ver: ${{ steps.info.outputs.latest_ver }}
+      checksum: ${{ steps.info.outputs.checksum }}
+    steps:
+      - name: Get latest release tag
+        id: tag
+        run: |
+          latest="$(gh api repos/MetaCubeX/mihomo/releases/latest --jq '.tag_name')"
+          echo "latest_tag=$latest" >> $GITHUB_OUTPUT
+          echo "latest_ver=${latest#v}" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: checkout mihomo
+        uses: actions/checkout@v4
+        with:
+          repository: MetaCubeX/mihomo
+          ref: ${{ steps.tag.outputs.latest_tag }}
+          path: mihomo
+
+      - name: Compute source hash
+        id: info
+        run: |
+          echo "latest_tag=${{ steps.tag.outputs.latest_tag }}" >> $GITHUB_OUTPUT
+          echo "latest_ver=${{ steps.tag.outputs.latest_ver }}" >> $GITHUB_OUTPUT
+          git -C mihomo archive --output=mihomo.tar.gz HEAD
+          echo "checksum=$(sha256sum mihomo/mihomo.tar.gz | cut -d ' ' -f 1)" >> $GITHUB_OUTPUT
+
+  update:
+    needs:
+      - get_current_info
+      - get_latest_info
+    if: needs.get_current_info.outputs.pkg_version != needs.get_latest_info.outputs.latest_ver
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Check latest Mihomo tag
-        id: check
-        shell: bash
+      - name: Update Makefiles
         run: |
-          set -euo pipefail
-          latest="$(gh api repos/MetaCubeX/mihomo/releases/latest --jq '.tag_name')"
-          current="v$(sed -n 's/^PKG_VERSION:=//p' clashoo/Makefile)"
-          echo "latest=$latest" >> "$GITHUB_OUTPUT"
-          echo "latest_ver=${latest#v}" >> "$GITHUB_OUTPUT"
-          echo "current=$current" >> "$GITHUB_OUTPUT"
-          if [ "$latest" = "$current" ]; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          fi
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          sed -i "s/PKG_VERSION:=.*/PKG_VERSION:=${{ needs.get_latest_info.outputs.latest_ver }}/" clashoo/Makefile
+          sed -i "s/PKG_VERSION:=.*/PKG_VERSION:=${{ needs.get_latest_info.outputs.latest_ver }}/" luci-app-clashoo/Makefile
+          sed -i "s/PKG_MIRROR_HASH:=.*/PKG_MIRROR_HASH:=${{ needs.get_latest_info.outputs.checksum }}/" clashoo/Makefile
 
-      - name: Compute source hash
-        if: steps.check.outputs.changed == 'true'
-        id: hash
-        shell: bash
+      - name: Commit and push
         run: |
-          set -euo pipefail
-          tag="${{ steps.check.outputs.latest }}"
-          tmp_dir="$(mktemp -d)"
-          git clone --depth 1 --branch "$tag" https://github.com/MetaCubeX/mihomo.git "$tmp_dir/mihomo"
-          tar -czf "$tmp_dir/source.tar.gz" -C "$tmp_dir" mihomo
-          hash="$(sha256sum "$tmp_dir/source.tar.gz" | awk '{print $1}')"
-          echo "mirror_hash=$hash" >> "$GITHUB_OUTPUT"
-          rm -rf "$tmp_dir"
-
-      - name: Update Makefile and push
-        if: steps.check.outputs.changed == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          latest_ver="${{ steps.check.outputs.latest_ver }}"
-          mirror_hash="${{ steps.hash.outputs.mirror_hash }}"
-
-          sed -i "s/^PKG_VERSION:=.*/PKG_VERSION:=${latest_ver}/" clashoo/Makefile
-          sed -i "s/^PKG_VERSION:=.*/PKG_VERSION:=${latest_ver}/" luci-app-clashoo/Makefile
-          sed -i "s/^PKG_MIRROR_HASH:=.*/PKG_MIRROR_HASH:=${mirror_hash}/" clashoo/Makefile
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add clashoo/Makefile luci-app-clashoo/Makefile
-          git commit -m "chore: bump mihomo to v${latest_ver}" || exit 0
+          git commit -m "chore: bump mihomo to v${{ needs.get_latest_info.outputs.latest_ver }}" || exit 0
           git push origin HEAD:main
 
-          rel_tag="v${latest_ver}-auto-$(date +%Y%m%d)"
-          git tag -a "$rel_tag" -m "auto: mihomo v${latest_ver}"
+          rel_tag="v${{ needs.get_latest_info.outputs.latest_ver }}-auto-$(date +%Y%m%d)"
+          git tag -a "$rel_tag" -m "auto: mihomo v${{ needs.get_latest_info.outputs.latest_ver }}"
           git push origin "$rel_tag"
