@@ -142,5 +142,5 @@ fi
 set_state "success" "安装成功"
 log_msg "Dashboard panel installed" "面板安装完成"
 sleep 1
-log_msg "Clash for OpenWRT" "Clash for OpenWRT"
+log_msg "Clashoo" "Clashoo"
 exit 0

@@ -1,4 +1,4 @@
-#!/bin/sh /etc/rc.common
+#!/bin/sh
 
 if [ -f /usr/share/clashbackup/history ];then
 

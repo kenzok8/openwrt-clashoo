@@ -1,4 +1,4 @@
-#!/bin/bash /etc/rc.common
+#!/bin/sh
 . /lib/functions.sh
 
 lang=$(uci get luci.main.lang 2>/dev/null) 
@@ -144,11 +144,11 @@ uci commit clash
  	  	if [ $lang == "en" ] || [ $lang == "auto" ];then
 			echo "Reading Policy Group Completed" >$REAL_LOG
 			sleep 2
-			echo "Clash for OpenWRT" >$REAL_LOG
+			echo "Clashoo" >$REAL_LOG
 		elif [ $lang == "zh_cn" ];then
 			echo "读取策略组配置完成" >$REAL_LOG
 			sleep 2
-			echo "Clash for OpenWRT" >$REAL_LOG			
+			echo "Clashoo" >$REAL_LOG			
 		fi
 
 rm -rf /tmp/Proxy_Group /tmp/group_*.yaml /tmp/yaml_group.yaml $load 2>/dev/null

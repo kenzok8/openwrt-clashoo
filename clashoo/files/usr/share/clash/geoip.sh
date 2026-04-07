@@ -125,9 +125,9 @@ fi
 touch /var/run/geoip_down_complete >/dev/null 2>&1
 rm -f /var/run/geoip_update >/dev/null 2>&1
 
-if pidof clash >/dev/null 2>&1 || pidof mihomo >/dev/null 2>&1 || pidof clash-meta >/dev/null 2>&1; then
+if pidof mihomo >/dev/null 2>&1 || pidof clash-meta >/dev/null 2>&1; then
 	/etc/init.d/clash restart >/dev/null 2>&1
-	log "Clash restarted"
+	log "Clashoo restarted"
 fi
 
 log "GeoIP update completed"

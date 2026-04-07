@@ -168,7 +168,7 @@ url_count="$(wc -l <"$URLS_FILE" 2>/dev/null | tr -d ' ')"
 if [ -z "$url_count" ] || [ "$url_count" -eq 0 ]; then
 	log_text "No subscription URL found" "未找到订阅链接"
 	sleep 2
-	log_text "Clash for OpenWRT" "Clash for OpenWRT"
+	log_text "Clashoo" "Clashoo"
 	exit 1
 fi
 
@@ -227,5 +227,5 @@ else
 fi
 
 sleep 2
-log_text "Clash for OpenWRT" "Clash for OpenWRT"
+log_text "Clashoo" "Clashoo"
 exit "$ret"

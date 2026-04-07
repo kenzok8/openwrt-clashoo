@@ -1,4 +1,4 @@
-#!/bin/bash /etc/rc.common
+#!/bin/sh
 . /lib/functions.sh
  
 name=$(uci get clash.config.config_cus_remove 2>/dev/null)

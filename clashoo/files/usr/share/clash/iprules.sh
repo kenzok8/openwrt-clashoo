@@ -1,4 +1,4 @@
-#!/bin/bash /etc/rc.common
+#!/bin/sh
 . /lib/functions.sh
 
 

@@ -42,40 +42,6 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
 
-      - name: Prepare mihomo core binary
-        shell: bash
-        run: |
-          set -euo pipefail
-          tag="$(tr -d '\r\n' < .github/mihomo_tag.txt)"
-          [ -n "$tag" ] || { echo "mihomo tag file is empty"; exit 1; }
-          arch="${{ matrix.arch }}"
-          case "$arch" in
-            x86_64) core_arch="linux-amd64" ;;
-            aarch64_generic|aarch64_cortex-a53|aarch64_cortex-a72) core_arch="linux-arm64" ;;
-            arm_cortex-a7_neon-vfpv4|arm_cortex-a9_neon) core_arch="linux-armv7" ;;
-            i386_pentium4) core_arch="linux-386" ;;
-            mips_24kc) core_arch="linux-mips-softfloat" ;;
-            mipsel_24kc) core_arch="linux-mipsle-softfloat" ;;
-            riscv64) core_arch="linux-riscv64" ;;
-            *) echo "Unsupported arch: $arch"; exit 1 ;;
-          esac
-
-          mkdir -p "clashoo/core/mihomo/${arch}"
-          urls=(
-            "https://gh-proxy.com/https://github.com/MetaCubeX/mihomo/releases/download/${tag}/mihomo-${core_arch}-${tag}.gz"
-            "https://github.com/MetaCubeX/mihomo/releases/download/${tag}/mihomo-${core_arch}-${tag}.gz"
-          )
-          ok=0
-          for url in "${urls[@]}"; do
-            if curl -fL --connect-timeout 20 --max-time 300 "$url" -o "clashoo/core/mihomo/${arch}/mihomo.gz"; then
-              ok=1
-              break
-            fi
-          done
-          [ "$ok" -eq 1 ] || { echo "Failed to download core for ${arch}"; exit 1; }
-          gunzip -f "clashoo/core/mihomo/${arch}/mihomo.gz"
-          chmod 0755 "clashoo/core/mihomo/${arch}/mihomo"
-
       - name: build
         uses: openwrt/gh-action-sdk@main
         env:
