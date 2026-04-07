@@ -63,8 +63,7 @@ jobs:
 
       - name: Update Makefile
         run: |
-          VERSION=$(echo "${{ needs.get_latest_info.outputs.commit_date }}" | tr '-' '.')
-          sed -i "s/PKG_VERSION:=.*/PKG_VERSION:=${VERSION}/" clashoo/Makefile
+          sed -i "s/PKG_VERSION:=.*/PKG_VERSION:=alpha-${{ needs.get_latest_info.outputs.short_sha }}/" clashoo/Makefile
           sed -i "s/PKG_SOURCE_DATE:=.*/PKG_SOURCE_DATE:=${{ needs.get_latest_info.outputs.commit_date }}/" clashoo/Makefile
           sed -i "s/PKG_SOURCE_VERSION:=.*/PKG_SOURCE_VERSION:=${{ needs.get_latest_info.outputs.commit_sha }}/" clashoo/Makefile
           sed -i "s/PKG_MIRROR_HASH:=.*/PKG_MIRROR_HASH:=${{ needs.get_latest_info.outputs.checksum }}/" clashoo/Makefile
