@@ -104,7 +104,7 @@ jobs:
           hard_delete = true
           EOF
 
-          rclone sync public/clashoo/ "b2:$B2_BUCKET/clashoo/" \
+          rclone sync public/ "b2:$B2_BUCKET/clashoo/" \
             --checksum \
             --fast-list \
             --transfers 8 \
