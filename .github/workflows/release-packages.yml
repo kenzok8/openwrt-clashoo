@@ -1,7 +1,6 @@
-name: Build Clashoo Packages
+name: release-packages
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   B2_KEY_ID: ${{ secrets.B2_KEY_ID }}
   B2_APPLICATION_KEY: ${{ secrets.B2_APPLICATION_KEY }}
   B2_BUCKET: ${{ secrets.B2_BUCKET }}
@@ -12,8 +11,6 @@ permissions:
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
     tags:
       - 'v*'
 
@@ -46,16 +43,17 @@ jobs:
         uses: openwrt/gh-action-sdk@main
         env:
           ARCH: ${{ matrix.arch }}-${{ matrix.branch }}
-          FEEDNAME: packages_ci
+          FEEDNAME: clashoo
           PACKAGES: luci-app-clashoo
           INDEX: 1
           NO_REFRESH_CHECK: true
 
       - name: compress
         run: |
+          tar -c -z -f clashoo_${{ matrix.arch }}-${{ matrix.branch }}.tar.gz -C bin/packages/${{ matrix.arch }}/clashoo .
           mkdir -p public/${{ matrix.branch }}/${{ matrix.arch }}
-          cp -r bin/packages/${{ matrix.arch }}/packages_ci/* public/${{ matrix.branch }}/${{ matrix.arch }}/
-          tar -c -z -f clashoo_${{ matrix.arch }}-${{ matrix.branch }}.tar.gz public/${{ matrix.branch }}/${{ matrix.arch }}
+          mv bin/packages/${{ matrix.arch }}/clashoo public/${{ matrix.branch }}/${{ matrix.arch }}
+          tar -c -z -f feed_clashoo_${{ matrix.arch }}-${{ matrix.branch }}.tar.gz public/${{ matrix.branch }}/${{ matrix.arch }}
 
       - if: github.event_name == 'push' && startsWith(github.ref_name, 'v')
         name: release
@@ -67,8 +65,8 @@ jobs:
       - name: upload
         uses: actions/upload-artifact@v7
         with:
-          name: clashoo_${{ matrix.arch }}-${{ matrix.branch }}
-          path: clashoo_${{ matrix.arch }}-${{ matrix.branch }}.tar.gz
+          name: feed_clashoo_${{ matrix.arch }}-${{ matrix.branch }}
+          path: feed_clashoo_${{ matrix.arch }}-${{ matrix.branch }}.tar.gz
 
   feed:
     needs: release
@@ -79,13 +77,12 @@ jobs:
       - name: download
         uses: actions/download-artifact@v8
         with:
-          pattern: clashoo_*
+          pattern: feed_clashoo_*
           merge-multiple: true
 
       - name: uncompress
         run: |
-          ls -la
-          for file in clashoo_*.tar.gz; do [ -f "$file" ] && tar -x -z -f "$file"; done
+          for file in feed_clashoo_*.tar.gz; do [ -f "$file" ] && tar -x -z -f "$file"; done
 
       - name: Upload packages to Backblaze B2
         run: |

@@ -1,0 +1,42 @@
+name: build-packages
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: ${{ matrix.arch }}-${{ matrix.branch }} build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch:
+          - aarch64_cortex-a53
+          - aarch64_cortex-a72
+          - aarch64_generic
+          - arm_cortex-a7_neon-vfpv4
+          - arm_cortex-a9_neon
+          - i386_pentium4
+          - mips_24kc
+          - mipsel_24kc
+          - x86_64
+        branch:
+          - openwrt-24.10
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: build
+        uses: openwrt/gh-action-sdk@main
+        env:
+          ARCH: ${{ matrix.arch }}-${{ matrix.branch }}
+          FEEDNAME: clashoo
+          PACKAGES: luci-app-clashoo
+          NO_REFRESH_CHECK: true
+
+      - name: upload
+        uses: actions/upload-artifact@v7
+        with:
+          name: clashoo_${{ matrix.arch }}-${{ matrix.branch }}
+          path: bin/packages/${{ matrix.arch }}/clashoo
