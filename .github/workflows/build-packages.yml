@@ -1,5 +1,8 @@
 name: build-packages
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 on:
   workflow_dispatch:
 
@@ -22,6 +25,7 @@ jobs:
           - x86_64
         branch:
           - openwrt-24.10
+          - openwrt-25.12
 
     steps:
       - name: checkout

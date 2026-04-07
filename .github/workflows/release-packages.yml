@@ -1,6 +1,7 @@
 name: release-packages
 
 env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   B2_KEY_ID: ${{ secrets.B2_KEY_ID }}
   B2_APPLICATION_KEY: ${{ secrets.B2_APPLICATION_KEY }}
   B2_BUCKET: ${{ secrets.B2_BUCKET }}
@@ -13,6 +14,7 @@ on:
   push:
     tags:
       - 'v*'
+      - 'alpha-*'
 
 jobs:
   release:
@@ -34,6 +36,7 @@ jobs:
           - x86_64
         branch:
           - openwrt-24.10
+          - openwrt-25.12
 
     steps:
       - name: checkout
@@ -50,17 +53,16 @@ jobs:
 
       - name: compress
         run: |
-          tar -c -z -f clashoo_${{ matrix.arch }}-${{ matrix.branch }}.tar.gz -C bin/packages/${{ matrix.arch }}/clashoo .
+          tar -c -z -f clashoo_${{ matrix.arch }}.${{ matrix.branch }}.tar.gz -C bin/packages/${{ matrix.arch }}/clashoo .
           mkdir -p public/${{ matrix.branch }}/${{ matrix.arch }}
           mv bin/packages/${{ matrix.arch }}/clashoo public/${{ matrix.branch }}/${{ matrix.arch }}
           tar -c -z -f feed_clashoo_${{ matrix.arch }}-${{ matrix.branch }}.tar.gz public/${{ matrix.branch }}/${{ matrix.arch }}
 
-      - if: github.event_name == 'push' && startsWith(github.ref_name, 'v')
-        name: release
+      - name: release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            clashoo_${{ matrix.arch }}-${{ matrix.branch }}.tar.gz
+            clashoo_${{ matrix.arch }}.${{ matrix.branch }}.tar.gz
 
       - name: upload
         uses: actions/upload-artifact@v7
