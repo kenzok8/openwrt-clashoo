@@ -25,8 +25,9 @@ jobs:
         run: |
           set -euo pipefail
           latest="$(gh api repos/MetaCubeX/mihomo/releases/latest --jq '.tag_name')"
-          current="$(tr -d '\r\n' < .github/mihomo_tag.txt)"
+          current="v$(sed -n 's/^PKG_VERSION:=//p' clashoo/Makefile)"
           echo "latest=$latest" >> "$GITHUB_OUTPUT"
+          echo "latest_ver=${latest#v}" >> "$GITHUB_OUTPUT"
           echo "current=$current" >> "$GITHUB_OUTPUT"
           if [ "$latest" = "$current" ]; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -36,19 +37,38 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Update tag file and push
+      - name: Compute source hash
+        if: steps.check.outputs.changed == 'true'
+        id: hash
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ steps.check.outputs.latest }}"
+          tmp_dir="$(mktemp -d)"
+          git clone --depth 1 --branch "$tag" https://github.com/MetaCubeX/mihomo.git "$tmp_dir/mihomo"
+          tar -czf "$tmp_dir/source.tar.gz" -C "$tmp_dir" mihomo
+          hash="$(sha256sum "$tmp_dir/source.tar.gz" | awk '{print $1}')"
+          echo "mirror_hash=$hash" >> "$GITHUB_OUTPUT"
+          rm -rf "$tmp_dir"
+
+      - name: Update Makefile and push
         if: steps.check.outputs.changed == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          latest="${{ steps.check.outputs.latest }}"
-          echo "$latest" > .github/mihomo_tag.txt
+          latest_ver="${{ steps.check.outputs.latest_ver }}"
+          mirror_hash="${{ steps.hash.outputs.mirror_hash }}"
+
+          sed -i "s/^PKG_VERSION:=.*/PKG_VERSION:=${latest_ver}/" clashoo/Makefile
+          sed -i "s/^PKG_VERSION:=.*/PKG_VERSION:=${latest_ver}/" luci-app-clashoo/Makefile
+          sed -i "s/^PKG_MIRROR_HASH:=.*/PKG_MIRROR_HASH:=${mirror_hash}/" clashoo/Makefile
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .github/mihomo_tag.txt
-          git commit -m "chore: bump mihomo to ${latest}" || exit 0
+          git add clashoo/Makefile luci-app-clashoo/Makefile
+          git commit -m "chore: bump mihomo to v${latest_ver}" || exit 0
           git push origin HEAD:main
 
-          rel_tag="v1.9.0-auto-$(date +%Y%m%d)-${latest#v}"
-          git tag -a "$rel_tag" -m "auto: mihomo ${latest}"
+          rel_tag="v${latest_ver}-auto-$(date +%Y%m%d)"
+          git tag -a "$rel_tag" -m "auto: mihomo v${latest_ver}"
           git push origin "$rel_tag"
