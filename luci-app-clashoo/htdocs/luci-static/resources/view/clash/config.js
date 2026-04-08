@@ -305,13 +305,20 @@ return view.extend({
             };
         }
 
-        /* ─── 复写设置（主配置 + 复写配置） ─── */
+        /* ─── 复写设置（本地合并 + 远程下载） ─── */
         s = m.section(form.NamedSection, 'config', 'clash', _('复写设置'));
         s.anonymous = false;
         s.render = function () {
             let subFiles = (subFileData.files || []).map(f => f.name);
             let upFiles  = uploadFiles.map(f => f.name);
             let cuFiles  = customFiles.map(f => f.name);
+
+            var rowStyle = 'display:flex;align-items:center;margin:8px 0';
+            var labelStyle = 'min-width:100px;flex-shrink:0;font-weight:500';
+            var inputGroupStyle = 'display:flex;align-items:center;gap:8px;flex:1;flex-wrap:wrap';
+            var selectStyle = 'min-width:140px';
+            var fileSelectStyle = 'min-width:200px;flex:1;max-width:320px';
+            var separatorStyle = 'border:none;border-top:1px solid ' + (isDark ? '#3a404c' : '#e5e7eb') + ';margin:16px 0';
 
             function filesByType(t) {
                 if (t === '1') return subFiles;
@@ -327,113 +334,61 @@ return view.extend({
             }
 
             function refillFileSelect(sel, t) {
-                let arr = filesByType(t);
+                var arr = filesByType(t);
                 while (sel.firstChild) sel.removeChild(sel.firstChild);
                 if (!arr.length) {
                     sel.appendChild(E('option', { value: '' }, _('无可用文件')));
                     sel.disabled = true;
                     return;
                 }
-                arr.forEach(n => sel.appendChild(E('option', { value: n }, n)));
+                arr.forEach(function (n) { sel.appendChild(E('option', { value: n }, n)); });
                 sel.disabled = false;
             }
 
-            let baseType = E('select', { class: 'cbi-input-select', style: 'min-width:150px' }, [
+            /* ── 本地合并区域 ── */
+            var baseType = E('select', { class: 'cbi-input-select', style: selectStyle }, [
                 E('option', { value: '2' }, _('本地上传')),
                 E('option', { value: '1' }, _('远程订阅')),
                 E('option', { value: '3' }, _('自定义'))
             ]);
-            let baseFile = E('select', { class: 'cbi-input-select', style: 'min-width:320px' });
+            var baseFile = E('select', { class: 'cbi-input-select', style: fileSelectStyle });
 
-            let rewriteType = E('select', { class: 'cbi-input-select', style: 'min-width:150px' }, [
+            var rewriteType = E('select', { class: 'cbi-input-select', style: selectStyle }, [
                 E('option', { value: '1' }, _('远程订阅')),
                 E('option', { value: '2' }, _('本地上传')),
                 E('option', { value: '3' }, _('自定义'))
             ]);
-            let rewriteFile = E('select', { class: 'cbi-input-select', style: 'min-width:320px' });
+            var rewriteFile = E('select', { class: 'cbi-input-select', style: fileSelectStyle });
 
-            let outName = E('input', {
-                type: 'text',
-                class: 'cbi-input-text',
+            var outName = E('input', {
+                type: 'text', class: 'cbi-input-text',
                 placeholder: 'merged-rewrite.yaml',
-                style: 'min-width:320px'
+                style: 'min-width:200px;max-width:320px;flex:1'
             });
 
-            let remoteUrl = E('input', {
-                type: 'text',
-                class: 'cbi-input-text',
-                style: 'min-width:520px',
-                value: 'https://raw.githubusercontent.com/kenzok78/ruleset/main/rule/config/Clash/fx.yaml'
-            });
-            let remoteName = E('input', {
-                type: 'text',
-                class: 'cbi-input-text',
-                placeholder: 'fx.yaml（可选）',
-                style: 'min-width:220px'
-            });
-            let remoteBtn = E('button', {
-                type: 'button',
-                class: 'btn cbi-button cbi-button-apply',
-                style: 'white-space:nowrap'
-            }, _('下载远程复写'));
-
-            remoteBtn.addEventListener('click', function () {
-                let url = (remoteUrl.value || '').trim();
-                let name = (remoteName.value || '').trim();
-                if (!url) {
-                    setPageStatus(_('请输入远程复写 URL'), false);
-                    return;
-                }
-                setPageStatus(_('正在下载远程复写文件...'), true);
-                callFetchRewriteUrl(url, name).then(function (r) {
-                    if (r && r.success) {
-                        setPageStatus((r.message || _('下载成功')) + '，页面将自动刷新', true);
-                        setTimeout(() => location.reload(), 1000);
-                    } else {
-                        setPageStatus((r && (r.message || r.error)) || _('下载失败'), false);
-                    }
-                }).catch(function (e) {
-                    setPageStatus(_('下载失败: ') + (e && e.message ? e.message : e), false);
-                });
-            });
-
-            let setActive = E('input', { type: 'checkbox' });
-            let actLabel = E('label', { style: 'margin-left:6px;user-select:none' }, _('生成后设为当前配置'));
+            var setActive = E('input', { type: 'checkbox' });
 
             refillFileSelect(baseFile, baseType.value);
             refillFileSelect(rewriteFile, rewriteType.value);
+            baseType.addEventListener('change', function () { refillFileSelect(baseFile, baseType.value); });
+            rewriteType.addEventListener('change', function () { refillFileSelect(rewriteFile, rewriteType.value); });
 
-            baseType.addEventListener('change', () => refillFileSelect(baseFile, baseType.value));
-            rewriteType.addEventListener('change', () => refillFileSelect(rewriteFile, rewriteType.value));
-
-            let btn = E('button', {
+            var applyBtn = E('button', {
                 type: 'button',
-                class: 'btn cbi-button cbi-button-apply',
-                style: 'margin-top:6px'
+                class: 'btn cbi-button cbi-button-apply'
             }, _('应用复写'));
 
-            btn.addEventListener('click', function () {
-                let bt = baseType.value;
-                let bn = baseFile.value || '';
-                let rt = rewriteType.value;
-                let rn = rewriteFile.value || '';
-                let on = (outName.value || '').trim();
-
-                if (!bn) {
-                    setPageStatus(_('请选择主配置文件'), false);
-                    return;
-                }
-                if (!rn) {
-                    setPageStatus(_('请选择复写配置文件'), false);
-                    return;
-                }
-
+            applyBtn.addEventListener('click', function () {
+                var bt = baseType.value, bn = baseFile.value || '';
+                var rt = rewriteType.value, rn = rewriteFile.value || '';
+                var on = (outName.value || '').trim();
+                if (!bn) { setPageStatus(_('请选择主配置文件'), false); return; }
+                if (!rn) { setPageStatus(_('请选择复写配置文件'), false); return; }
                 setPageStatus(_('正在应用复写：') + labelOfType(bt) + ' + ' + labelOfType(rt), true);
                 callApplyRewrite(bt, bn, rt, rn, on, setActive.checked ? '1' : '0').then(function (r) {
                     if (r && r.success) {
-                        let msg = r.message || (_('复写成功，输出文件：') + (r.output_name || '-'));
-                        setPageStatus(msg, true);
-                        setTimeout(() => location.reload(), 1200);
+                        setPageStatus(r.message || (_('复写成功，输出文件：') + (r.output_name || '-')), true);
+                        setTimeout(function () { location.reload(); }, 1200);
                     } else {
                         setPageStatus((r && (r.message || r.error)) || _('复写失败'), false);
                     }
@@ -442,35 +397,84 @@ return view.extend({
                 });
             });
 
+            /* ── 远程下载区域 ── */
+            var remoteUrl = E('input', {
+                type: 'text', class: 'cbi-input-text',
+                style: 'flex:1;min-width:200px',
+                value: 'https://raw.githubusercontent.com/kenzok78/ruleset/main/rule/config/Clash/fx.yaml'
+            });
+            var remoteName = E('input', {
+                type: 'text', class: 'cbi-input-text',
+                placeholder: _('文件名（可选）'),
+                style: 'width:160px;flex-shrink:0'
+            });
+            var remoteBtn = E('button', {
+                type: 'button',
+                class: 'btn cbi-button cbi-button-apply',
+                style: 'white-space:nowrap;flex-shrink:0'
+            }, _('下载'));
+
+            remoteBtn.addEventListener('click', function () {
+                var url = (remoteUrl.value || '').trim();
+                var name = (remoteName.value || '').trim();
+                if (!url) { setPageStatus(_('请输入远程复写 URL'), false); return; }
+                setPageStatus(_('正在下载远程复写文件...'), true);
+                callFetchRewriteUrl(url, name).then(function (r) {
+                    if (r && r.success) {
+                        setPageStatus((r.message || _('下载成功')) + '，页面将自动刷新', true);
+                        setTimeout(function () { location.reload(); }, 1000);
+                    } else {
+                        setPageStatus((r && (r.message || r.error)) || _('下载失败'), false);
+                    }
+                }).catch(function (e) {
+                    setPageStatus(_('下载失败: ') + (e && e.message ? e.message : e), false);
+                });
+            });
+
             return Promise.resolve(E('div', { class: 'cbi-section' }, [
                 E('h3', {}, _('复写设置')),
-                E('p', { class: 'cbi-value-description', style: 'margin-bottom:10px' },
-                    _('将“主配置文件”与“复写配置文件”合并，生成到 custom 目录，可用于覆盖本地规则配置。')),
-                E('div', { style: 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0' }, [
-                    E('span', { style: 'min-width:84px' }, _('主配置来源')),
-                    baseType,
-                    baseFile
+
+                /* ── 本地合并 ── */
+                E('legend', { style: 'font-size:.95rem;font-weight:600;color:' + (isDark ? '#93c5fd' : '#4a76d4') + ';border-bottom:1px solid ' + (isDark ? '#3a404c' : '#e5e7eb') + ';padding-bottom:6px;margin:12px 0 8px' },
+                    _('配置合并')),
+                E('p', { class: 'cbi-value-description', style: 'margin:0 0 8px' },
+                    _('将”主配置”与”复写配置”合并，生成到 custom 目录。')),
+                E('div', { style: rowStyle }, [
+                    E('span', { style: labelStyle }, _('主配置')),
+                    E('div', { style: inputGroupStyle }, [ baseType, baseFile ])
                 ]),
-                E('div', { style: 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0' }, [
-                    E('span', { style: 'min-width:84px' }, _('复写来源')),
-                    rewriteType,
-                    rewriteFile
+                E('div', { style: rowStyle }, [
+                    E('span', { style: labelStyle }, _('复写配置')),
+                    E('div', { style: inputGroupStyle }, [ rewriteType, rewriteFile ])
                 ]),
-                E('div', { style: 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0' }, [
-                    E('span', { style: 'min-width:84px' }, _('输出文件名')),
-                    outName
+                E('div', { style: rowStyle }, [
+                    E('span', { style: labelStyle }, _('输出文件名')),
+                    E('div', { style: inputGroupStyle }, [ outName ])
                 ]),
-                E('div', { style: 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0' }, [
-                    E('span', { style: 'min-width:84px' }, _('远程复写 URL')),
-                    remoteUrl,
-                    remoteName,
-                    remoteBtn
+                E('div', { style: 'display:flex;align-items:center;justify-content:space-between;margin:12px 0 0' }, [
+                    E('label', { style: 'display:flex;align-items:center;gap:6px;user-select:none;cursor:pointer' }, [
+                        setActive,
+                        _('生成后设为当前配置')
+                    ]),
+                    applyBtn
                 ]),
-                E('div', { style: 'display:flex;align-items:center;gap:6px;margin:8px 0' }, [
-                    setActive,
-                    actLabel
+
+                /* ── 分隔线 ── */
+                E('hr', { style: separatorStyle }),
+
+                /* ── 远程下载 ── */
+                E('legend', { style: 'font-size:.95rem;font-weight:600;color:' + (isDark ? '#93c5fd' : '#4a76d4') + ';border-bottom:1px solid ' + (isDark ? '#3a404c' : '#e5e7eb') + ';padding-bottom:6px;margin:0 0 8px' },
+                    _('远程复写下载')),
+                E('p', { class: 'cbi-value-description', style: 'margin:0 0 8px' },
+                    _('从远程 URL 下载复写配置文件到本地，供上方合并使用。')),
+                E('div', { style: rowStyle }, [
+                    E('span', { style: labelStyle }, _('URL')),
+                    E('div', { style: inputGroupStyle }, [ remoteUrl ])
                 ]),
-                btn
+                E('div', { style: rowStyle }, [
+                    E('span', { style: labelStyle }, _('保存文件名')),
+                    E('div', { style: 'display:flex;align-items:center;gap:8px' }, [ remoteName, remoteBtn ])
+                ])
             ]));
         };
 
