@@ -14,6 +14,7 @@ let callUpdateSub   = rpc.declare({ object: 'luci.clash', method: 'update_sub', 
 let callSetConfig   = rpc.declare({ object: 'luci.clash', method: 'set_config', params: ['name'], expect: {} });
 let callApplyRewrite= rpc.declare({ object: 'luci.clash', method: 'apply_rewrite', params: ['base_type', 'base_name', 'rewrite_type', 'rewrite_name', 'output_name', 'set_active'], expect: {} });
 let callFetchRewriteUrl = rpc.declare({ object: 'luci.clash', method: 'fetch_rewrite_url', params: ['url', 'name'], expect: {} });
+let callUploadConfig    = rpc.declare({ object: 'luci.clash', method: 'upload_config', params: ['name', 'content', 'type'], expect: {} });
 
 
 function mkBtn(label, style, fn) {
@@ -269,14 +270,12 @@ return view.extend({
                 status.textContent = _('上传中…');
                 let reader = new FileReader();
                 reader.onload = e => {
-                    L.Request.post('/cgi-bin/luci/admin/services/clash/upload', new Blob([e.target.result]), {
-                        headers: { 'X-Filename': file.name }
-                    }).then(resp => {
-                        status.textContent = resp.ok ? _('上传成功') : _('上传失败');
-                        if (resp.ok) setTimeout(() => location.reload(), 1500);
+                    callUploadConfig(file.name, e.target.result, '2').then(r => {
+                        status.textContent = (r && r.success) ? _('上传成功') : _('上传失败');
+                        if (r && r.success) setTimeout(() => location.reload(), 1500);
                     }).catch(() => { status.textContent = _('上传失败'); });
                 };
-                reader.readAsArrayBuffer(file);
+                reader.readAsText(file);
             });
             let node = E('div', { class: 'cbi-section' }, [
                 E('h3', {}, _('上传配置')),
@@ -345,10 +344,8 @@ return view.extend({
                 setPageStatus(_('上传中…'), true);
                 var reader = new FileReader();
                 reader.onload = function (ev) {
-                    L.Request.post('/cgi-bin/luci/admin/services/clash/upload', new Blob([ev.target.result]), {
-                        headers: { 'X-Filename': file.name }
-                    }).then(function (resp) {
-                        if (resp.ok) {
+                    callUploadConfig(file.name, ev.target.result, '2').then(function (r) {
+                        if (r && r.success) {
                             setPageStatus(_('上传成功：') + file.name, true);
                             setTimeout(function () { location.reload(); }, 1000);
                         } else {
@@ -356,7 +353,7 @@ return view.extend({
                         }
                     }).catch(function () { setPageStatus(_('上传失败'), false); });
                 };
-                reader.readAsArrayBuffer(file);
+                reader.readAsText(file);
             });
 
             /* 远程拉取 */
@@ -422,7 +419,11 @@ return view.extend({
 
                 setPageStatus(_('正在将复写应用到当前配置...'), true);
                 /* base = 当前活动配置, rewrite = 选中的文件 */
-                var bt = '0', bn = activeName;
+                var bn = activeName;
+                var bt;
+                if ((subFileData.files || []).some(function(f){ return f.name === bn; })) bt = '1';
+                else if (uploadFiles.some(function(f){ return f.name === bn; })) bt = '2';
+                else bt = '3';
                 /* 判断复写文件来源类型 */
                 var rt = '3';
                 if ((subFileData.files || []).some(function (f) { return f.name === rn; })) rt = '1';

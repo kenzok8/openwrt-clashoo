@@ -502,11 +502,12 @@ return { content: trim(readfile('/usr/share/clash/clash_real.txt') || '') };
 
 clear_log: {
 call: function() {
+let cleared = false;
 for (let path in LOG_PATHS) {
 if (!access(path, 'r')) continue;
-return { success: writefile(path, '') !== null };
+if (writefile(path, '') !== null) cleared = true;
 }
-return { success: false };
+return { success: cleared };
 }
 },
 
@@ -833,7 +834,7 @@ name = file_name_from_url(url);
 if (!name)
 name = 'rewrite-remote.yaml';
 
-let out_dir = '/usr/share/clash/config/sub';
+let out_dir = '/usr/share/clash/config/custom';
 let out_path = out_dir + '/' + name;
 let tmp_path = '/tmp/rewrite_remote.yaml';
 
@@ -880,6 +881,24 @@ let content = req.args?.content || '';
 if (!path || !match(path, /^\/usr\/share\/clash\/config\//)) return { error: 'invalid path' };
 writefile(path, content);
 return { success: true };
+}
+},
+
+upload_config: {
+args: { name: 'name', content: 'content', type: 'type' },
+call: function(req) {
+let name    = safe_name(ensure_yaml_name(req.args?.name    || ''));
+let content = req.args?.content || '';
+let type    = req.args?.type    || '2';
+if (!name)    return { success: false, error: 'invalid_name',    message: '文件名无效' };
+if (!content) return { success: false, error: 'empty_content',   message: '文件内容为空' };
+let dir = config_dir_by_type(type);
+if (!dir) dir = '/usr/share/clash/config/upload';
+system('mkdir -p ' + shell_quote(dir));
+let path = dir + '/' + name;
+if (writefile(path, content) === null)
+return { success: false, error: 'write_failed', message: '写入文件失败' };
+return { success: true, name, path };
 }
 }
 };

@@ -11,7 +11,7 @@ CLASH_CONFIG="/tmp/config.yaml"
 
 
 append=$(uci get clash.config.append_rules 2>/dev/null)
-if [ "${append}" -eq 1 ];then
+if [ "${append:-0}" -eq 1 ];then
 
 if [ -f $CLASH_CONFIG ];then
 	rm -rf $CLASH_CONFIG 2>/dev/null

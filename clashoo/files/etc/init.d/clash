@@ -252,7 +252,7 @@ config_type=$(uci get clash.config.config_type 2>/dev/null)
 		auto_update_time=$(uci get clash.config.auto_update_time 2>/dev/null)
 		echo "$auto_update_time" | grep -Eq '^[0-9]+$' || auto_update_time=12
 		[ "$auto_update_time" -lt 1 ] && auto_update_time=12
-		[ -z "$(grep -w "/usr/share/clash/update_all.sh" "$CRON_FILE")" ] && echo "0 */$auto_update_time * * * bash /usr/share/clash/update_all.sh >/usr/share/clash/clash.txt 2>&1 &" >> "$CRON_FILE"
+		[ -z "$(grep -w "/usr/share/clash/update_all.sh" "$CRON_FILE")" ] && echo "0 */$auto_update_time * * * sh /usr/share/clash/update_all.sh >/usr/share/clash/clash.txt 2>&1 &" >> "$CRON_FILE"
 	fi
 	
 	auto_geoip=$(uci get clash.config.auto_update_geoip 2>/dev/null)
@@ -763,7 +763,7 @@ stop(){
 		log_msg "Removing mihomo $(backend_name) rules" "清理 mihomo 网络规则"
 		sleep 1
 		
-		bash /usr/share/clash/backup.sh >/dev/null 2>&1
+		sh /usr/share/clash/backup.sh >/dev/null 2>&1
 		
 		_kill_core
 
