@@ -31,7 +31,6 @@ jobs:
       commit_sha: ${{ steps.info.outputs.commit_sha }}
       commit_date: ${{ steps.info.outputs.commit_date }}
       short_sha: ${{ steps.info.outputs.short_sha }}
-      checksum: ${{ steps.info.outputs.checksum }}
     steps:
       - name: checkout mihomo
         uses: actions/checkout@v4
@@ -46,9 +45,6 @@ jobs:
           echo "commit_sha=$(git -C mihomo rev-parse HEAD)" >> $GITHUB_OUTPUT
           echo "commit_date=$(git -C mihomo log -1 --format=%cs)" >> $GITHUB_OUTPUT
           echo "short_sha=$(git -C mihomo rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-          source_url="https://codeload.github.com/MetaCubeX/mihomo/tar.gz/$(git -C mihomo rev-parse HEAD)"
-          curl -fsSL "$source_url" -o mihomo.tar.gz
-          echo "checksum=$(sha256sum mihomo.tar.gz | cut -d ' ' -f 1)" >> $GITHUB_OUTPUT
 
   update:
     needs:
@@ -66,9 +62,7 @@ jobs:
         run: |
           sed -i "s/PKG_VERSION:=.*/PKG_VERSION:=alpha-${{ needs.get_latest_info.outputs.short_sha }}/" clashoo/Makefile
           sed -i "s/PKG_SOURCE_DATE:=.*/PKG_SOURCE_DATE:=${{ needs.get_latest_info.outputs.commit_date }}/" clashoo/Makefile
-          sed -i "s/PKG_UPSTREAM_COMMIT:=.*/PKG_UPSTREAM_COMMIT:=${{ needs.get_latest_info.outputs.commit_sha }}/" clashoo/Makefile
           sed -i "s/PKG_SOURCE_VERSION:=.*/PKG_SOURCE_VERSION:=${{ needs.get_latest_info.outputs.commit_sha }}/" clashoo/Makefile
-          sed -i "s/PKG_HASH:=.*/PKG_HASH:=${{ needs.get_latest_info.outputs.checksum }}/" clashoo/Makefile
           sed -i "s/PKG_BUILD_VERSION:=.*/PKG_BUILD_VERSION:=alpha-${{ needs.get_latest_info.outputs.short_sha }}/" clashoo/Makefile
 
       - name: Commit and push

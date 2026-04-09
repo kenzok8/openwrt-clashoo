@@ -3,13 +3,13 @@ include $(TOPDIR)/rules.mk
 PKG_NAME:=clashoo
 PKG_VERSION:=alpha-d9c447a
 PKG_RELEASE:=1
-PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 
-PKG_UPSTREAM_COMMIT:=d9c447a816ec4a23ebb6f61a608d3688457ea076
-PKG_SOURCE_URL:=https://codeload.github.com/MetaCubeX/mihomo/tar.gz/$(PKG_UPSTREAM_COMMIT)?
+PKG_SOURCE_VERSION:=d9c447a816ec4a23ebb6f61a608d3688457ea076
+PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
+PKG_SOURCE_SUBDIR:=mihomo-$(PKG_SOURCE_VERSION)
+PKG_SOURCE_URL:=https://codeload.github.com/MetaCubeX/mihomo/tar.gz/$(PKG_SOURCE_VERSION)?
 PKG_SOURCE_DATE:=2026-04-09
-PKG_SOURCE_VERSION:=$(PKG_UPSTREAM_COMMIT)
-PKG_HASH:=3ca9dd55a87a65bea3d26e6fdebb62acedab8cb45ad1fd9604d43de2440f211f
+PKG_HASH:=skip
 PKG_BUILD_VERSION:=alpha-d9c447a
 
 PKG_LICENSE:=GPL3.0+
@@ -32,7 +32,7 @@ define Package/clashoo
   SECTION:=net
   CATEGORY:=Network
   TITLE:=Clashoo (Mihomo)
-  DEPENDS:=$(GO_ARCH_DEPENDS) +bash +ca-bundle +yq +firewall4 +ip-full +kmod-inet-diag +kmod-nft-socket +kmod-nft-tproxy +kmod-tun +kmod-dummy
+  DEPENDS:=$(GO_ARCH_DEPENDS) +ca-bundle +yq +firewall4 +ip-full +kmod-inet-diag +kmod-nft-socket +kmod-nft-tproxy +kmod-tun +kmod-dummy
   PROVIDES:=mihomo clash-meta
 endef
 
