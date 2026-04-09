@@ -48,7 +48,11 @@ jobs:
           echo "short_sha=$(git -C mihomo rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           git -C mihomo config tar.xz.command "xz -c"
           git -C mihomo archive --output=mihomo.tar.xz HEAD
-          echo "checksum=$(sha256sum mihomo/mihomo.tar.xz | cut -d ' ' -f 1)" >> $GITHUB_OUTPUT
+          git -C mihomo archive --output=mihomo-verify.tar.xz HEAD
+          hash1=$(sha256sum mihomo/mihomo.tar.xz | cut -d ' ' -f 1)
+          hash2=$(sha256sum mihomo/mihomo-verify.tar.xz | cut -d ' ' -f 1)
+          [ "$hash1" = "$hash2" ] || { echo "hash generation is not deterministic"; exit 1; }
+          echo "checksum=$hash1" >> $GITHUB_OUTPUT
 
   update:
     needs:
