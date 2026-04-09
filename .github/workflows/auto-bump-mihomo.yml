@@ -66,6 +66,7 @@ jobs:
         run: |
           sed -i "s/PKG_VERSION:=.*/PKG_VERSION:=alpha-${{ needs.get_latest_info.outputs.short_sha }}/" clashoo/Makefile
           sed -i "s/PKG_SOURCE_DATE:=.*/PKG_SOURCE_DATE:=${{ needs.get_latest_info.outputs.commit_date }}/" clashoo/Makefile
+          sed -i "s/PKG_UPSTREAM_COMMIT:=.*/PKG_UPSTREAM_COMMIT:=${{ needs.get_latest_info.outputs.commit_sha }}/" clashoo/Makefile
           sed -i "s/PKG_SOURCE_VERSION:=.*/PKG_SOURCE_VERSION:=${{ needs.get_latest_info.outputs.commit_sha }}/" clashoo/Makefile
           sed -i "s/PKG_HASH:=.*/PKG_HASH:=${{ needs.get_latest_info.outputs.checksum }}/" clashoo/Makefile
           sed -i "s/PKG_BUILD_VERSION:=.*/PKG_BUILD_VERSION:=alpha-${{ needs.get_latest_info.outputs.short_sha }}/" clashoo/Makefile
