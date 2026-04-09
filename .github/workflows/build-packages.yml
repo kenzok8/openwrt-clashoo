@@ -36,11 +36,18 @@ jobs:
         env:
           ARCH: ${{ matrix.arch }}-${{ matrix.branch }}
           FEEDNAME: clashoo
-          PACKAGES: luci-app-clashoo
+          PACKAGES: clashoo luci-app-clashoo luci-i18n-clashoo-zh-cn
           NO_REFRESH_CHECK: true
+
+      - name: collect packages
+        run: |
+          mkdir -p dist
+          cp -av bin/packages/${{ matrix.arch }}/clashoo/*.ipk dist/ 2>/dev/null || true
+          cp -av bin/packages/${{ matrix.arch }}/clashoo/*.apk dist/ 2>/dev/null || true
+          cp -av bin/packages/${{ matrix.arch }}/clashoo/Packages* dist/ 2>/dev/null || true
 
       - name: upload
         uses: actions/upload-artifact@v7
         with:
           name: clashoo_${{ matrix.arch }}-${{ matrix.branch }}
-          path: bin/packages/${{ matrix.arch }}/clashoo
+          path: dist

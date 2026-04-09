@@ -8,10 +8,10 @@ echo "Stopping clash service..."
 
 if command -v opkg >/dev/null 2>&1; then
   echo "Removing packages with opkg..."
-  opkg remove luci-i18n-clashoo-zh-cn luci-app-clashoo clashoo-runtime clashoo >/dev/null 2>&1 || true
+  opkg remove luci-i18n-clashoo-zh-cn luci-app-clashoo clashoo >/dev/null 2>&1 || true
 elif command -v apk >/dev/null 2>&1; then
   echo "Removing packages with apk..."
-  apk del luci-i18n-clashoo-zh-cn luci-app-clashoo clashoo-runtime clashoo >/dev/null 2>&1 || true
+  apk del luci-i18n-clashoo-zh-cn luci-app-clashoo clashoo >/dev/null 2>&1 || true
 else
   echo "No supported package manager found (opkg/apk), skip package removal."
 fi

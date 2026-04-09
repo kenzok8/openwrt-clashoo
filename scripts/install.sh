@@ -73,11 +73,10 @@ EXT="ipk"
 [ "$PM" = "apk" ] && EXT="apk"
 
 CORE_URL="$(find_asset_url "$JSON" "clashoo_[^/]*_${ARCH}\\.${EXT}$")"
-RUNTIME_URL="$(find_asset_url "$JSON" "clashoo-runtime_[^/]*_all\\.${EXT}$")"
 LUCI_URL="$(find_asset_url "$JSON" "luci-app-clashoo_[^/]*_all\\.${EXT}$")"
 I18N_URL="$(find_asset_url "$JSON" "luci-i18n-clashoo-zh-cn_[^/]*_all\\.${EXT}$")"
 
-if [ -z "$CORE_URL" ] || [ -z "$RUNTIME_URL" ] || [ -z "$LUCI_URL" ]; then
+if [ -z "$CORE_URL" ] || [ -z "$LUCI_URL" ]; then
   echo "Cannot find required release assets for arch: $ARCH"
   exit 1
 fi
@@ -87,7 +86,6 @@ mkdir -p "$TMP_DIR"
 
 echo "Downloading packages..."
 download_file "$CORE_URL" "$TMP_DIR/core.${EXT}"
-download_file "$RUNTIME_URL" "$TMP_DIR/runtime.${EXT}"
 download_file "$LUCI_URL" "$TMP_DIR/luci.${EXT}"
 if [ -n "$I18N_URL" ]; then
   download_file "$I18N_URL" "$TMP_DIR/i18n.${EXT}"
@@ -95,9 +93,9 @@ fi
 
 echo "Installing packages with $PM..."
 if [ "$PM" = "opkg" ]; then
-  opkg install "$TMP_DIR/core.${EXT}" "$TMP_DIR/runtime.${EXT}" "$TMP_DIR/luci.${EXT}" ${I18N_URL:+"$TMP_DIR/i18n.${EXT}"}
+  opkg install "$TMP_DIR/core.${EXT}" "$TMP_DIR/luci.${EXT}" ${I18N_URL:+"$TMP_DIR/i18n.${EXT}"}
 else
-  apk add --allow-untrusted "$TMP_DIR/core.${EXT}" "$TMP_DIR/runtime.${EXT}" "$TMP_DIR/luci.${EXT}" ${I18N_URL:+"$TMP_DIR/i18n.${EXT}"}
+  apk add --allow-untrusted "$TMP_DIR/core.${EXT}" "$TMP_DIR/luci.${EXT}" ${I18N_URL:+"$TMP_DIR/i18n.${EXT}"}
 fi
 
 echo "Install complete."

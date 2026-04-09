@@ -32,7 +32,7 @@
 
 ## 仓库结构
 
-- `clashoo/`：核心包与运行时包（`clashoo` / `clashoo-runtime`）
+- `clashoo/`：核心包（`clashoo`，已内置运行时脚本）
 - `luci-app-clashoo/`：LuCI 前端与 i18n 包
 - `scripts/`：安装/卸载脚本
 
@@ -41,7 +41,6 @@
 | 包名 | 说明 |
 |------|------|
 | `clashoo` | 内置 mihomo 核心包（架构相关） |
-| `clashoo-runtime` | Clashoo 启动脚本与运行时 |
 | `luci-app-clashoo` | LuCI 管理界面 |
 | `luci` | OpenWrt Web 界面框架 |
 | `curl` | 下载 GeoIP / 面板 / 订阅 |
@@ -64,13 +63,11 @@ wget -O - https://github.com/kenzok8/openwrt-clashoo/raw/refs/heads/main/scripts
 ```bash
 # opkg
 opkg install clashoo_*.ipk
-opkg install clashoo-runtime_*.ipk
 opkg install luci-app-clashoo_*.ipk
 opkg install luci-i18n-clashoo-zh-cn_*.ipk
 
 # apk
 apk add --allow-untrusted clashoo_*.apk
-apk add --allow-untrusted clashoo-runtime_*.apk
 apk add --allow-untrusted luci-app-clashoo_*.apk
 apk add --allow-untrusted luci-i18n-clashoo-zh-cn_*.apk
 ```
@@ -80,7 +77,6 @@ apk add --allow-untrusted luci-i18n-clashoo-zh-cn_*.apk
 ```bash
 git clone https://github.com/kenzok8/openwrt-clashoo.git package/openwrt-clashoo
 make package/clashoo/compile V=s
-make package/clashoo-runtime/compile V=s
 make package/luci-app-clashoo/compile V=s
 ```
 
@@ -90,15 +86,11 @@ make package/luci-app-clashoo/compile V=s
 wget -O - https://github.com/kenzok8/openwrt-clashoo/raw/refs/heads/main/scripts/uninstall.sh | ash
 ```
 
-## 多架构核心
+## 核心产物说明
 
-- 仓库不长期存放大体积内核二进制，核心在 CI/Release 流程中按架构拉取并打包。
-- 构建时核心路径为 `clashoo/core/mihomo/<arch>/mihomo`。
-- 可用脚本批量拉取多架构核心：
-
-```bash
-clashoo/scripts/fetch_mihomo_cores.sh v1.19.22 ./clashoo/core/mihomo
-```
+- `clashoo` 包通过 Go 构建直接产出 `/usr/bin/mihomo`，并创建 `/usr/bin/clash-meta` 软链接。
+- 仓库不维护 `clashoo/core/mihomo/<arch>/mihomo` 目录，也不再使用 `clashoo/scripts/fetch_mihomo_cores.sh`。
+- Release 中会按架构发布 `clashoo` 与 `luci-app-clashoo` 的安装包（`.ipk` / `.apk`，取决于目标 SDK 产物）。
 
 ## 截图
 
