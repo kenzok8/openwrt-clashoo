@@ -23,11 +23,11 @@ if [ "${create}" -eq 1 ];then
 
 create(){
 
-if  [ $config_name == "" ] || [ -z $config_name ];then
+if [ -z "$config_name" ]; then
 
-	if [ $lang == "en" ] || [ $lang == "auto" ];then
+	if [ "$lang" = "en" ] || [ "$lang" = "auto" ];then
 				echo "Tag Your Config" >$REAL_LOG
-	elif [ $lang == "zh_cn" ];then
+	elif [ "$lang" = "zh_cn" ];then
 				echo "标记您的配置" >$REAL_LOG
 	fi
 	sleep 5
@@ -37,11 +37,11 @@ if  [ $config_name == "" ] || [ -z $config_name ];then
 fi
 
 
-if [ ! -z $check_name ] && [ "${same_tag}" -eq 0 ];then
+if [ -n "$check_name" ] && [ "${same_tag}" -eq 0 ];then
 
-	if [ $lang == "en" ] || [ $lang == "auto" ];then
+	if [ "$lang" = "en" ] || [ "$lang" = "auto" ];then
 				echo "Config with same name exist, please rename tag and create again" >$REAL_LOG
-	elif [ $lang == "zh_cn" ];then
+	elif [ "$lang" = "zh_cn" ];then
 				echo "已存在同名配置，请重命名标记,重新创建配置" >$REAL_LOG
 	fi
 	sleep 5
@@ -1196,11 +1196,11 @@ fi
 
 rm -rf $RULE_PROVIDER $PROVIDER_FILE $GROUP_FILE  $RULE_FILE $SERVER_FILE $Proxy_Group
 
-if [ $lang == "en" ] || [ $lang == "auto" ];then
+if [ "$lang" = "en" ] || [ "$lang" = "auto" ];then
 		echo "Completed Creating Custom Config " >$REAL_LOG 
 		 sleep 1
 			echo "Clash for OpenWRT" >$REAL_LOG
-elif [ $lang == "zh_cn" ];then
+elif [ "$lang" = "zh_cn" ];then
     	echo "创建自定义配置完成." >$REAL_LOG
 		sleep 1
 		echo "Clash for OpenWRT" >$REAL_LOG
@@ -1210,7 +1210,7 @@ fi
 use=$(uci get clash.config.use_config 2>/dev/null)
 config_type=$(uci get clash.config.config_type 2>/dev/null)
 
-if [  "$use" == "$CONFIG_YAML" ] && [ "$config_type" == "3" ];then
+if [ "$use" = "$CONFIG_YAML" ] && [ "$config_type" = "3" ];then
 	if pidof clash >/dev/null || pidof mihomo >/dev/null || pidof clash-meta >/dev/null; then
 			/etc/init.d/clash restart 2>/dev/null
 	fi
