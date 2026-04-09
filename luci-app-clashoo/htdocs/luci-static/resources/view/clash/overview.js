@@ -473,8 +473,7 @@ return view.extend({
             if (elAddr && (_firstRender || _prev.addrKey !== addrKey)) {
                 _prev.addrKey = addrKey;
                 elAddr.innerHTML = '';
-                let authSuffix = dashPass ? '?secret=' + encodeURIComponent(dashPass) : '';
-                let panelUrl   = 'http://' + localIp + ':' + dashPort + '/ui/' + authSuffix;
+                let panelUrl   = 'http://' + localIp + ':' + dashPort + '/ui/';
                 let grp = mkBtnGroup();
                 grp.appendChild(mkBtn('更新面板', COLORS.accent, () => clash.updatePanel(panelType)));
                 if (dashOk) {
@@ -591,7 +590,7 @@ return view.extend({
             for (let site of PROBE_SITES)
                 gridInit.appendChild(renderProbeCard(site));
         }
-        /* 连接测试默认不自动探测，避免切页时被慢 RPC 阻塞 */
+        /* 连接测试默认自动探测，进入页面后会持续刷新延迟 */
         if (ENABLE_AUTO_PROBE) {
             setTimeout(function() {
                 if (!document.contains(node)) return;

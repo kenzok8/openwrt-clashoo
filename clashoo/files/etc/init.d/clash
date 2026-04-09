@@ -257,13 +257,16 @@ config_type=$(uci get clash.config.config_type 2>/dev/null)
 	
 	auto_geoip=$(uci get clash.config.auto_update_geoip 2>/dev/null)
 	if [ "${auto_geoip:-0}" -eq 1 ]; then
-	geoip_hour=$(uci get clash.config.auto_update_geoip_time 2>/dev/null)
-	geoip_interval=$(uci get clash.config.geoip_update_interval 2>/dev/null)
-	[ -z "$geoip_hour" ] && geoip_hour=3
-	[ -z "$geoip_interval" ] && geoip_interval=7
-	echo "$geoip_interval" | grep -Eq '^[0-9]+$' || geoip_interval=7
-	[ "$geoip_interval" -lt 1 ] && geoip_interval=7
-	[ -z "$(grep -w "/usr/share/clash/geoip.sh" "$CRON_FILE")" ] && echo "0 $geoip_hour */$geoip_interval * * /usr/share/clash/geoip.sh" >> "$CRON_FILE"
+		geoip_hour=$(uci get clash.config.auto_update_geoip_time 2>/dev/null)
+		geoip_interval=$(uci get clash.config.geoip_update_interval 2>/dev/null)
+		[ -z "$geoip_hour" ] && geoip_hour=3
+		[ -z "$geoip_interval" ] && geoip_interval=7
+		echo "$geoip_hour" | grep -Eq '^[0-9]+$' || geoip_hour=3
+		[ "$geoip_hour" -lt 0 ] && geoip_hour=3
+		[ "$geoip_hour" -gt 23 ] && geoip_hour=3
+		echo "$geoip_interval" | grep -Eq '^[0-9]+$' || geoip_interval=7
+		[ "$geoip_interval" -lt 1 ] && geoip_interval=7
+		[ -z "$(grep -w "/usr/share/clash/geoip.sh" "$CRON_FILE")" ] && echo "0 $geoip_hour */$geoip_interval * * /usr/share/clash/geoip.sh" >> "$CRON_FILE"
 	fi
 	crontab "$CRON_FILE"
 #=========================================================================================================================== 	
@@ -689,13 +692,6 @@ if _openclash_conflict; then
 	_log_runtime_error "OpenClash is enabled; skip Clashoo start to avoid firewall/DNS conflicts"
 	return 0
 fi
-
-
-
-if [ -f /etc/clash/config.yaml ];then
- rm -rf /etc/clash/config.yaml >/dev/null 2>&1
-fi
-
 if [ "${enable:-0}" -eq 1 ]; then
  	log_msg "Starting Client" "启动客户端"
 	sleep 1

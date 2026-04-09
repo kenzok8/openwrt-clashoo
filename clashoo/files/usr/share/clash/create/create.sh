@@ -89,7 +89,7 @@ EOF
 
 	
 
-	if [ "$type" == "http" ]; then
+	if [ "$type" = "http" ]; then
 cat >> "$RULE_PROVIDER" <<-EOF
     url: $url
     interval: $interval
@@ -441,16 +441,16 @@ cat >> "$SERVER_FILE" <<-EOF
 EOF
 fi
 
-if [ "$alpn_h2" == "1" ] || [ "$alpn_http" == "1" ]; then
+if [ "$alpn_h2" = "1" ] || [ "$alpn_http" = "1" ]; then
 cat >> "$SERVER_FILE" <<-EOF
   alpn:
 EOF
-if [ "$alpn_h2" == "1" ]; then
+if [ "$alpn_h2" = "1" ]; then
 cat >> "$SERVER_FILE" <<-EOF
     - h2
 EOF
 fi
-if [ "$alpn_http" == "1" ]; then
+if [ "$alpn_http" = "1" ]; then
 cat >> "$SERVER_FILE" <<-EOF
     - http/1.1
 EOF
@@ -778,7 +778,7 @@ add_rules()
 		  
 	   if [ "${res}" -eq 1 ];then
 		echo "- $type,$rulename,$rulegroups,no-resolve">>$RULE_FILE
-	   elif [ "${type}" == "MATCH" ];then
+	   elif [ "${type}" = "MATCH" ];then
 	    echo "- $type,$rulegroups">>$RULE_FILE
 	   else
 		echo "- $type,$rulename,$rulegroups">>$RULE_FILE
@@ -840,7 +840,7 @@ fi
 		sed -i "/redir-port: ${redir_port}/a\mixed-port: ${mixed_port}" $CONFIG_START 2>/dev/null 
 		sed -i "/mixed-port: ${mixed_port}/a\ipv6: ${enable_ipv6}" $CONFIG_START 2>/dev/null
 		sed -i "/ipv6: ${enable_ipv6}/a\allow-lan: ${allow_lan}" $CONFIG_START 2>/dev/null
-		if [ $allow_lan == "true" ];  then
+		if [ $allow_lan = "true" ];  then
 		sed -i "/allow-lan: ${allow_lan}/a\bind-address: \"${bind_addr}\"" $CONFIG_START 2>/dev/null 
 		sed -i "/bind-address: \"${bind_addr}\"/a\mode: ${p_mode}" $CONFIG_START 2>/dev/null
 		sed -i "/mode: ${p_mode}/a\log-level: ${log_level}" $CONFIG_START 2>/dev/null 
@@ -951,9 +951,9 @@ dnshijack_set()
       return
     fi
 
-	if [ "$type" == "none" ] && [ ! -z "$port" ]; then
+	if [ "$type" = "none" ] && [ ! -z "$port" ]; then
 			echo "   - $ip:$port">>/tmp/dnshijack.yaml
-	elif [ "$type" == "none" ] && [ -z "$port" ]; then
+	elif [ "$type" = "none" ] && [ -z "$port" ]; then
 			echo "   - $ip">>/tmp/dnshijack.yaml
 	elif [ -z "$port" ]; then
 			echo "   - $type$ip">>/tmp/dnshijack.yaml
@@ -990,7 +990,7 @@ hosts_set()
 
 	   
 }
-if [ "$enhanced_mode" == "redir-host" ];then
+if [ "$enhanced_mode" = "redir-host" ];then
    config_load "clash"
    config_foreach hosts_set "hosts"
 fi   
@@ -1013,7 +1013,7 @@ dns:
 EOF
 
 
-if [ "$enable_ipv6" == "true" ];then
+if [ "$enable_ipv6" = "true" ];then
 
 cat >> "/tmp/enable_dns.yaml" <<-EOF
   ipv6: true
@@ -1040,7 +1040,7 @@ EOF
 cat /tmp/default_nameserver.yaml >> $TEMP_FILE 2>/dev/null
 
 
-if [ "$enhanced_mode" == "fake-ip" ];then
+if [ "$enhanced_mode" = "fake-ip" ];then
 
 fake_ip_range=$(uci get clash.config.fake_ip_range 2>/dev/null)
 cat >> "/tmp/fake_ip_range.yaml" <<-EOF
@@ -1050,7 +1050,7 @@ EOF
 cat /tmp/fake_ip_range.yaml >> $TEMP_FILE 2>/dev/null
 fi
 
-if [ "$enhanced_mode" == "fake-ip" ];then
+if [ "$enhanced_mode" = "fake-ip" ];then
 
 fake_ip_filter=$(uci get clash.config.fake_ip_filter 2>/dev/null)		
 for list in $fake_ip_filter; do 
@@ -1081,20 +1081,20 @@ dnsservers_set()
       return
    fi
    
-    if [ "$ser_type" == "nameserver" ]; then
-		if [ "$protocol" == "none" ] && [ ! -z "$ser_port" ]; then
+    if [ "$ser_type" = "nameserver" ]; then
+		if [ "$protocol" = "none" ] && [ ! -z "$ser_port" ]; then
 				echo "   - $ser_address:$ser_port" >>/tmp/nameservers.yaml
-		elif [ "$protocol" == "none" ] && [ -z "$ser_port" ]; then
+		elif [ "$protocol" = "none" ] && [ -z "$ser_port" ]; then
 				echo "   - $ser_address" >>/tmp/nameservers.yaml
 		elif [ -z "$ser_port" ]; then
 				echo "   - $protocol$ser_address" >>/tmp/nameservers.yaml
 		else
 				echo "   - $protocol$ser_address:$ser_port" >>/tmp/nameservers.yaml
 		fi
-    elif [ "$ser_type" == "fallback" ]; then
-		if [ "$protocol" == "none" ] && [ ! -z "$ser_port" ]; then
+    elif [ "$ser_type" = "fallback" ]; then
+		if [ "$protocol" = "none" ] && [ ! -z "$ser_port" ]; then
 				echo "   - $ser_address:$ser_port" >>/tmp/fallback.yaml
-		elif [ "$protocol" == "none" ] && [ -z "$ser_port" ]; then
+		elif [ "$protocol" = "none" ] && [ -z "$ser_port" ]; then
 				echo "   - $ser_address" >>/tmp/fallback.yaml
 		elif [ -z "$ser_port" ]; then
 				echo "   - $protocol$ser_address" >>/tmp/fallback.yaml
