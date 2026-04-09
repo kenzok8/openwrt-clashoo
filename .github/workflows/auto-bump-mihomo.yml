@@ -46,28 +46,9 @@ jobs:
           echo "commit_sha=$(git -C mihomo rev-parse HEAD)" >> $GITHUB_OUTPUT
           echo "commit_date=$(git -C mihomo log -1 --format=%cs)" >> $GITHUB_OUTPUT
           echo "short_sha=$(git -C mihomo rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-          COMMIT_SHA="$(git -C mihomo rev-parse HEAD)"
-          SHORT_SHA="$(git -C mihomo rev-parse --short HEAD)"
-          SUBDIR="clashoo-alpha-${SHORT_SHA}"
-          SOURCE="${SUBDIR}.tar.xz"
-          TAR_TIMESTAMP="$(git -C mihomo log -1 --format='@%ct')"
-
-          WORKDIR="$(mktemp -d)"
-          trap 'rm -rf "${WORKDIR}"' EXIT
-
-          git clone https://github.com/MetaCubeX/mihomo.git "${WORKDIR}/${SUBDIR}"
-          (cd "${WORKDIR}/${SUBDIR}" && git checkout "${COMMIT_SHA}")
-
-          (cd "${WORKDIR}/${SUBDIR}" && git config core.abbrev 8 && git archive --format=tar HEAD --output="${WORKDIR}/${SOURCE}.git")
-          tar --numeric-owner --owner=0 --group=0 --ignore-failed-read -C "${WORKDIR}/${SUBDIR}" -f "${WORKDIR}/${SOURCE}.git" -r .git .gitmodules 2>/dev/null || true
-
-          rm -rf "${WORKDIR:?}/${SUBDIR}"
-          mkdir -p "${WORKDIR}/${SUBDIR}"
-          tar -C "${WORKDIR}/${SUBDIR}" -xf "${WORKDIR}/${SOURCE}.git"
-          (cd "${WORKDIR}/${SUBDIR}" && git submodule update --init --recursive -- && rm -rf .git .gitmodules)
-
-          XZ_OPT='-7e' tar --numeric-owner --owner=0 --group=0 --sort=name --mode=a-s -C "${WORKDIR}" -cf "${WORKDIR}/${SOURCE}" "${SUBDIR}" --mtime="${TAR_TIMESTAMP}" -J
-          echo "checksum=$(sha256sum "${WORKDIR}/${SOURCE}" | cut -d ' ' -f 1)" >> $GITHUB_OUTPUT
+          git -C mihomo config tar.xz.command "xz -c"
+          git -C mihomo archive --output=mihomo.tar.xz HEAD
+          echo "checksum=$(sha256sum mihomo/mihomo.tar.xz | cut -d ' ' -f 1)" >> $GITHUB_OUTPUT
 
   update:
     needs:
