@@ -47,7 +47,7 @@ jobs:
         env:
           ARCH: ${{ matrix.arch }}-${{ matrix.branch }}
           FEEDNAME: clashoo
-          PACKAGES: clashoo luci-app-clashoo luci-i18n-clashoo-zh-cn
+          PACKAGES: clashoo luci-app-clashoo
           INDEX: 1
           NO_REFRESH_CHECK: true
 
