@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash /etc/rc.common
 . /lib/functions.sh
 
 
@@ -31,7 +31,7 @@ if  [ $config_name == "" ] || [ -z $config_name ];then
 				echo "标记您的配置" >$REAL_LOG
 	fi
 	sleep 5
-	echo "Clashoo" >$REAL_LOG
+	echo "Clash for OpenWRT" >$REAL_LOG
 	exit 0	
 	
 fi
@@ -45,7 +45,7 @@ if [ ! -z $check_name ] && [ "${same_tag}" -eq 0 ];then
 				echo "已存在同名配置，请重命名标记,重新创建配置" >$REAL_LOG
 	fi
 	sleep 5
-	echo "Clashoo" >$REAL_LOG
+	echo "Clash for OpenWRT" >$REAL_LOG
 	exit 0	
 fi
 
@@ -1199,11 +1199,11 @@ rm -rf $RULE_PROVIDER $PROVIDER_FILE $GROUP_FILE  $RULE_FILE $SERVER_FILE $Proxy
 if [ $lang == "en" ] || [ $lang == "auto" ];then
 		echo "Completed Creating Custom Config " >$REAL_LOG 
 		 sleep 1
-			echo "Clashoo" >$REAL_LOG
+			echo "Clash for OpenWRT" >$REAL_LOG
 elif [ $lang == "zh_cn" ];then
     	echo "创建自定义配置完成." >$REAL_LOG
 		sleep 1
-		echo "Clashoo" >$REAL_LOG
+		echo "Clash for OpenWRT" >$REAL_LOG
 fi
 
 
@@ -1211,7 +1211,7 @@ use=$(uci get clash.config.use_config 2>/dev/null)
 config_type=$(uci get clash.config.config_type 2>/dev/null)
 
 if [  "$use" == "$CONFIG_YAML" ] && [ "$config_type" == "3" ];then
-	if pidof mihomo >/dev/null 2>&1 || pidof clash-meta >/dev/null 2>&1; then
+	if pidof clash >/dev/null; then
 			/etc/init.d/clash restart 2>/dev/null
 	fi
 fi

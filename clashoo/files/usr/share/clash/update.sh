@@ -53,12 +53,12 @@ fi
 mv "$TMP_FILE" "$target_file" >/dev/null 2>&1 || exit 1
 
 if [ "$c_type" = "1" ] && [ "$target_file" = "$use_config" ]; then
-	if pidof mihomo >/dev/null 2>&1 || pidof clash-meta >/dev/null 2>&1; then
+	if pidof clash >/dev/null 2>&1 || pidof mihomo >/dev/null 2>&1 || pidof clash-meta >/dev/null 2>&1; then
 		/etc/init.d/clash restart >/dev/null 2>&1
 	fi
 fi
 
 log_text "Configuration update completed" "更新配置完成"
 sleep 1
-log_text "Clashoo" "Clashoo"
+log_text "Clash for OpenWRT" "Clash for OpenWRT"
 exit 0

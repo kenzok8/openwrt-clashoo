@@ -36,8 +36,46 @@ backend_remove_rules() {
 	fi
 }
 
+_core_candidates() {
+	echo "/usr/bin/mihomo /usr/bin/clash-meta /etc/clash/clash"
+}
+
+_detect_selected_core() {
+	local selected
+	selected=$(uci get clash.config.core 2>/dev/null)
+	case "$selected" in
+		1)
+			for _bin in /etc/clash/clash /usr/bin/clash; do
+				[ -x "$_bin" ] && echo "$_bin" && return
+			done
+			;;
+		2)
+			for _bin in /usr/bin/clash-meta /etc/clash/clash-meta /usr/bin/mihomo; do
+				[ -x "$_bin" ] && echo "$_bin" && return
+			done
+			;;
+		3)
+			for _bin in /usr/bin/mihomo /etc/clash/clash; do
+				[ -x "$_bin" ] && echo "$_bin" && return
+			done
+			;;
+	esac
+	_detect_core
+}
+
+core_supports_advanced_features() {
+	case "$CLASH" in
+		*/mihomo|*/clash-meta)
+			return 0
+			;;
+		*)
+			return 1
+			;;
+	esac
+}
+
 _core_names() {
-	echo "mihomo clash-meta"
+	echo "mihomo clash-meta clash"
 }
 
 _core_running() {
@@ -72,36 +110,58 @@ _log_runtime_error() {
 
 log_msg() {
 	local en_msg="$1" zh_msg="$2"
-	if [ "${lang}" = "zh_cn" ]; then
-		echo "$zh_msg" > "$REAL_LOG"
-	else
+	if [ "${lang}" = "en" ] || [ "${lang}" = "auto" ]; then
 		echo "$en_msg" > "$REAL_LOG"
+	elif [ "${lang}" = "zh_cn" ]; then
+		echo "$zh_msg" > "$REAL_LOG"
 	fi
 }
 
 _require_runtime_network_stack() {
 	local missing=""
+
 	for _cmd in fw4 nft ip; do
 		command_exists "$_cmd" || missing="$missing $_cmd"
 	done
+
 	if [ -n "$missing" ]; then
 		_log_runtime_error "Missing required fw4 runtime tools:$missing"
 		return 1
 	fi
+
 	return 0
 }
 
-# mihomo is the only supported core
-CLASH="/usr/bin/mihomo"
+_service_enabled() {
+	local svc="$1"
+	[ -x "/etc/init.d/${svc}" ] || return 1
+	"/etc/init.d/${svc}" enabled >/dev/null 2>&1
+}
+
+_openclash_conflict() {
+	if [ "$(uci -q get openclash.config.enable 2>/dev/null)" = "1" ]; then
+		return 0
+	fi
+	_service_enabled openclash
+}
+
+# 按优先级自动检测内核二进制：mihomo > clash-meta > 内置 clash
+_detect_core() {
+	for _bin in $(_core_candidates); do
+		[ -x "$_bin" ] && echo "$_bin" && return
+	done
+	echo "/etc/clash/clash"
+}
+CLASH="$(_detect_selected_core)"
 CLASH_CONFIG="/etc/clash"
 CRON_FILE="/etc/crontabs/root"
 CONFIG_YAML="/etc/clash/config.yaml"
-CONFIG_YAML_PATH=$(uci get clash.config.use_config 2>/dev/null)
+CONFIG_YAML_PATH=$(uci get clash.config.use_config 2>/dev/null)  
 
 CUSLIST="/tmp/dnsmasq.d/custom_list.conf"
 CUSLITT="/tmp/dnsmasq.clash"
-CUSLISTV="/var/dnsmasq.d/custom_list.conf"
-CUSLITTV="/var/dnsmasq.clash"
+CUSLISTV="/var/dnsmasq.d/custom_list.conf" 
+CUSLITTV="/var/dnsmasq.clash" 
 REAL_LOG="/usr/share/clash/clash_real.txt"
 DNS_STATE_DIR="/tmp/clashoo"
 DNS_STATE_SERVER_FILE="${DNS_STATE_DIR}/dnsmasq_server.before"
@@ -110,22 +170,27 @@ DNS_STATE_CACHE_FILE="${DNS_STATE_DIR}/dnsmasq_cachesize.before"
 DNS_STATE_RESOLV_FILE="${DNS_STATE_DIR}/dnsmasq_resolvfile.before"
 
 backup_dnsmasq_state() {
+#===========================================================================================================================
 	[ -f "$DNS_STATE_SERVER_FILE" ] && return 0
 	mkdir -p "$DNS_STATE_DIR" >/dev/null 2>&1
 	uci -q get dhcp.@dnsmasq[0].server >"$DNS_STATE_SERVER_FILE" 2>/dev/null || : >"$DNS_STATE_SERVER_FILE"
 	uci -q get dhcp.@dnsmasq[0].noresolv >"$DNS_STATE_NORESOLV_FILE" 2>/dev/null || : >"$DNS_STATE_NORESOLV_FILE"
 	uci -q get dhcp.@dnsmasq[0].cachesize >"$DNS_STATE_CACHE_FILE" 2>/dev/null || : >"$DNS_STATE_CACHE_FILE"
 	uci -q get dhcp.@dnsmasq[0].resolvfile >"$DNS_STATE_RESOLV_FILE" 2>/dev/null || : >"$DNS_STATE_RESOLV_FILE"
+#===========================================================================================================================
 }
 
 add_clash_dns_server() {
+#===========================================================================================================================
 	local dns_port="$1"
 	printf '%s' "$dns_port" | grep -Eq '^[0-9]+$' || return 1
 	uci del_list dhcp.@dnsmasq[0].server="127.0.0.1#${dns_port}" >/dev/null 2>&1 || true
 	uci add_list dhcp.@dnsmasq[0].server="127.0.0.1#${dns_port}" >/dev/null 2>&1
+#===========================================================================================================================
 }
 
 restore_dnsmasq_state() {
+#===========================================================================================================================
 	local token saved
 	[ -d "$DNS_STATE_DIR" ] || return 0
 
@@ -157,68 +222,89 @@ restore_dnsmasq_state() {
 
 	rm -f "$DNS_STATE_SERVER_FILE" "$DNS_STATE_NORESOLV_FILE" "$DNS_STATE_CACHE_FILE" "$DNS_STATE_RESOLV_FILE" >/dev/null 2>&1
 	rmdir "$DNS_STATE_DIR" >/dev/null 2>&1 || true
+#===========================================================================================================================
 }
 
 revert_dns() {
+#===========================================================================================================================  
 	restore_dnsmasq_state
 	rm -rf "$CUSLIST" "$CUSLITT" "$CUSLISTV" "$CUSLITTV" 2>/dev/null
 	uci commit dhcp
 	/etc/init.d/dnsmasq restart >/dev/null 2>&1
+#=========================================================================================================================== 	 
 }
 
-add_cron() {
-	[ -z "$(grep -w "/usr/share/clash/clash-watchdog.sh" "$CRON_FILE" 2>/dev/null)" ] && echo "*/3 * * * * /usr/share/clash/clash-watchdog.sh" >> "$CRON_FILE"
-
+add_cron(){
+config_type=$(uci get clash.config.config_type 2>/dev/null)
+#===========================================================================================================================
+	[ -z "$(grep -w "/usr/share/clash/clash-watchdog.sh" "$CRON_FILE")" ] && echo "*/3 * * * * /usr/share/clash/clash-watchdog.sh" >> "$CRON_FILE"
+	[ -z "$(grep -w "/usr/share/clash/kill_watchdog.sh" "$CRON_FILE")" ] && echo "*/1 * * * * /usr/share/clash/kill_watchdog.sh" >> "$CRON_FILE"
 	clear=$(uci get clash.config.auto_clear_log 2>/dev/null)
 	if [ "${clear:-0}" -eq 1 ]; then
-		[ -z "$(grep -w "/usr/share/clash/clash.txt" "$CRON_FILE" 2>/dev/null)" ] && echo "0 */$(uci get clash.config.clear_time 2>/dev/null) * * * echo '' >/usr/share/clash/clash.txt" >> "$CRON_FILE"
+	[ -z "$(grep -w "/usr/share/clash/clash.txt" $CRON_FILE)" ] && echo "0 */$(uci get clash.config.clear_time 2>/dev/null) * * * echo '' >/usr/share/clash/clash.txt" >> $CRON_FILE
 	fi
-
+	
 	auto=$(uci get clash.config.auto_update 2>/dev/null)
 	if [ "${auto:-0}" -eq 1 ]; then
-		[ -z "$(grep -w "/usr/share/clash/update_all.sh" "$CRON_FILE" 2>/dev/null)" ] && echo "0 */$(uci get clash.config.auto_update_time 2>/dev/null) * * * bash /usr/share/clash/update_all.sh >/usr/share/clash/clash.txt 2>&1 &" >> "$CRON_FILE"
+	[ -z "$(grep -w "/usr/share/clash/update_all.sh" $CRON_FILE)" ] && echo "0 */$(uci get clash.config.auto_update_time 2>/dev/null) * * * bash /usr/share/clash/update_all.sh >/usr/share/clash/clash.txt 2>&1 &" >> $CRON_FILE
 	fi
-
+	
 	auto_geoip=$(uci get clash.config.auto_update_geoip 2>/dev/null)
 	if [ "${auto_geoip:-0}" -eq 1 ]; then
-		geoip_hour=$(uci get clash.config.auto_update_geoip_time 2>/dev/null)
-		geoip_interval=$(uci get clash.config.geoip_update_interval 2>/dev/null)
-		[ -z "$geoip_hour" ] && geoip_hour=3
-		[ -z "$geoip_interval" ] && geoip_interval=7
-		echo "$geoip_interval" | grep -Eq '^[0-9]+$' || geoip_interval=7
-		[ "$geoip_interval" -lt 1 ] && geoip_interval=7
-		[ -z "$(grep -w "/usr/share/clash/geoip.sh" "$CRON_FILE" 2>/dev/null)" ] && echo "0 $geoip_hour */$geoip_interval * * /usr/share/clash/geoip.sh" >> "$CRON_FILE"
+	geoip_hour=$(uci get clash.config.auto_update_geoip_time 2>/dev/null)
+	geoip_interval=$(uci get clash.config.geoip_update_interval 2>/dev/null)
+	[ -z "$geoip_hour" ] && geoip_hour=3
+	[ -z "$geoip_interval" ] && geoip_interval=7
+	echo "$geoip_interval" | grep -Eq '^[0-9]+$' || geoip_interval=7
+	[ "$geoip_interval" -lt 1 ] && geoip_interval=7
+	[ -z "$(grep -w "/usr/share/clash/geoip.sh" $CRON_FILE)" ] && echo "0 $geoip_hour */$geoip_interval * * /usr/share/clash/geoip.sh" >> $CRON_FILE
 	fi
-	crontab "$CRON_FILE"
+	crontab $CRON_FILE
+#=========================================================================================================================== 	
 }
 
-del_cron() {
-	sed -i '/clash-watchdog.sh/d' "$CRON_FILE" 2>/dev/null
-	sed -i '/update_all.sh/d' "$CRON_FILE" 2>/dev/null
-	sed -i '/clash.txt/d' "$CRON_FILE" 2>/dev/null
-	sed -i '/geoip.sh/d' "$CRON_FILE" 2>/dev/null
+del_cron(){
+#=========================================================================================================================== 
+	sed -i '/clash-watchdog.sh/d' $CRON_FILE
+	sed -i '/update_all.sh/d' $CRON_FILE
+	sed -i '/clash.txt/d' $CRON_FILE
 	/etc/init.d/cron restart
+#=========================================================================================================================== 	
 }
 
-select_config() {
-	log_msg "Checking Config file" "正在检查配置文件"
 
-	if [ -f "$CONFIG_YAML_PATH" ] && [ -s "$CONFIG_YAML_PATH" ]; then
-		cp "$CONFIG_YAML_PATH" "$CONFIG_YAML" 2>/dev/null
-	elif [ ! -f "$CONFIG_YAML_PATH" ] && [ ! -f "$CONFIG_YAML" ]; then
-		log_msg "No config found" "找不到配置文件"
-		sleep 3
-		echo "Clashoo" >"$REAL_LOG"
-		exit 0
-	elif [ ! -s "$CONFIG_YAML_PATH" ] && [ ! -s "$CONFIG_YAML" ]; then
-		log_msg "Config file is empty" "配置文件为空"
-		sleep 3
-		echo "Clashoo" >"$REAL_LOG"
-		exit 0
-	fi
+select_config(){
+#=========================================================================================================================== 
+config_type=$(uci get clash.config.config_type 2>/dev/null)
+log_msg "Checking Config file" "正在检查配置文件"
+
+if [ -f "$CONFIG_YAML_PATH" ] && [ -s "$CONFIG_YAML_PATH" ];then
+
+	cp $CONFIG_YAML_PATH $CONFIG_YAML 2>/dev/null
+	
+elif [ ! -f "$CONFIG_YAML_PATH" ] && [ ! -f "$CONFIG_YAML" ];then
+
+		log_msg "No config found" "找不到配置文章"
+		sleep 5
+		echo "Clashoo" >$REAL_LOG
+		exit 0	
+	
+elif [ ! -s "$CONFIG_YAML_PATH" ] && [ ! -s "$CONFIG_YAML" ];then
+
+		log_msg "Your Config File is Empty" "你的config.yaml有问题还是为了空"
+		sleep 5
+		echo "Clashoo" >$REAL_LOG
+		exit 0	
+		
+fi
+
+#=========================================================================================================================== 
 }
+
+
 
 yml_change() {
+#===========================================================================================================================
 	if grep -Eq '^mixed-port:|^port:|^external-controller:|^secret:' "$CONFIG_YAML" && grep -Eq '^dns:' "$CONFIG_YAML"; then
 		listen_port=$(uci get clash.config.listen_port 2>/dev/null)
 		[ -z "$listen_port" ] && listen_port=5300
@@ -239,7 +325,9 @@ yml_change() {
 		[ -z "$p_mode" ] && p_mode="rule"
 		[ "$p_mode" = "script" ] && p_mode="rule"
 		[ -z "$log_level" ] && log_level="info"
-		[ "$bind_addr" = "*" ] && bind_addr="0.0.0.0"
+		if [ "$bind_addr" = "*" ]; then
+			bind_addr="0.0.0.0"
+		fi
 		dash_port=$(uci get clash.config.dash_port 2>/dev/null)
 		[ -z "$dash_port" ] && dash_port=9090
 		da_password=$(uci get clash.config.dash_pass 2>/dev/null)
@@ -319,18 +407,29 @@ yml_change() {
 		else
 			sed -i '/^secret:/a\external-ui: "./dashboard"' "$CONFIG_YAML" 2>/dev/null
 		fi
+		# disable tun when not in tun mode
+		_tcp_mode=$(uci get clash.config.tcp_mode 2>/dev/null)
+		if [ "$_tcp_mode" != "tun" ]; then
+			awk '/^tun:/{f=1} f && /enable:/{sub(/enable:.*/, "enable: false"); f=0} {print}' "$CONFIG_YAML" > /tmp/_cfg_tun.yaml && mv /tmp/_cfg_tun.yaml "$CONFIG_YAML"
+		fi
 		return 0
 	fi
 	sh /usr/share/clash/yum_change.sh 2>/dev/null
+	# 兼容订阅内置 dns.listen 缩进异常，避免 YAML 语法错误导致启动失败
 	sed -i 's/^    listen:/  listen:/g' /etc/clash/config.yaml 2>/dev/null
+#===========================================================================================================================
 }
 
 ip_rules() {
+#===========================================================================================================================
 	sh /usr/share/clash/iprules.sh 2>/dev/null
+#=========================================================================================================================== 
 }
 
-yml_dns_change() {
-	dns_port=$(grep "^ \{0,\}listen:" /etc/clash/config.yaml | awk -F ':' '{print $3}' 2>/dev/null)
+
+yml_dns_change(){
+#=========================================================================================================================== 	
+	dns_port=$(grep "^ \{0,\}listen:" /etc/clash/config.yaml |awk -F ':' '{print $3}' 2>/dev/null)
 	listen_port=$(uci get clash.config.listen_port 2>/dev/null)
 	[ -z "$listen_port" ] && listen_port=5300
 	if [ -z "$dns_port" ]; then
@@ -343,48 +442,107 @@ yml_dns_change() {
 	dnscache=$(uci get clash.config.dnscache 2>/dev/null)
 	backup_dnsmasq_state
 	if [ "${dns_port:-0}" -eq 53 ]; then
-		sed -i "s@^\([[:space:]]*listen:[[:space:]]*\)0\.0\.0\.0:53@\10.0.0.0:${listen_port}@g" "$CONFIG_YAML"
-		dns_port="$listen_port"
-	fi
+			sed -i "s@^\([[:space:]]*listen:[[:space:]]*\)0\.0\.0\.0:53@\10.0.0.0:${listen_port}@g" "$CONFIG_YAML"
+			dns_port="$listen_port"
+	fi	
 
-	if [ "${dnsforwader:-0}" -ne 0 ]; then
-		log_msg "Setting dns forwarder" "设置dns转发器"
-		add_clash_dns_server "$dns_port"
-		uci delete dhcp.@dnsmasq[0].resolvfile 2>/dev/null
-		uci set dhcp.@dnsmasq[0].noresolv=1
-		uci commit dhcp
-		if [ "${dnscache:-0}" -eq 0 ]; then
+	if [ "${dnsforwader:-0}" -ne 0 ]; then	
+		   if [ "${dns_port:-0}" -eq 53 ]; then
+	   
+			log_msg "Setting dns forwarder" "设置dns转发器"
+
+			  add_clash_dns_server 5300
+	          uci delete dhcp.@dnsmasq[0].resolvfile
+	          uci set dhcp.@dnsmasq[0].noresolv=1
+			  uci commit dhcp
+		  if [ "${dnscache:-0}" -eq 0 ];then
 			log_msg "Disabling dns cache" "禁用dns缓存"
 			uci set dhcp.@dnsmasq[0].cachesize=0
 			uci commit dhcp
+		  fi  
+	    else
+		  echo "Setting dns forwarder" >$REAL_LOG
+			  add_clash_dns_server "$dns_port"
+	          uci delete dhcp.@dnsmasq[0].resolvfile
+	          uci set dhcp.@dnsmasq[0].noresolv=1
+			  uci commit dhcp
+		  if [ "${dnscache:-0}"  -eq 0 ];then
+			log_msg "Disabling dns cache" "禁用dns缓存"
+
+	        uci set dhcp.@dnsmasq[0].cachesize=0
+			uci commit dhcp
+		  fi	      
+	   fi
+	elif [ "${dnsforwader:-0}" -ne 1 ]; then
+		if [ "${dnscache:-0}"  -eq 0 ];then
+			log_msg "Disabling dns cache" "禁用dns缓存"
+
+	        uci set dhcp.@dnsmasq[0].cachesize=0
+			uci commit dhcp
 		fi
-	elif [ "${dnscache:-0}" -eq 0 ]; then
-		log_msg "Disabling dns cache" "禁用dns缓存"
-		uci set dhcp.@dnsmasq[0].cachesize=0
-		uci commit dhcp
 	fi
+#=========================================================================================================================== 	   
 }
 
-check() {
-	sed -i 's/^Proxy Group:/proxy-groups:/g' "$CONFIG_YAML"
-	sed -i 's/^proxy-provider:/proxy-providers:/g' "$CONFIG_YAML"
-	sed -i 's/^Proxy:/proxies:/g' "$CONFIG_YAML"
-	sed -i 's/^Rule:/rules:/g' "$CONFIG_YAML"
-	sed -i 's/^rule-provider:/rule-providers:/g' "$CONFIG_YAML"
+
+check(){
+
+	   sed -i 's/^Proxy Group:/proxy-groups:/g' "$CONFIG_YAML"
+	   sed -i 's/^proxy-provider:/proxy-providers:/g' "$CONFIG_YAML"
+	   sed -i 's/^Proxy:/proxies:/g' "$CONFIG_YAML"
+	   sed -i 's/^Rule:/rules:/g' "$CONFIG_YAML"
+	   sed -i 's/^rule-provider:/rule-providers:/g' "$CONFIG_YAML"
+
 }
+
+rules(){
+#===========================================================================================================================
+		/usr/share/clash/fw4.sh apply >/dev/null 2>&1
+		return $?
+#=========================================================================================================================== 
+}	 
+
 
 custom_list() {
-	[ -x /usr/share/clash/list.sh ] && sh /usr/share/clash/list.sh >/dev/null 2>&1
+	sh /usr/share/clash/list.sh  >/dev/null 2>&1
 }
 
 restore() {
 	sh /usr/share/clash/restore.sh >/dev/null 2>&1
 }
 
+
+
+
+
 _start_validate_core() {
-	if [ ! -x "$CLASH" ]; then
-		_log_runtime_error "mihomo core not found: $CLASH"
-		log_msg "mihomo core not found: $CLASH" "找不到可用的 mihomo 内核: $CLASH"
+	if [ "${core:-0}" -eq 1 ] && [ ! -x "$CLASH" ]; then
+		if [ "${lang}" = "en" ] || [ "${lang}" = "auto" ]; then
+			echo "  $(date "+%Y-%m-%d %H:%M:%S") - mihomo core not found, detected binary is unavailable: $CLASH" >> /usr/share/clash/clash.txt
+		elif [ "${lang}" = "zh_cn" ]; then
+			echo "  $(date "+%Y-%m-%d %H:%M:%S")  - 找不到可用的 mihomo 内核: $CLASH" >> /usr/share/clash/clash.txt
+		fi
+		log_msg "mihomo core not found, detected binary is unavailable: $CLASH" "找不到可用的 mihomo 内核: $CLASH"
+		echo "Clashoo" > "$REAL_LOG"
+		return 1
+	elif [ "${core:-0}" -eq 2 ] && [ ! -x "$CLASH" ]; then
+		if [ "${lang}" = "en" ] || [ "${lang}" = "auto" ]; then
+			echo "  $(date "+%Y-%m-%d %H:%M:%S") - mihomo core not found, detected binary is unavailable: $CLASH" >> /usr/share/clash/clash.txt
+		elif [ "${lang}" = "zh_cn" ]; then
+			echo "  $(date "+%Y-%m-%d %H:%M:%S")  - 找不到可用的 mihomo 内核: $CLASH" >> /usr/share/clash/clash.txt
+		fi
+		log_msg "mihomo core not found, detected binary is unavailable: $CLASH" "找不到可用的 mihomo 内核: $CLASH"
+		sleep 1
+		echo "Clashoo" > "$REAL_LOG"
+		return 1
+	elif [ "${core:-0}" -eq 3 ] && [ ! -x "$CLASH" ]; then
+		if [ "${lang}" = "en" ] || [ "${lang}" = "auto" ]; then
+			echo "  $(date "+%Y-%m-%d %H:%M:%S") - mihomo core not found, detected binary is unavailable: $CLASH" >> /usr/share/clash/clash.txt
+		elif [ "${lang}" = "zh_cn" ]; then
+			echo "  $(date "+%Y-%m-%d %H:%M:%S")  - 找不到可用的 mihomo 内核: $CLASH" >> /usr/share/clash/clash.txt
+		fi
+		log_msg "mihomo core not found, detected binary is unavailable: $CLASH" "找不到可用的 mihomo 内核: $CLASH"
+		sleep 1
 		echo "Clashoo" > "$REAL_LOG"
 		return 1
 	fi
@@ -393,17 +551,37 @@ _start_validate_core() {
 
 _start_prepare_config() {
 	check >/dev/null 2>&1
+
 	custom_list >/dev/null 2>&1
+
 	sleep 1
 
 	enable_dns=$(uci get clash.config.enable_dns 2>/dev/null)
-	if [ -z "$(grep '^ {0,}listen:' /etc/clash/config.yaml)" ] || \
-	   [ -z "$(grep '^ {0,}enhanced-mode:' /etc/clash/config.yaml)" ] || \
-	   [ -z "$(grep '^ {0,}dns:' /etc/clash/config.yaml)" ]; then
-		if [ "${enable_dns:-0}" -eq 0 ]; then
+
+	if [ -z "$(grep -E "^ {0,}listen:" /etc/clash/config.yaml)" ] || [ -z "$(grep -E "^ {0,}enhanced-mode:" /etc/clash/config.yaml)" ] || [ -z "$(grep -E "^ {0,}dns:" /etc/clash/config.yaml)" ];then
+
+	if [ "${enable_dns:-0}" -eq 0 ];then
 			uci set clash.config.enable_dns="1" && uci commit clash
 			log_msg "Enabling Custom Dns" "启用自定义DNS"
+	fi
+
+	fi
+
+	if { egrep -q '^ {0,}rule-providers:' "/etc/clash/config.yaml" || egrep -q '^ {0,}script:' "/etc/clash/config.yaml"; } && ! core_supports_advanced_features; then
+		if [ -x /usr/bin/mihomo ]; then
+			uci set clash.config.core="3" && uci commit clash
+		elif [ -x /usr/bin/clash-meta ] || [ -x /etc/clash/clash-meta ]; then
+			uci set clash.config.core="2" && uci commit clash
+		else
+			log_msg "Current config requires mihomo/clash-meta core" "当前配置需要 mihomo 或 clash-meta 内核"
+			backend_remove_rules >/dev/null 2>&1
+			sleep 1
+			echo "Clashoo" > "$REAL_LOG"
+			exit 0
 		fi
+		core=$(uci get clash.config.core 2>/dev/null)
+		CLASH="$(_detect_selected_core)"
+		sleep 1
 	fi
 
 	if [ "$(uci get clash.config.p_mode 2>/dev/null)" = "script" ]; then
@@ -414,11 +592,11 @@ _start_prepare_config() {
 	yml_change >/dev/null 2>&1
 	sed -i 's/^    listen:/  listen:/g' /etc/clash/config.yaml 2>/dev/null
 
-	if [ ! -f /etc/clash/Country.mmdb ]; then
-		log_msg "Country.mmdb not found, continue without local MMDB" "未找到 Country.mmdb，继续启动"
+	if [ ! -f /etc/clash/Country.mmdb ];then
+		log_msg "Country.mmdb not found, continue without local MMDB" "未找到 Country.mmdb，继续启动（可在系统页更新 GeoIP）"
 	fi
 
-	if [ ! -f /etc/clash/config.yaml ]; then
+	if [ ! -f /etc/clash/config.yaml ];then
 		log_msg "Cannot find config.yaml" "找不到config.yaml"
 		backend_remove_rules >/dev/null 2>&1
 		sleep 1
@@ -427,6 +605,7 @@ _start_prepare_config() {
 	fi
 
 	yml_dns_change >/dev/null 2>&1
+
 	ip_rules >/dev/null 2>&1
 }
 
@@ -434,11 +613,11 @@ _start_launch_core() {
 	disable_quic_gso=$(uci get clash.config.disable_quic_gso 2>/dev/null)
 	if [ "$disable_quic_gso" = "1" ]; then
 		nohup env QUIC_GO_DISABLE_GSO=1 "$CLASH" -d "$CLASH_CONFIG" > /usr/share/clash/clash.txt 2>&1 &
-		log_msg "Disable quic-go GSO support" "已禁用 quic-go GSO 支持"
+		log_msg "Disable quic-go GSO support" "已启用：禁用 quic-go GSO 支持"
 	else
 		nohup "$CLASH" -d "$CLASH_CONFIG" > /usr/share/clash/clash.txt 2>&1 &
 	fi
-	log_msg "mihomo Core Started" "mihomo 启动进程..."
+	log_msg "mihomo Core Started Successfully " "mihomo 计划任务,启动进程守护程序..."
 	sleep 1
 	ln -s /usr/share/clash/yacd /www/luci-static/yacd 2>/dev/null
 
@@ -447,31 +626,32 @@ _start_launch_core() {
 
 	backend_apply_rules >/dev/null 2>&1
 
-	log_msg "Restarting Dnsmasq" "重启 Dnsmasq"
+	log_msg "Restarting Dnsmasq " "重启 Dnsmasq 程序"
 	sleep 1
 
 	/etc/init.d/dnsmasq restart >/dev/null 2>&1
 
 	restore >/dev/null 2>&1
 
-	log_msg "Setting Cron Job" "设置定时任务"
+	log_msg "Setting Cron Job" "设置Cron"
 	add_cron
 	sleep 1
-	log_msg "mihomo Started Successfully" "mihomo 启动成功"
+	log_msg "mihomo Started Successfully " "mihomo 启动成功，请等待服务器上线！"
 	sleep 1
-	log_msg "mihomo is Running" "mihomo 运行中"
+	log_msg "mihomo is Running " "mihomo 运行中"
 	sleep 1
 	echo "Clashoo" > "$REAL_LOG"
-
 	core_wait=0
 	while [ "$core_wait" -lt 8 ]; do
-		_core_running && break
+		if _core_running; then
+			break
+		fi
 		sleep 1
 		core_wait=$((core_wait + 1))
 	done
 
 	if ! _core_running; then
-		echo "  $(date "+%Y-%m-%d %H:%M:%S") - mihomo core failed to stay running after start" >> /usr/share/clash/clash.txt
+		echo "  $(date "+%Y-%m-%d %H:%M:%S") - clash core failed to stay running after start" >> /usr/share/clash/clash.txt
 		backend_remove_rules >/dev/null 2>&1
 		revert_dns >/dev/null 2>&1
 		_kill_core
@@ -480,93 +660,152 @@ _start_launch_core() {
 	fi
 }
 
-start() {
-	lang=$(uci get luci.main.lang 2>/dev/null)
-	enable=$(uci get clash.config.enable 2>/dev/null)
+start(){
+#=========================================================================================================================== 
+lang=$(uci get luci.main.lang 2>/dev/null)
+enable=$(uci get clash.config.enable 2>/dev/null)
+core=$(uci get clash.config.core 2>/dev/null)
+mode=$(uci get clash.config.mode 2>/dev/null)
+tun_mode=$(uci get clash.config.tun_mode 2>/dev/null)
 
-	[ -f /etc/clash/config.yaml ] && rm -rf /etc/clash/config.yaml >/dev/null 2>&1
+if _openclash_conflict; then
+	_log_runtime_error "OpenClash is enabled; skip Clashoo start to avoid firewall/DNS conflicts"
+	return 0
+fi
 
-	if [ "${enable:-0}" -eq 1 ]; then
-		log_msg "Starting Clashoo" "启动 Clashoo"
-		sleep 1
-		select_config >/dev/null 2>&1
-		sleep 1
 
-		if ! _require_runtime_network_stack; then
-			echo "Clashoo" > "$REAL_LOG"
-			exit 0
-		fi
 
-		_start_validate_core || return
+if [ -f /etc/clash/config.yaml ];then
+ rm -rf /etc/clash/config.yaml >/dev/null 2>&1
+fi
 
-		if [ -f "$CONFIG_YAML" ] && [ -s "$CONFIG_YAML" ]; then
-			_start_prepare_config
-			_start_launch_core
-		else
-			_log_runtime_error "config.yaml is empty or not found"
-			log_msg "config.yaml is empty or not found" "config.yaml 为空或找不到"
-			sleep 1
-			echo "Clashoo" > "$REAL_LOG"
-		fi
-	else
-		log_msg "Enable Clashoo and start again" "请先启用 Clashoo"
-		sleep 1
+if [ "${enable:-0}" -eq 1 ]; then
+ 	log_msg "Starting Client" "启动客户端"
+	sleep 1
+	select_config >/dev/null 2>&1
+	sleep 1
+	
+	if ! _require_runtime_network_stack; then
 		echo "Clashoo" > "$REAL_LOG"
+		exit 0
 	fi
-}
+	
 
-stop() {
-	lang=$(uci get luci.main.lang 2>/dev/null)
-	LIST="/usr/share/clash/server.list"
+if ! _start_validate_core; then
+	return
+fi
 
-	sed -i '/#START/,/#END/d' "$LIST" 2>/dev/null
+if [ -f "$CONFIG_YAML" ] && [ -s "$CONFIG_YAML" ] ; then
 
-	log_msg "Stopping Clashoo..." "正在停止 Clashoo..."
-	sleep 1
-	backend_remove_rules >/dev/null 2>&1
-	revert_dns >/dev/null 2>&1
+	_start_prepare_config
 
-	log_msg "Removing mihomo $(backend_name) rules" "清理 mihomo 网络规则"
-	sleep 1
+	_start_launch_core
 
-	bash /usr/share/clash/backup.sh >/dev/null 2>&1
-
-	_kill_core
-
-	log_msg "mihomo Core Stopped" "mihomo 已停止"
-	sleep 1
-
-	rm -rf /www/luci-static/yacd 2>/dev/null
-
-	log_msg "Deleting Cron Job" "删除定时任务"
-	sleep 1
-
-	del_cron >/dev/null 2>&1
-	sleep 1
-
-	echo "" >/usr/share/clash/clash.txt 2>/dev/null
-	echo "0" > /usr/share/clash/logstatus_check 2>/dev/null
-
-	log_msg "Clashoo is Stopped" "Clashoo 已停止"
+else
+	if [ "${lang}" = "en" ] || [ "${lang}" = "auto" ]; then
+		echo "  $(date "+%Y-%m-%d %H:%M:%S") -  problem with config.yaml,  config.yaml is either empty or not found " >> /usr/share/clash/clash.txt
+	elif [ "${lang}" = "zh_cn" ]; then
+		echo "  $(date "+%Y-%m-%d %H:%M:%S")  - 你的config.yaml有问题还是为了空 0kb " >> /usr/share/clash/clash.txt
+	fi
+	log_msg "  problem with config file " "  你的config.yaml有问题还是为了空 0kb "
 	sleep 1
 	echo "Clashoo" > "$REAL_LOG"
+fi
 
-	_core_running && _kill_core
+else
+	log_msg "Enable Client and Start Client Again" "启用客户端并重新启动客户端"
+	if [ "${lang}" = "en" ] || [ "${lang}" = "auto" ]; then
+		echo "  $(date "+%Y-%m-%d %H:%M:%S") - Enable Client and Start Client Again" >> /usr/share/clash/clash.txt
+	elif [ "${lang}" = "zh_cn" ]; then
+		echo "  $(date "+%Y-%m-%d %H:%M:%S") - 启用客户端并重新启动客户端" >> /usr/share/clash/clash.txt
+	fi
+	sleep 1
+	echo "Clashoo" > "$REAL_LOG"
+fi
+#=========================================================================================================================== 
 }
 
-restart() {
-	if _core_running; then
-		stop >/dev/null 2>&1
-	fi
-	start >/dev/null 2>&1
-	echo "Clashoo Successfully Restarted"
+
+remove_mark(){
+		/usr/share/clash/fw4.sh remove >/dev/null 2>&1
+		return 0
 }
 
-reload() {
-	if _core_running; then
-		backend_remove_rules 2>/dev/null
-		yml_dns_change 2>/dev/null
-		backend_apply_rules 2>/dev/null
-		echo "Clashoo Reload Completed"
-	fi
+stop(){
+#=========================================================================================================================== 
+		
+		lang=$(uci get luci.main.lang 2>/dev/null)
+		tun_mode=$(uci get clash.config.tun_mode 2>/dev/null)
+		#ipv6=$(uci get clash.config.enable_ipv6 2>/dev/null)
+		core=$(uci get clash.config.core 2>/dev/null)
+		LIST="/usr/share/clash/server.list"
+
+		sed -i '/#START/,/#END/d' "$LIST" 2>/dev/null
+
+		log_msg "Stopping Client..." "正在停止客户端..."
+		sleep 1
+		backend_remove_rules >/dev/null 2>&1
+		revert_dns >/dev/null 2>&1
+		
+		log_msg "Removing mihomo $(backend_name) rules" "清理 mihomo 网络规则"
+		sleep 1
+		
+		bash /usr/share/clash/backup.sh >/dev/null 2>&1
+		
+		_kill_core
+
+		log_msg "mihomo Core Stopped Successfully " "mihomo 停止进程守护程序"
+		sleep 1
+		
+		rm -rf /www/luci-static/yacd 2>/dev/null
+		
+		log_msg "Deleting Cron Job" "删除Cron"
+		sleep 1
+		
+  	  	del_cron >/dev/null 2>&1
+	    sleep 1		
+
+
+	 	echo "" >/usr/share/clash/clash.txt >/dev/null 2>&1
+
+		echo "0" > /usr/share/clash/logstatus_check >/dev/null 2>&1
+		
+		if [ "${lang}" = "en" ] || [ "${lang}" = "auto" ]; then
+			echo "  $(date "+%Y-%m-%d %H:%M:%S") - CLIENT IS DISABLED " >> /usr/share/clash/clash.txt
+		elif [ "${lang}" = "zh_cn" ]; then
+			echo "  $(date "+%Y-%m-%d %H:%M:%S")  - 客户端被禁用 " >> /usr/share/clash/clash.txt
+		fi
+		log_msg "Client is Disabled " "客户端被禁用 "
+		sleep 1
+		echo "Clashoo" > "$REAL_LOG"
+	
+		if _core_running; then
+			_kill_core
+		fi
+
+
+#=========================================================================================================================== 	
+}
+
+restart(){
+#=========================================================================================================================== 
+		if _core_running; then
+			stop  >/dev/null 2>&1
+			start >/dev/null 2>&1
+			echo "Clash Successfully Restarted"			
+		else
+		    start >/dev/null 2>&1
+			echo "Clash Successfully Started"
+		fi
+#=========================================================================================================================== 
+}
+
+reload()
+{
+if _core_running; then
+      backend_remove_rules 2>/dev/null
+	  yml_dns_change 2>/dev/null
+      backend_apply_rules 2>/dev/null	 
+	  echo "Clash Reload Completed"	
+fi	  
 }
