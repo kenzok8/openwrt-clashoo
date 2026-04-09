@@ -46,32 +46,9 @@ jobs:
           echo "commit_sha=$(git -C mihomo rev-parse HEAD)" >> $GITHUB_OUTPUT
           echo "commit_date=$(git -C mihomo log -1 --format=%cs)" >> $GITHUB_OUTPUT
           echo "short_sha=$(git -C mihomo rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-
-          COMMIT_SHA="$(git -C mihomo rev-parse HEAD)"
-          SHORT_SHA="$(git -C mihomo rev-parse --short HEAD)"
-          SUBDIR="clashoo-alpha-${SHORT_SHA}"
-          SOURCE="${SUBDIR}.tar.zst"
-          TAR_TIMESTAMP="$(git -C mihomo log -1 --format='@%ct')"
-
-          WORKDIR="$(mktemp -d)"
-          trap 'rm -rf "${WORKDIR}"' EXIT
-
-          # 生成与 OpenWrt 下载流程一致的源码归档（含子模块内容）
-          cp -a mihomo "${WORKDIR}/src"
-          git -C "${WORKDIR}/src" checkout "${COMMIT_SHA}"
-          git -C "${WORKDIR}/src" submodule update --init --recursive --
-          git -C "${WORKDIR}/src" config core.abbrev 8
-          git -C "${WORKDIR}/src" archive --format=tar HEAD --output="${WORKDIR}/src.tar.git"
-          tar --numeric-owner --owner=0 --group=0 --ignore-failed-read -C "${WORKDIR}/src" -f "${WORKDIR}/src.tar.git" -r .git .gitmodules 2>/dev/null || true
-
-          rm -rf "${WORKDIR}/src"
-          mkdir -p "${WORKDIR}/${SUBDIR}"
-          tar -C "${WORKDIR}/${SUBDIR}" -xf "${WORKDIR}/src.tar.git"
-          (cd "${WORKDIR}/${SUBDIR}" && git submodule update --init --recursive -- && rm -rf .git .gitmodules)
-
-          tar --numeric-owner --owner=0 --group=0 --mode=a-s --sort=name --mtime="${TAR_TIMESTAMP}" -C "${WORKDIR}" -c "${SUBDIR}" | zstd -T0 --ultra -20 -c > "${WORKDIR}/${SOURCE}"
-
-          echo "checksum=$(sha256sum "${WORKDIR}/${SOURCE}" | cut -d ' ' -f 1)" >> $GITHUB_OUTPUT
+          git -C mihomo config tar.xz.command "xz -c"
+          git -C mihomo archive --output=mihomo.tar.xz HEAD
+          echo "checksum=$(sha256sum mihomo/mihomo.tar.xz | cut -d ' ' -f 1)" >> $GITHUB_OUTPUT
 
   update:
     needs:
