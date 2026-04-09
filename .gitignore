@@ -34,6 +34,7 @@ dist/
 
 # local test helpers
 test-http/
+_device_snapshot/
 
 # runtime generated state files
 clashoo/root/usr/share/clash/new_*

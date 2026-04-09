@@ -17,7 +17,7 @@ const LATENCY_WARN    = 300;    /* 延迟黄色阈值(ms) */
 
 const COLORS = {
     running:   '#20c997',   /* 运行中/绿色 */
-    stopped:   '#b58900',   /* 已停止/琥珀 */
+    stopped:   '#adb5bd',   /* 已停止/灰色 */
     primary:   '#4a76d4',   /* 主操作按钮 */
     secondary: '#adb5bd',   /* 次操作按钮 */
     success:   '#28a745',   /* 延迟正常 */
@@ -45,14 +45,14 @@ const START_STEPS = [
     '设置dns转发器 / 启用自定义DNS',
     '设置Cron → Clash 计划任务,启动进程守护程序...',
     '重启 Dnsmasq 程序',
-    'Clash 启动成功，请等待服务器上线！'
+    'Clashoo 启动成功，请等待服务器上线！'
 ];
 
 const STOP_STEPS = [
     '正在停止客户端...',
     '清理 mihomo 网络规则',
     '禁用dns缓存',
-    'Clash 停止进程守护程序',
+    'Clashoo 停止进程守护程序',
     '删除Cron',
     '重启 Dnsmasq 程序'
 ];
