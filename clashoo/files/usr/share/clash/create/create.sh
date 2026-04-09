@@ -1,4 +1,4 @@
-#!/bin/bash /etc/rc.common
+#!/bin/sh
 . /lib/functions.sh
 
 
@@ -1211,7 +1211,7 @@ use=$(uci get clash.config.use_config 2>/dev/null)
 config_type=$(uci get clash.config.config_type 2>/dev/null)
 
 if [  "$use" == "$CONFIG_YAML" ] && [ "$config_type" == "3" ];then
-	if pidof clash >/dev/null; then
+	if pidof clash >/dev/null || pidof mihomo >/dev/null || pidof clash-meta >/dev/null; then
 			/etc/init.d/clash restart 2>/dev/null
 	fi
 fi

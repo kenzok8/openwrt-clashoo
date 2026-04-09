@@ -266,6 +266,8 @@ config_type=$(uci get clash.config.config_type 2>/dev/null)
 del_cron(){
 #=========================================================================================================================== 
 	sed -i '/clash-watchdog.sh/d' $CRON_FILE
+	sed -i '/kill_watchdog.sh/d' $CRON_FILE
+	sed -i '/geoip.sh/d' $CRON_FILE
 	sed -i '/update_all.sh/d' $CRON_FILE
 	sed -i '/clash.txt/d' $CRON_FILE
 	/etc/init.d/cron restart
@@ -543,6 +545,15 @@ _start_validate_core() {
 		fi
 		log_msg "mihomo core not found, detected binary is unavailable: $CLASH" "找不到可用的 mihomo 内核: $CLASH"
 		sleep 1
+		echo "Clashoo" > "$REAL_LOG"
+		return 1
+	elif [ "${core:-0}" -ne 1 ] && [ "${core:-0}" -ne 2 ] && [ "${core:-0}" -ne 3 ] && [ ! -x "$CLASH" ]; then
+		if [ "${lang}" = "en" ] || [ "${lang}" = "auto" ]; then
+			echo "  $(date "+%Y-%m-%d %H:%M:%S") - invalid core setting (${core}), detected binary is unavailable: $CLASH" >> /usr/share/clash/clash.txt
+		elif [ "${lang}" = "zh_cn" ]; then
+			echo "  $(date "+%Y-%m-%d %H:%M:%S")  - 内核配置异常 (${core})，且找不到可用内核: $CLASH" >> /usr/share/clash/clash.txt
+		fi
+		log_msg "invalid core setting (${core}), detected binary is unavailable: $CLASH" "内核配置异常 (${core})，且找不到可用内核: $CLASH"
 		echo "Clashoo" > "$REAL_LOG"
 		return 1
 	fi
