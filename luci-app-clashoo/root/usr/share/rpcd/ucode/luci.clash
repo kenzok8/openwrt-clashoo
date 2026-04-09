@@ -220,6 +220,21 @@ function shell_quote(s) {
 return "'" + replace(s || '', /'/g, "'\\''") + "'";
 }
 
+function mihomo_api_post(path) {
+let c = cursor();
+c.load('clash');
+let dash_port = c.get('clash', 'config', 'dash_port') || '9090';
+let dash_pass = c.get('clash', 'config', 'dash_pass') || '';
+let auth = dash_pass ? ('-H ' + shell_quote('Authorization: Bearer ' + dash_pass) + ' ') : '';
+let url  = 'http://127.0.0.1:' + dash_port + path;
+let cmd  = 'curl -s -o /dev/null -w "%{http_code}" -m 10 -X POST ' + auth + shell_quote(url) + ' 2>/dev/null';
+let p = popen(cmd);
+if (!p) return '000';
+let code = trim(p.read('all'));
+p.close();
+return code || '000';
+}
+
 function read_subscriptions() {
 let rows = [];
 if (!access(LIST_FILE, 'r')) return rows;
@@ -899,6 +914,32 @@ let path = dir + '/' + name;
 if (writefile(path, content) === null)
 return { success: false, error: 'write_failed', message: '写入文件失败' };
 return { success: true, name, path };
+}
+},
+
+smart_flush_cache: {
+call: function() {
+let code = mihomo_api_post('/cache/smart/flush');
+return { success: (code == '204' || code == '200'), code };
+}
+},
+
+smart_upgrade_lgbm: {
+call: function() {
+system('sh /usr/share/clash/lgbm_update.sh >/tmp/lgbm_update.log 2>&1 &');
+return { success: true };
+}
+},
+
+smart_model_status: {
+call: function() {
+let model_path = '/etc/clash/Model.bin';
+let s = stat(model_path);
+if (!s) return { has_model: false, version: '' };
+let p = popen('date -d @' + s.mtime + ' "+%Y-%m-%d %H:%M:%S" 2>/dev/null || date -r ' + shell_quote(model_path) + ' "+%Y-%m-%d %H:%M:%S" 2>/dev/null');
+let ts = '';
+if (p) { ts = trim(p.read('all')); p.close(); }
+return { has_model: true, version: ts || ('' + s.mtime), size_kb: int(s.size / 1024) };
 }
 }
 };

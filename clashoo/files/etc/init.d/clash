@@ -268,6 +268,15 @@ config_type=$(uci get clash.config.config_type 2>/dev/null)
 		[ "$geoip_interval" -lt 1 ] && geoip_interval=7
 		[ -z "$(grep -w "/usr/share/clash/geoip.sh" "$CRON_FILE")" ] && echo "0 $geoip_hour */$geoip_interval * * /usr/share/clash/geoip.sh" >> "$CRON_FILE"
 	fi
+	lgbm_auto=$(uci get clash.config.smart_lgbm_auto_update 2>/dev/null)
+	if [ "${lgbm_auto:-0}" -eq 1 ]; then
+		lgbm_interval=$(uci get clash.config.smart_lgbm_update_interval 2>/dev/null)
+		echo "$lgbm_interval" | grep -Eq '^[0-9]+$' || lgbm_interval=72
+		[ "$lgbm_interval" -lt 1 ] && lgbm_interval=72
+		lgbm_days=$(( lgbm_interval / 24 ))
+		[ "$lgbm_days" -lt 1 ] && lgbm_days=1
+		[ -z "$(grep -w "lgbm_update.sh" "$CRON_FILE")" ] && echo "0 3 */$lgbm_days * * sh /usr/share/clash/lgbm_update.sh >/dev/null 2>&1" >> "$CRON_FILE"
+	fi
 	crontab "$CRON_FILE"
 #=========================================================================================================================== 	
 }
@@ -279,6 +288,7 @@ del_cron(){
 	sed -i '/geoip.sh/d' "$CRON_FILE"
 	sed -i '/update_all.sh/d' "$CRON_FILE"
 	sed -i '/clash.txt/d' "$CRON_FILE"
+	sed -i '/lgbm_update.sh/d' "$CRON_FILE"
 	/etc/init.d/cron restart
 #=========================================================================================================================== 	
 }
@@ -434,7 +444,94 @@ yml_change() {
 ip_rules() {
 #===========================================================================================================================
 	sh /usr/share/clash/iprules.sh 2>/dev/null
-#=========================================================================================================================== 
+#===========================================================================================================================
+}
+
+
+smart_inject() {
+#===========================================================================================================================
+	local smart_auto smart_priority smart_asn smart_lgbm smart_collect smart_collect_size
+	local smart_collect_rate smart_lgbm_auto smart_lgbm_interval smart_lgbm_url
+	local prefer_asn_val lgbm_val collect_val collect_rate PRIORITY_TMP
+
+	smart_auto=$(uci get clash.config.smart_auto_switch 2>/dev/null)
+
+	# Remove any fields injected by a previous smart_inject run (idempotency)
+	sed -i '/^    uselightgbm:/d; /^    collectdata:/d; /^    prefer-asn:/d; /^    sample-rate:/d' "$CONFIG_YAML" 2>/dev/null
+	sed -i '/^    policy-priority:/d' "$CONFIG_YAML" 2>/dev/null
+	sed -i '/^lgbm-auto-update:/d; /^lgbm-url:/d; /^lgbm-update-interval:/d' "$CONFIG_YAML" 2>/dev/null
+
+	[ "${smart_auto:-0}" != "1" ] && return 0
+
+	smart_priority=$(uci get clash.config.smart_policy_priority 2>/dev/null)
+	smart_asn=$(uci get clash.config.smart_prefer_asn 2>/dev/null)
+	smart_lgbm=$(uci get clash.config.smart_uselightgbm 2>/dev/null)
+	smart_collect=$(uci get clash.config.smart_collectdata 2>/dev/null)
+	smart_collect_size=$(uci get clash.config.smart_collect_size 2>/dev/null)
+	smart_collect_rate=$(uci get clash.config.smart_collect_rate 2>/dev/null)
+	smart_lgbm_auto=$(uci get clash.config.smart_lgbm_auto_update 2>/dev/null)
+	smart_lgbm_interval=$(uci get clash.config.smart_lgbm_update_interval 2>/dev/null)
+	smart_lgbm_url=$(uci get clash.config.smart_lgbm_url 2>/dev/null)
+
+	[ -z "$smart_collect_size" ] && smart_collect_size=100
+	[ -z "$smart_collect_rate" ] && smart_collect_rate=1
+	[ -z "$smart_lgbm_interval" ] && smart_lgbm_interval=72
+	[ -z "$smart_lgbm_url" ] && smart_lgbm_url="https://github.com/vernesong/mihomo/releases/download/LightGBM-Model/Model.bin"
+
+	[ "${smart_asn:-0}" = "1" ] && prefer_asn_val="true" || prefer_asn_val="false"
+	[ "${smart_lgbm:-0}" = "1" ] && lgbm_val="true" || lgbm_val="false"
+	[ "${smart_collect:-0}" = "1" ] && collect_val="true" || collect_val="false"
+	collect_rate="${smart_collect_rate:-1}"
+
+	# Step 1: Replace type: url-test and type: load-balance with type: smart (4-space indent)
+	sed -i 's/^    type: url-test$/    type: smart/; s/^    type: load-balance$/    type: smart/' "$CONFIG_YAML" 2>/dev/null
+
+	# Step 2: Build policy-priority block into temp file (avoid multi-line awk -v issues)
+	PRIORITY_TMP="/tmp/_smart_priority.txt"
+	printf '' > "$PRIORITY_TMP"
+	if [ -n "$smart_priority" ]; then
+		printf '    policy-priority: '"'"'%s'"'"'\n' "$smart_priority" > "$PRIORITY_TMP"
+	fi
+
+	# Step 3: After each "    type: smart" line, inject smart fields via awk + getline
+	awk -v pfile="$PRIORITY_TMP" \
+	    -v prefer_asn="$prefer_asn_val" \
+	    -v lgbm="$lgbm_val" \
+	    -v collect="$collect_val" \
+	    -v rate="$collect_rate" '
+	/^    type: smart$/ {
+	    print
+	    while ((getline line < pfile) > 0) print line
+	    close(pfile)
+	    print "    prefer-asn: " prefer_asn
+	    print "    uselightgbm: " lgbm
+	    print "    collectdata: " collect
+	    print "    sample-rate: " rate
+	    next
+	}
+	{ print }
+	' "$CONFIG_YAML" > /tmp/_smart_inject.yaml && mv /tmp/_smart_inject.yaml "$CONFIG_YAML"
+	rm -f "$PRIORITY_TMP" 2>/dev/null
+
+	# Step 4: profile.smart-collector-size (under profile: section)
+	if grep -q '^profile:' "$CONFIG_YAML"; then
+		if grep -q '^  smart-collector-size:' "$CONFIG_YAML"; then
+			sed -i "s/^  smart-collector-size:.*/  smart-collector-size: ${smart_collect_size}/" "$CONFIG_YAML" 2>/dev/null
+		else
+			sed -i "/^profile:/a\\  smart-collector-size: ${smart_collect_size}" "$CONFIG_YAML" 2>/dev/null
+		fi
+	else
+		printf '\nprofile:\n  store-selected: true\n  smart-collector-size: %s\n' "$smart_collect_size" >> "$CONFIG_YAML"
+	fi
+
+	# Step 5: Top-level lgbm fields (only when lgbm enabled)
+	if [ "$lgbm_val" = "true" ]; then
+		lgbm_auto_val="false"
+		[ "${smart_lgbm_auto:-0}" = "1" ] && lgbm_auto_val="true"
+		printf 'lgbm-auto-update: %s\nlgbm-url: "%s"\nlgbm-update-interval: %s\n' \
+		    "$lgbm_auto_val" "$smart_lgbm_url" "$smart_lgbm_interval" >> "$CONFIG_YAML"
+	fi
+#===========================================================================================================================
 }
 
 
@@ -610,6 +707,7 @@ _start_prepare_config() {
 
 	sleep 1
 	yml_change >/dev/null 2>&1
+	smart_inject >/dev/null 2>&1
 	sed -i 's/^    listen:/  listen:/g' /etc/clash/config.yaml 2>/dev/null
 
 	if [ ! -f /etc/clash/Country.mmdb ];then

@@ -16,13 +16,15 @@ return view.extend({
                 })
             ]).catch(function() {
                 return { configs: [], current: '' };
-            })
+            }),
+            clash.smartModelStatus().catch(function() { return { has_model: false, version: '' }; })
         ]);
     },
 
     render: function (data) {
-        const allConfigs  = (data[1] && data[1].configs) || [];
-        const curConf     = (data[1] && data[1].current) || '';
+        const allConfigs      = (data[1] && data[1].configs) || [];
+        const curConf         = (data[1] && data[1].current) || '';
+        const smartModelVer   = (data[2] && data[2].version) || '';
 
         let m, s, o;
 
@@ -126,6 +128,63 @@ return view.extend({
         o.rmempty = false;
         o.description = 'Fake-IP 模式下劫持 ICMP ping 请求，避免 ping 结果异常';
 
+        /* ── Smart 设置 ── */
+        s = m.section(form.NamedSection, 'config', 'clash', 'Smart 设置');
+        s.description = 'Mihomo Alpha 智能节点选择（type: smart），仅 Alpha 版内核支持';
+
+        o = s.option(form.Flag, 'smart_auto_switch', '<span style="color:#e06c75;font-weight:bold">Smart 策略自动切换</span>');
+        o.rmempty = false;
+        o.default = '0';
+        o.description = '<span style="color:#e06c75">自动切换 Url-test、Load-balance 策略组到 Smart 策略组</span>';
+
+        o = s.option(form.Value, 'smart_policy_priority', 'Policy Priority（权重加成）');
+        o.placeholder = 'Premium:0.9;SG:1.3';
+        o.rmempty = true;
+        o.description = '节点权重加成，&lt;1 表示较低优先级，&gt;1 表示较高优先级，默认为 1，匹配模式支持 Regex 和字符串';
+
+        o = s.option(form.Flag, 'smart_prefer_asn', '<span style="color:#e06c75;font-weight:bold">ASN 优先</span>');
+        o.rmempty = false;
+        o.default = '0';
+        o.description = '选择节点时强制查找并优先使用目标的 ASN 信息，以获得更稳定的体验';
+
+        o = s.option(form.Flag, 'smart_uselightgbm', '<span style="color:#e06c75;font-weight:bold">启用 LightGBM 模型</span>');
+        o.rmempty = false;
+        o.default = '0';
+        o.description = '<span style="color:#e06c75">使用 LightGBM 模型来预测权重</span>';
+
+        o = s.option(form.Flag, 'smart_collectdata', '收集训练数据');
+        o.rmempty = false;
+        o.default = '0';
+
+        o = s.option(form.Flag, 'smart_lgbm_auto_update', '自动更新模型');
+        o.rmempty = false;
+        o.default = '0';
+
+        o = s.option(form.Value, 'smart_lgbm_update_interval', '更新间隔（小时）');
+        o.datatype    = 'uinteger';
+        o.default     = '72';
+        o.placeholder = '72';
+        o.depends('smart_lgbm_auto_update', '1');
+
+        /* 更新模型 按钮 + 当前版本 */
+        o = s.option(form.DummyValue, '_smart_upgrade_btn', '更新模型');
+        o.rawhtml = true;
+        o.cfgvalue = function() {
+            var verHtml = smartModelVer
+                ? '<br><small style="color:#98c379">当前版本: ' + smartModelVer + '</small>'
+                : '';
+            return '<button type="button" class="btn cbi-button cbi-button-action" id="btn_smart_upgrade">检查并更新</button>' + verHtml;
+        };
+        o.write = function() {};
+
+        /* 清理 Smart 缓存 按钮 */
+        o = s.option(form.DummyValue, '_smart_flush_btn', '清理 Smart 缓存');
+        o.rawhtml = true;
+        o.cfgvalue = function() {
+            return '<button type="button" class="btn cbi-button cbi-button-negative" id="btn_smart_flush">清理</button>';
+        };
+        o.write = function() {};
+
         /* ── 端口配置 ── */
         s = m.section(form.NamedSection, 'config', 'clash', '端口配置');
 
@@ -163,7 +222,56 @@ return view.extend({
         o.description = 'TPROXY 模式监听端口（mihomo: tproxy-port），TCP/UDP TPROXY 任一启用时生效';
 
 
-        return m.render();
+        return m.render().then(function(node) {
+            var btnUpgrade = node.querySelector('#btn_smart_upgrade');
+            if (btnUpgrade) {
+                btnUpgrade.addEventListener('click', function() {
+                    btnUpgrade.disabled = true;
+                    btnUpgrade.textContent = '更新中…';
+                    clash.smartUpgradeLgbm().then(function() {
+                        btnUpgrade.disabled = false;
+                        btnUpgrade.textContent = '检查并更新';
+                        return clash.smartModelStatus();
+                    }).then(function(s) {
+                        if (s && s.version) {
+                            var sm = btnUpgrade.nextElementSibling;
+                            if (!sm || sm.tagName !== 'SMALL') {
+                                sm = document.createElement('small');
+                                sm.style.color = '#98c379';
+                                btnUpgrade.parentNode.insertBefore(sm, btnUpgrade.nextSibling);
+                            }
+                            sm.textContent = '当前版本: ' + s.version;
+                        }
+                        L.ui.addNotification(null, E('p', '模型更新任务已启动，请稍后刷新页面查看版本'));
+                    }).catch(function(e) {
+                        btnUpgrade.disabled = false;
+                        btnUpgrade.textContent = '检查并更新';
+                        L.ui.addNotification(null, E('p', '更新失败: ' + (e.message || e)));
+                    });
+                });
+            }
+
+            var btnFlush = node.querySelector('#btn_smart_flush');
+            if (btnFlush) {
+                btnFlush.addEventListener('click', function() {
+                    btnFlush.disabled = true;
+                    btnFlush.textContent = '清理中…';
+                    clash.smartFlushCache().then(function(r) {
+                        btnFlush.disabled = false;
+                        btnFlush.textContent = '清理';
+                        L.ui.addNotification(null, E('p',
+                            (r && r.success) ? 'Smart 缓存已清理' : '清理失败（请确认 Mihomo 正在运行）'
+                        ));
+                    }).catch(function(e) {
+                        btnFlush.disabled = false;
+                        btnFlush.textContent = '清理';
+                        L.ui.addNotification(null, E('p', '清理失败: ' + (e.message || e)));
+                    });
+                });
+            }
+
+            return node;
+        });
     },
 
     handleSave: function (ev) {

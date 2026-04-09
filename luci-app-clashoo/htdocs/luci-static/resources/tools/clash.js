@@ -27,7 +27,10 @@ const callDownloadCore  = rpc.declare({ object: 'luci.clash', method: 'download_
 const callUpdateGeoip   = rpc.declare({ object: 'luci.clash', method: 'update_geoip',     expect: {} });
 const callUpdateChinaIp = rpc.declare({ object: 'luci.clash', method: 'update_china_ip',  expect: {} });
 const callGetLogStatus  = rpc.declare({ object: 'luci.clash', method: 'get_log_status',   expect: {} });
-const callAccessCheck   = rpc.declare({ object: 'luci.clash', method: 'access_check',     expect: {} });
+const callAccessCheck       = rpc.declare({ object: 'luci.clash', method: 'access_check',       expect: {} });
+const callSmartFlushCache   = rpc.declare({ object: 'luci.clash', method: 'smart_flush_cache',   expect: {} });
+const callSmartUpgradeLgbm  = rpc.declare({ object: 'luci.clash', method: 'smart_upgrade_lgbm',  expect: {} });
+const callSmartModelStatus  = rpc.declare({ object: 'luci.clash', method: 'smart_model_status',  expect: {} });
 
 return baseclass.extend({
     status: function () { return L.resolveDefault(callStatus(), {}); },
@@ -58,5 +61,8 @@ return baseclass.extend({
     updateGeoip: function () { return L.resolveDefault(callUpdateGeoip(), {}); },
     updateChinaIp: function () { return L.resolveDefault(callUpdateChinaIp(), {}); },
     getLogStatus: function () { return L.resolveDefault(callGetLogStatus(), {}); },
-    accessCheck: function () { return L.resolveDefault(callAccessCheck(), {}); }
+    accessCheck:        function () { return L.resolveDefault(callAccessCheck(),      {}); },
+    smartFlushCache:    function () { return L.resolveDefault(callSmartFlushCache(),  { success: false }); },
+    smartUpgradeLgbm:   function () { return L.resolveDefault(callSmartUpgradeLgbm(), { success: false }); },
+    smartModelStatus:   function () { return L.resolveDefault(callSmartModelStatus(),  { has_model: false, version: '' }); }
 });
