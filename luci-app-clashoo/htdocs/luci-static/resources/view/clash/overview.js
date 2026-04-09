@@ -59,7 +59,7 @@ const STOP_STEPS = [
 
 const ACTION_MIN_VISIBLE_MS = 6000;
 const ACTION_STABLE_POLLS = 2;
-const ENABLE_AUTO_PROBE = false;
+const ENABLE_AUTO_PROBE = true;
 
 return view.extend({
     load: function () {
