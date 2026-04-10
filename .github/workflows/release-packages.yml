@@ -41,6 +41,8 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: build
         uses: openwrt/gh-action-sdk@main
@@ -61,10 +63,18 @@ jobs:
           mv bin/packages/${{ matrix.arch }}/clashoo public/${{ matrix.branch }}/${{ matrix.arch }}
           tar -c -z -f feed_clashoo_${{ matrix.arch }}-${{ matrix.branch }}.tar.gz public/${{ matrix.branch }}/${{ matrix.arch }}
 
+      - name: get previous tag
+        id: prev_tag
+        run: |
+          prev=$(git tag --sort=-creatordate | grep '^alpha-' | sed -n '2p')
+          echo "tag=${prev:-}" >> $GITHUB_OUTPUT
+
       - name: release
         uses: softprops/action-gh-release@v2
         with:
           fail_on_unmatched_files: false
+          body: |
+            ${{ steps.prev_tag.outputs.tag && format('Full Changelog: https://github.com/{0}/compare/{1}...{2}', github.repository, steps.prev_tag.outputs.tag, github.ref_name) || '' }}
           files: |
             dist/*.ipk
             dist/*.apk
