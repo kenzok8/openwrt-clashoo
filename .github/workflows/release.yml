@@ -50,7 +50,6 @@ jobs:
         run: |
           mkdir -p dist
           ARCH="${{ matrix.arch }}"
-          SDK="${{ matrix.sdk }}"
           for f in bin/packages/${ARCH}/clashoo/*.ipk; do
             [ -f "$f" ] || continue
             [[ "$(basename $f)" == Packages* ]] && continue
@@ -60,7 +59,9 @@ jobs:
             [ -f "$f" ] || continue
             [[ "$(basename $f)" == Packages* ]] && continue
             base=$(basename "$f" .apk)
-            cp -v "$f" "dist/${base}-${ARCH}.apk"
+            # 把版本中的 ~ 替换为 . 保持与 GitHub Release 存储一致
+            newname="${base//\~/.}-${ARCH}"
+            cp -v "$f" "dist/${newname}.apk"
           done
 
       - name: Upload artifact
@@ -121,7 +122,8 @@ jobs:
             echo ""
             echo "| 架构 | clashoo | luci-app-clashoo |"
             echo "| :--- | :--- | :--- |"
-            luci_apk=$(ls dist/luci-app-clashoo-*-all.apk 2>/dev/null | head -1)
+            # luci 是 arch-independent，取任意架构的第一个即可
+            luci_apk=$(ls dist/luci-app-clashoo-*.apk 2>/dev/null | grep -v "i18n\|zh-cn" | head -1)
             luci_apk_link=$( [ -n "$luci_apk" ] && echo "[$(basename $luci_apk)](${BASE}/$(basename $luci_apk))" || echo "—" )
             for arch in $ARCHS; do
               f=$(ls dist/clashoo-*-${arch}.apk 2>/dev/null | head -1)
