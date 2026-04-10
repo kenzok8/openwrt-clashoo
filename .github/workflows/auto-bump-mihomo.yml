@@ -45,8 +45,9 @@ jobs:
         run: |
           sha=$(git -C mihomo rev-parse HEAD)
           short_sha=$(git -C mihomo rev-parse --short HEAD)
+          commit_date=$(git -C mihomo log -1 --format=%cs | tr '-' '.')
           echo "commit_sha=${sha}" >> $GITHUB_OUTPUT
-          echo "commit_date=$(git -C mihomo log -1 --format=%cs)" >> $GITHUB_OUTPUT
+          echo "commit_date=${commit_date}" >> $GITHUB_OUTPUT
           echo "short_sha=${short_sha}" >> $GITHUB_OUTPUT
           git -C mihomo archive --format=tar HEAD > /tmp/mihomo_src.tar
           mkdir -p /tmp/clashoo-alpha-${short_sha}
@@ -70,10 +71,10 @@ jobs:
 
       - name: Update Makefile
         run: |
-          sed -i "s/PKG_VERSION:=.*/PKG_VERSION:=alpha-${{ needs.get_latest_info.outputs.short_sha }}/" clashoo/Makefile
+          sed -i "s/PKG_SHORT_SHA:=.*/PKG_SHORT_SHA:=${{ needs.get_latest_info.outputs.short_sha }}/" clashoo/Makefile
+          sed -i "s/PKG_COMMIT_DATE:=.*/PKG_COMMIT_DATE:=${{ needs.get_latest_info.outputs.commit_date }}/" clashoo/Makefile
           sed -i "s/PKG_SOURCE_VERSION:=.*/PKG_SOURCE_VERSION:=${{ needs.get_latest_info.outputs.commit_sha }}/" clashoo/Makefile
           sed -i "s/PKG_MIRROR_HASH:=.*/PKG_MIRROR_HASH:=${{ needs.get_latest_info.outputs.mirror_hash }}/" clashoo/Makefile
-          sed -i "s/PKG_BUILD_VERSION:=.*/PKG_BUILD_VERSION:=alpha-${{ needs.get_latest_info.outputs.short_sha }}/" clashoo/Makefile
 
       - name: Commit and push
         run: |
