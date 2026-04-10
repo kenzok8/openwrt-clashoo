@@ -1,11 +1,11 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=clashoo
-PKG_VERSION:=alpha-fa081fb
+PKG_VERSION:=2026.04.10~fa081fb
 PKG_RELEASE:=1
 
-PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
-PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)
+PKG_SOURCE:=$(PKG_NAME)-alpha-fa081fb.tar.gz
+PKG_SOURCE_SUBDIR:=$(PKG_NAME)-alpha-fa081fb
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/MetaCubeX/mihomo.git
 PKG_SOURCE_VERSION:=fa081fb16c010d535656f467d0cd9b8000eb14af
@@ -76,7 +76,7 @@ endef
 
 define Package/clashoo/postinst
 #!/bin/sh
-if [ -z "$${IPKG_INSTROOT}" ]; then
+if [ -z "${IPKG_INSTROOT}" ]; then
 	[ -x /usr/bin/mihomo ] && [ ! -x /usr/bin/clash-meta ] && ln -sf /usr/bin/mihomo /usr/bin/clash-meta
 	/etc/init.d/clash disable 2>/dev/null
 fi
@@ -85,7 +85,7 @@ endef
 
 define Package/clashoo/prerm
 #!/bin/sh
-if [ -z "$${IPKG_INSTROOT}" ]; then
+if [ -z "${IPKG_INSTROOT}" ]; then
 	/etc/init.d/clash stop >/dev/null 2>&1
 	/etc/init.d/clash disable 2>/dev/null
 fi
