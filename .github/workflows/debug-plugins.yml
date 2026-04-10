@@ -19,7 +19,7 @@ on:
         options:
           - both
           - "24.10.4"
-          - "25.12"
+          - "25.12.2"
 
 jobs:
   build_24_10_4:
@@ -56,8 +56,8 @@ jobs:
           if-no-files-found: ignore
 
   build_25_12:
-    if: ${{ github.event.inputs.target == 'both' || github.event.inputs.target == '25.12' }}
-    name: debug build ${{ github.event.inputs.arch }}-25.12
+    if: ${{ github.event.inputs.target == 'both' || github.event.inputs.target == '25.12.2' }}
+    name: debug build ${{ github.event.inputs.arch }}-25.12.2
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
@@ -65,9 +65,9 @@ jobs:
           fetch-depth: 0
 
       - name: Build (25.12)
-        uses: kenzok8/gh-action-sdk@hash
+        uses: openwrt/gh-action-sdk@main
         env:
-          ARCH: ${{ github.event.inputs.arch }}-25.12
+          ARCH: ${{ github.event.inputs.arch }}-25.12.2
           FEEDNAME: clashoo
           PACKAGES: ${{ github.event.inputs.plugins }}
           NO_REFRESH_CHECK: true
@@ -75,11 +75,11 @@ jobs:
           BUILD_LOG: true
           V: sc
 
-      - name: Store packages (25.12)
+      - name: Store packages (25.12.2)
         if: always()
         uses: actions/upload-artifact@v7.0.0
         with:
-          name: debug-${{ github.event.inputs.arch }}-25.12
+          name: debug-${{ github.event.inputs.arch }}-25.12.2
           path: |
             bin/packages/${{ github.event.inputs.arch }}/clashoo/*.ipk
             bin/packages/${{ github.event.inputs.arch }}/clashoo/*.apk
