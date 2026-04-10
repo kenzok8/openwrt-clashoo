@@ -48,7 +48,13 @@ jobs:
           echo "commit_sha=${sha}" >> $GITHUB_OUTPUT
           echo "commit_date=$(git -C mihomo log -1 --format=%cs)" >> $GITHUB_OUTPUT
           echo "short_sha=${short_sha}" >> $GITHUB_OUTPUT
-          echo "mirror_hash=$(git -C mihomo archive --format=tar --prefix=clashoo-alpha-${short_sha}/ HEAD | gzip | sha256sum | cut -d ' ' -f 1)" >> $GITHUB_OUTPUT
+          git -C mihomo archive --format=tar HEAD > /tmp/mihomo_src.tar
+          mkdir -p /tmp/clashoo-alpha-${short_sha}
+          tar -C /tmp/clashoo-alpha-${short_sha} -xf /tmp/mihomo_src.tar
+          TAR_TIMESTAMP=$(git -C mihomo log -1 --format='@%ct' HEAD)
+          mirror_hash=$(tar --numeric-owner --owner=0 --group=0 --mode=a-s --sort=name \
+            --mtime="${TAR_TIMESTAMP}" -c -C /tmp clashoo-alpha-${short_sha} | gzip -nc | sha256sum | cut -d ' ' -f 1)
+          echo "mirror_hash=${mirror_hash}" >> $GITHUB_OUTPUT
 
   update:
     needs:
