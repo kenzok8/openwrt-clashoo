@@ -1,0 +1,135 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      prerelease:
+        description: '标记为预发布版本'
+        type: boolean
+        default: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build:
+    name: ${{ matrix.arch }} · SDK ${{ matrix.sdk }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch:
+          - aarch64_cortex-a53
+          - aarch64_cortex-a72
+          - aarch64_generic
+          - arm_cortex-a7_neon-vfpv4
+          - arm_cortex-a9_neon
+          - i386_pentium4
+          - mips_24kc
+          - mipsel_24kc
+          - x86_64
+        sdk:
+          - "24.10"
+          - "25.12"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build packages
+        uses: openwrt/gh-action-sdk@main
+        env:
+          ARCH: ${{ matrix.arch }}-openwrt-${{ matrix.sdk }}
+          FEEDNAME: clashoo
+          PACKAGES: clashoo luci-app-clashoo
+          NO_REFRESH_CHECK: true
+
+      - name: Collect packages
+        run: |
+          mkdir -p dist
+          find bin/packages/${{ matrix.arch }}/clashoo/ \
+            \( -name "*.ipk" -o -name "*.apk" \) \
+            ! -name "Packages*" \
+            -exec cp -v {} dist/ \;
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: packages-sdk${{ matrix.sdk }}-${{ matrix.arch }}
+          path: dist/
+          if-no-files-found: ignore
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all packages
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Determine tag
+        id: meta
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+          else
+            echo "tag=v$(date -u +%Y.%m.%d)" >> $GITHUB_OUTPUT
+            echo "prerelease=${{ github.event.inputs.prerelease }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate Release Notes
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
+          REPO: ${{ github.repository }}
+        run: |
+          BASE="https://github.com/${REPO}/releases/download/${TAG}"
+          ARCHS="aarch64_cortex-a53 aarch64_cortex-a72 aarch64_generic arm_cortex-a7_neon-vfpv4 arm_cortex-a9_neon i386_pentium4 mips_24kc mipsel_24kc x86_64"
+
+          {
+            echo "## 📦 SDK 24.10 · 稳定版 (IPK)"
+            echo ""
+            echo "| 架构 | clashoo | luci-app-clashoo |"
+            echo "| :--- | :--- | :--- |"
+            luci_ipk=$(ls dist/luci-app-clashoo_*_all.ipk 2>/dev/null | head -1)
+            luci_ipk_link=$( [ -n "$luci_ipk" ] && echo "[$(basename $luci_ipk)](${BASE}/$(basename $luci_ipk))" || echo "—" )
+            for arch in $ARCHS; do
+              f=$(ls dist/clashoo_*_${arch}.ipk 2>/dev/null | head -1)
+              link=$( [ -n "$f" ] && echo "[$(basename $f)](${BASE}/$(basename $f))" || echo "—" )
+              echo "| \`${arch}\` | ${link} | ${luci_ipk_link} |"
+            done
+
+            echo ""
+            echo "## 📦 SDK 25.12 · 测试版 (APK)"
+            echo ""
+            echo "| 架构 | clashoo | luci-app-clashoo |"
+            echo "| :--- | :--- | :--- |"
+            luci_apk=$(ls dist/luci-app-clashoo_*_all.apk 2>/dev/null | head -1)
+            luci_apk_link=$( [ -n "$luci_apk" ] && echo "[$(basename $luci_apk)](${BASE}/$(basename $luci_apk))" || echo "—" )
+            for arch in $ARCHS; do
+              f=$(ls dist/clashoo_*_${arch}.apk 2>/dev/null | head -1)
+              link=$( [ -n "$f" ] && echo "[$(basename $f)](${BASE}/$(basename $f))" || echo "—" )
+              echo "| \`${arch}\` | ${link} | ${luci_apk_link} |"
+            done
+          } > release_notes.md
+
+          cat release_notes.md
+
+      - name: Publish Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: Release ${{ steps.meta.outputs.tag }}
+          body_path: release_notes.md
+          prerelease: ${{ steps.meta.outputs.prerelease }}
+          files: dist/**
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
