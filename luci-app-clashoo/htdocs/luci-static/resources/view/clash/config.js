@@ -185,7 +185,7 @@ return view.extend({
             s.render = function () {
                 let node = E('div', { class: 'cbi-section' }, [
                     E('h3', {}, _('订阅管理')),
-                    E('div', { class: 'cbi-section-node' }, [
+                    E('div', { class: 'cbi-section-node', style: 'padding:0 10px 10px;box-sizing:border-box' }, [
                         E('table', { class: 'table cbi-section-table', style: 'width:100%' }, [
                             E('thead', {}, E('tr', {}, [
                                 E('th', { style: 'text-align:left' }, _('文件名')),
@@ -279,9 +279,9 @@ return view.extend({
             });
             let node = E('div', { class: 'cbi-section' }, [
                 E('h3', {}, _('上传配置')),
-                E('p', { class: 'cbi-value-description', style: 'margin-bottom:10px' },
+                E('p', { class: 'cbi-value-description', style: 'margin:0 10px 10px' },
                     _('上传本地 .yaml / .yml 文件作为配置来源（存入 upload/ 目录）')),
-                E('div', { style: 'display:flex;align-items:center;gap:0;max-width:540px' },
+                E('div', { style: 'display:flex;align-items:center;gap:0;max-width:540px;padding:0 10px 10px;box-sizing:border-box' },
                     [input, btn, status])
             ]);
             return Promise.resolve(node);
@@ -443,22 +443,22 @@ return view.extend({
 
             return Promise.resolve(E('div', { class: 'cbi-section' }, [
                 E('h3', {}, _('复写设置')),
-                E('p', { class: 'cbi-value-description', style: 'margin:0 0 10px' },
+                E('p', { class: 'cbi-value-description', style: 'margin:0 10px 10px' },
                     _('用自定义配置覆盖当前配置。复写文件可从本地上传或远程拉取。')),
 
                 activeName
-                    ? E('div', { style: 'margin:0 0 12px;padding:8px 12px;border-radius:6px;background:' + (isDark ? '#1a2332' : '#f0f7ff') + ';font-size:.92rem' },
+                    ? E('div', { style: 'margin:0 10px 12px;padding:8px 12px;border-radius:6px;background:' + (isDark ? '#1a2332' : '#f0f7ff') + ';font-size:.92rem' },
                         _('当前配置：') + E('strong', {}, activeName).outerHTML)
-                    : E('div', { style: 'margin:0 0 12px;padding:8px 12px;border-radius:6px;background:' + (isDark ? '#2d1f1f' : '#fff5f5') + ';color:' + (isDark ? '#fca5a5' : '#991b1b') + ';font-size:.92rem' },
+                    : E('div', { style: 'margin:0 10px 12px;padding:8px 12px;border-radius:6px;background:' + (isDark ? '#2d1f1f' : '#fff5f5') + ';color:' + (isDark ? '#fca5a5' : '#991b1b') + ';font-size:.92rem' },
                         _('未设置活动配置，请先在上方选择配置文件')),
 
-                E('div', { style: rowStyle }, [
+                E('div', { style: rowStyle + ';padding:0 10px;box-sizing:border-box' }, [
                     E('span', { style: labelStyle }, _('复写来源')),
                     E('div', { style: inputGroupStyle }, [ srcMode ])
                 ]),
-                localRow,
-                remoteRow,
-                E('div', { style: 'display:flex;align-items:center;justify-content:space-between;margin:14px 0 0;padding-top:10px;border-top:1px solid ' + (isDark ? '#3a404c' : '#e5e7eb') }, [
+                E('div', { style: 'padding:0 10px;box-sizing:border-box' }, [localRow]),
+                E('div', { style: 'padding:0 10px;box-sizing:border-box' }, [remoteRow]),
+                E('div', { style: 'display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:14px 10px 0;padding:10px 0 0;border-top:1px solid ' + (isDark ? '#3a404c' : '#e5e7eb') }, [
                     E('label', { style: 'display:flex;align-items:center;gap:6px;user-select:none;cursor:pointer' }, [
                         setActive, _('应用后设为当前配置')
                     ]),

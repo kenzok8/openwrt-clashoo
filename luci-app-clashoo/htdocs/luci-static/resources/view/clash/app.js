@@ -137,7 +137,7 @@ return view.extend({
         o.default = '0';
         o.description = '<span style="color:#e06c75">自动切换 Url-test、Load-balance 策略组到 Smart 策略组</span>';
 
-        o = s.option(form.Value, 'smart_policy_priority', 'Policy Priority（权重加成）');
+        o = s.option(form.Value, 'smart_policy_priority', '策略权重（Policy Priority）');
         o.placeholder = 'Premium:0.9;SG:1.3';
         o.rmempty = true;
         o.description = '节点权重加成，&lt;1 表示较低优先级，&gt;1 表示较高优先级，默认为 1，匹配模式支持 Regex 和字符串';

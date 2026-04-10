@@ -806,12 +806,23 @@ system('mkdir -p ' + shell_quote(out_dir));
 if (system('command -v yq >/dev/null 2>&1') != 0)
 return { success: false, error: 'missing_yq', message: '缺少 yq，无法执行复写' };
 
-let cmd = "yq eval-all 'select(fileIndex == 0) * (select(fileIndex == 1) | explode(.))' "
+let cmd = "yq eval-all '(select(fileIndex == 0) | explode(.)) * (select(fileIndex == 1) | explode(.))' "
 + shell_quote(base_path) + ' ' + shell_quote(rewrite_path)
 + ' > ' + shell_quote(tmp_path);
 
 if (system(cmd) != 0 || !access(tmp_path, 'r'))
 return { success: false, error: 'merge_failed', message: '复写合并失败，请检查 YAML 格式' };
+
+if (system('yq e \'.\' ' + shell_quote(tmp_path) + ' >/dev/null 2>&1') != 0) {
+system('rm -f ' + shell_quote(tmp_path));
+return { success: false, error: 'invalid_yaml', message: '复写结果 YAML 无效，请检查锚点/别名配置' };
+}
+
+let binary = find_binary();
+if (binary && system(shell_quote(binary) + ' -t -f ' + shell_quote(tmp_path) + ' >/dev/null 2>&1') != 0) {
+system('rm -f ' + shell_quote(tmp_path));
+return { success: false, error: 'invalid_runtime_yaml', message: '复写结果与内核不兼容，请检查复写内容' };
+}
 
 if (system('mv -f ' + shell_quote(tmp_path) + ' ' + shell_quote(out_path)) != 0)
 return { success: false, error: 'write_failed', message: '写入复写文件失败' };
