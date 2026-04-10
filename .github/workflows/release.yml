@@ -49,10 +49,19 @@ jobs:
       - name: Collect packages
         run: |
           mkdir -p dist
-          find bin/packages/${{ matrix.arch }}/clashoo/ \
-            \( -name "*.ipk" -o -name "*.apk" \) \
-            ! -name "Packages*" \
-            -exec cp -v {} dist/ \;
+          ARCH="${{ matrix.arch }}"
+          SDK="${{ matrix.sdk }}"
+          for f in bin/packages/${ARCH}/clashoo/*.ipk; do
+            [ -f "$f" ] || continue
+            [[ "$(basename $f)" == Packages* ]] && continue
+            cp -v "$f" dist/
+          done
+          for f in bin/packages/${ARCH}/clashoo/*.apk; do
+            [ -f "$f" ] || continue
+            [[ "$(basename $f)" == Packages* ]] && continue
+            base=$(basename "$f" .apk)
+            cp -v "$f" "dist/${base}-${ARCH}.apk"
+          done
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -112,10 +121,10 @@ jobs:
             echo ""
             echo "| 架构 | clashoo | luci-app-clashoo |"
             echo "| :--- | :--- | :--- |"
-            luci_apk=$(ls dist/luci-app-clashoo_*_all.apk 2>/dev/null | head -1)
+            luci_apk=$(ls dist/luci-app-clashoo-*-all.apk 2>/dev/null | head -1)
             luci_apk_link=$( [ -n "$luci_apk" ] && echo "[$(basename $luci_apk)](${BASE}/$(basename $luci_apk))" || echo "—" )
             for arch in $ARCHS; do
-              f=$(ls dist/clashoo_*_${arch}.apk 2>/dev/null | head -1)
+              f=$(ls dist/clashoo-*-${arch}.apk 2>/dev/null | head -1)
               link=$( [ -n "$f" ] && echo "[$(basename $f)](${BASE}/$(basename $f))" || echo "—" )
               echo "| \`${arch}\` | ${link} | ${luci_apk_link} |"
             done
