@@ -6,6 +6,7 @@ PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-alpha-fa081fb.tar.gz
 PKG_SOURCE_SUBDIR:=$(PKG_NAME)-alpha-fa081fb
+PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-alpha-fa081fb
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/MetaCubeX/mihomo.git
 PKG_SOURCE_VERSION:=fa081fb16c010d535656f467d0cd9b8000eb14af
