@@ -225,9 +225,38 @@ restore_dnsmasq_state() {
 #===========================================================================================================================
 }
 
+ensure_dns_when_core_stopped() {
+#===========================================================================================================================
+	# Safety net: when core is stopped, never leave dnsmasq forwarding only to local Clash DNS.
+	if _core_running; then
+		return 0
+	fi
+
+	local servers token has_remote
+	has_remote=0
+	servers="$(uci -q get dhcp.@dnsmasq[0].server 2>/dev/null)"
+	for token in $servers; do
+		if [ "$token" != "127.0.0.1#1053" ] && [ "$token" != "127.0.0.1#5300" ] && [ "$token" != "127.0.0.1#7874" ]; then
+			has_remote=1
+			break
+		fi
+	done
+
+	if [ "$has_remote" -eq 0 ]; then
+		uci -q delete dhcp.@dnsmasq[0].server >/dev/null 2>&1
+		uci add_list dhcp.@dnsmasq[0].server='119.29.29.29' >/dev/null 2>&1
+		uci add_list dhcp.@dnsmasq[0].server='223.5.5.5' >/dev/null 2>&1
+		uci set dhcp.@dnsmasq[0].noresolv='0' >/dev/null 2>&1
+		uci commit dhcp >/dev/null 2>&1
+		/etc/init.d/dnsmasq restart >/dev/null 2>&1
+	fi
+#===========================================================================================================================
+}
+
 revert_dns() {
 #===========================================================================================================================  
 	restore_dnsmasq_state
+	ensure_dns_when_core_stopped
 	rm -rf "$CUSLIST" "$CUSLITT" "$CUSLISTV" "$CUSLITTV" 2>/dev/null
 	uci commit dhcp
 	/etc/init.d/dnsmasq restart >/dev/null 2>&1
