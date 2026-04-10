@@ -43,12 +43,12 @@ jobs:
       - name: info
         id: info
         run: |
-          echo "commit_sha=$(git -C mihomo rev-parse HEAD)" >> $GITHUB_OUTPUT
+          sha=$(git -C mihomo rev-parse HEAD)
+          short_sha=$(git -C mihomo rev-parse --short HEAD)
+          echo "commit_sha=${sha}" >> $GITHUB_OUTPUT
           echo "commit_date=$(git -C mihomo log -1 --format=%cs)" >> $GITHUB_OUTPUT
-          echo "short_sha=$(git -C mihomo rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-          git -C mihomo config tar.xz.command "xz -c"
-          git -C mihomo archive --output=mihomo.tar.xz HEAD
-          echo "mirror_hash=$(sha256sum mihomo/mihomo.tar.xz | cut -d ' ' -f 1)" >> $GITHUB_OUTPUT
+          echo "short_sha=${short_sha}" >> $GITHUB_OUTPUT
+          echo "mirror_hash=$(git -C mihomo archive --format=tar --prefix=clashoo-alpha-${short_sha}/ HEAD | gzip | sha256sum | cut -d ' ' -f 1)" >> $GITHUB_OUTPUT
 
   update:
     needs:
@@ -65,7 +65,6 @@ jobs:
       - name: Update Makefile
         run: |
           sed -i "s/PKG_VERSION:=.*/PKG_VERSION:=alpha-${{ needs.get_latest_info.outputs.short_sha }}/" clashoo/Makefile
-          sed -i "s/PKG_SOURCE_DATE:=.*/PKG_SOURCE_DATE:=${{ needs.get_latest_info.outputs.commit_date }}/" clashoo/Makefile
           sed -i "s/PKG_SOURCE_VERSION:=.*/PKG_SOURCE_VERSION:=${{ needs.get_latest_info.outputs.commit_sha }}/" clashoo/Makefile
           sed -i "s/PKG_MIRROR_HASH:=.*/PKG_MIRROR_HASH:=${{ needs.get_latest_info.outputs.mirror_hash }}/" clashoo/Makefile
           sed -i "s/PKG_BUILD_VERSION:=.*/PKG_BUILD_VERSION:=alpha-${{ needs.get_latest_info.outputs.short_sha }}/" clashoo/Makefile
