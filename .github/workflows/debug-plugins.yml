@@ -1,0 +1,89 @@
+name: Debug plugins build
+
+on:
+  workflow_dispatch:
+    inputs:
+      plugins:
+        description: "输入要编译的插件名，空格分隔"
+        required: true
+        default: "clashoo luci-app-clashoo"
+      arch:
+        description: "架构"
+        required: true
+        default: "x86_64"
+      target:
+        description: "调试目标分组"
+        required: true
+        type: choice
+        default: both
+        options:
+          - both
+          - "24.10.4"
+          - "25.12"
+
+jobs:
+  build_24_10_4:
+    if: ${{ github.event.inputs.target == 'both' || github.event.inputs.target == '24.10.4' }}
+    name: debug build ${{ github.event.inputs.arch }}-24.10.4
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Build (24.10.4)
+        uses: kenzok8/gh-action-sdk@hash
+        env:
+          ARCH: ${{ github.event.inputs.arch }}-24.10.4
+          FEEDNAME: clashoo
+          PACKAGES: ${{ github.event.inputs.plugins }}
+          NO_REFRESH_CHECK: true
+          IGNORE_ERRORS: false
+          BUILD_LOG: true
+          V: sc
+
+      - name: Store packages (24.10.4)
+        if: always()
+        uses: actions/upload-artifact@v7.0.0
+        with:
+          name: debug-${{ github.event.inputs.arch }}-24.10.4
+          path: |
+            bin/packages/${{ github.event.inputs.arch }}/clashoo/*.ipk
+            bin/packages/${{ github.event.inputs.arch }}/clashoo/*.apk
+            logs/**
+            *.log
+            **/*.log
+          if-no-files-found: ignore
+
+  build_25_12:
+    if: ${{ github.event.inputs.target == 'both' || github.event.inputs.target == '25.12' }}
+    name: debug build ${{ github.event.inputs.arch }}-25.12
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Build (25.12)
+        uses: kenzok8/gh-action-sdk@hash
+        env:
+          ARCH: ${{ github.event.inputs.arch }}-25.12
+          FEEDNAME: clashoo
+          PACKAGES: ${{ github.event.inputs.plugins }}
+          NO_REFRESH_CHECK: true
+          IGNORE_ERRORS: false
+          BUILD_LOG: true
+          V: sc
+
+      - name: Store packages (25.12)
+        if: always()
+        uses: actions/upload-artifact@v7.0.0
+        with:
+          name: debug-${{ github.event.inputs.arch }}-25.12
+          path: |
+            bin/packages/${{ github.event.inputs.arch }}/clashoo/*.ipk
+            bin/packages/${{ github.event.inputs.arch }}/clashoo/*.apk
+            logs/**
+            *.log
+            **/*.log
+          if-no-files-found: ignore
