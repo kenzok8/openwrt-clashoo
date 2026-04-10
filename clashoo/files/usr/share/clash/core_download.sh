@@ -5,6 +5,7 @@ MODELTYPE=$(uci get clash.config.download_core 2>/dev/null)
 CORETYPE=$(uci get clash.config.dcore 2>/dev/null)
 MIRROR_PREFIX=$(uci get clash.config.core_mirror_prefix 2>/dev/null)
 CUSTOM_CORE_URL=$(uci get clash.config.core_download_url 2>/dev/null)
+RESTART_CLASH_AFTER_DOWNLOAD=0
 CONNECT_TIMEOUT=15
 REQUEST_TIMEOUT=30
 DOWNLOAD_TIMEOUT=150
@@ -15,6 +16,15 @@ START_TS=$(date +%s)
 
 write_log() {
 	echo "  $(date "+%Y-%m-%d %H:%M:%S") - $1" >> "$LOG_FILE"
+}
+
+restore_clash_if_needed() {
+	if [ "$RESTART_CLASH_AFTER_DOWNLOAD" = "1" ]; then
+		write_log "Restoring clash service after core download"
+		if ! /etc/init.d/clash start >/dev/null 2>&1; then
+			write_log "Failed to restart clash service"
+		fi
+	fi
 }
 
 timed_out() {
@@ -407,6 +417,17 @@ install_with_rollback() {
 
 rm -f /tmp/clash.gz /tmp/clash /usr/share/clash/core_down_complete 2>/dev/null
 : > "$LOG_FILE"
+trap restore_clash_if_needed EXIT
+
+if pidof mihomo clash-meta clash >/dev/null 2>&1; then
+	write_log "Clash is running, stopping service before core download"
+	if /etc/init.d/clash stop >/dev/null 2>&1; then
+		RESTART_CLASH_AFTER_DOWNLOAD=1
+		sleep 2
+	else
+		write_log "Failed to stop clash service, continue downloading"
+	fi
+fi
 
 if [ -n "$CUSTOM_CORE_URL" ]; then
 	write_log "Using custom core URL"
