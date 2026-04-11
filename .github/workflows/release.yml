@@ -72,7 +72,8 @@ jobs:
 
           # Packages 索引（仅 feed）
           for f in bin/packages/${ARCH}/clashoo/Packages*; do
-            [ -f "$f" ] && cp -v "$f" dist/feed/
+            [ -f "$f" ] || continue
+            cp -v "$f" dist/feed/
           done
 
       - name: Upload artifact
