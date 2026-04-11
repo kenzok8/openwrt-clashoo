@@ -150,6 +150,17 @@ jobs:
 
           cat release_notes.md
 
+      - name: Replace Existing Manual Release
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          REPO: ${{ github.repository }}
+        run: |
+          if gh release view "$TAG" -R "$REPO" >/dev/null 2>&1; then
+            gh release delete "$TAG" -R "$REPO" --yes --cleanup-tag
+          fi
+
       - name: Publish Release
         uses: softprops/action-gh-release@v2
         with:
