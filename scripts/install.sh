@@ -3,7 +3,8 @@
 set -eu
 
 REPO="kenzok8/openwrt-clashoo"
-API_URL="https://api.github.com/repos/${REPO}/releases/latest"
+RELEASES_API_URL="https://api.github.com/repos/${REPO}/releases?per_page=20"
+LATEST_API_URL="https://api.github.com/repos/${REPO}/releases/latest"
 TMP_DIR="/tmp/clashoo-install"
 
 fetch_text() {
@@ -57,6 +58,80 @@ find_asset_url() {
 {/g' | sed -n 's/.*"browser_download_url":"\([^"]*\)".*/\1/p' | grep -E "$pattern" | head -n 1
 }
 
+split_release_objects() {
+  awk '
+    BEGIN {
+      in_string = 0
+      escaped = 0
+      depth = 0
+      buf = ""
+    }
+    {
+      for (i = 1; i <= length($0); i++) {
+        c = substr($0, i, 1)
+
+        if (!in_string && c == "{") {
+          depth++
+          if (depth == 1) {
+            buf = "{"
+          } else {
+            buf = buf c
+          }
+          continue
+        }
+
+        if (depth > 0) {
+          buf = buf c
+        }
+
+        if (escaped) {
+          escaped = 0
+          continue
+        }
+
+        if (c == "\\") {
+          if (in_string) {
+            escaped = 1
+          }
+          continue
+        }
+
+        if (c == "\"") {
+          in_string = !in_string
+          continue
+        }
+
+        if (!in_string && c == "}" && depth > 0) {
+          depth--
+          if (depth == 0) {
+            print buf
+            buf = ""
+          }
+        }
+      }
+    }
+  '
+}
+
+find_release_object() {
+  json="$1"
+  match="$2"
+  printf '%s\n' "$json" | split_release_objects | grep -F -m 1 "$match" || true
+}
+
+resolve_release_json() {
+  releases_json="$(fetch_text "$RELEASES_API_URL" || true)"
+  if [ -n "$releases_json" ]; then
+    prerelease_json="$(find_release_object "$releases_json" '"prerelease":true')"
+    if [ -n "$prerelease_json" ]; then
+      printf '%s\n' "$prerelease_json"
+      return 0
+    fi
+  fi
+
+  fetch_text "$LATEST_API_URL"
+}
+
 PM="$(detect_manager)"
 if [ "$PM" = "unsupported" ]; then
   echo "No supported package manager found (opkg/apk)."
@@ -66,15 +141,21 @@ fi
 ARCH="$(detect_arch "$PM")"
 [ -n "$ARCH" ] || { echo "Cannot detect architecture"; exit 1; }
 
-JSON="$(fetch_text "$API_URL")"
-[ -n "$JSON" ] || { echo "Cannot fetch latest release info"; exit 1; }
+JSON="$(resolve_release_json)"
+[ -n "$JSON" ] || { echo "Cannot fetch release info"; exit 1; }
 
 EXT="ipk"
 [ "$PM" = "apk" ] && EXT="apk"
 
-CORE_URL="$(find_asset_url "$JSON" "clashoo_[^/]*_${ARCH}\\.${EXT}$")"
-LUCI_URL="$(find_asset_url "$JSON" "luci-app-clashoo_[^/]*_all\\.${EXT}$")"
-I18N_URL="$(find_asset_url "$JSON" "luci-i18n-clashoo-zh-cn_[^/]*_all\\.${EXT}$")"
+if [ "$PM" = "opkg" ]; then
+  CORE_URL="$(find_asset_url "$JSON" "clashoo_[^/]*_${ARCH}\\.ipk$")"
+  LUCI_URL="$(find_asset_url "$JSON" "luci-app-clashoo_[^/]*_all\\.ipk$")"
+  I18N_URL="$(find_asset_url "$JSON" "luci-i18n-clashoo-zh-cn_[^/]*_all\\.ipk$")"
+else
+  CORE_URL="$(find_asset_url "$JSON" "clashoo([-_][^/]+)?\\.apk$")"
+  LUCI_URL="$(find_asset_url "$JSON" "luci-app-clashoo([-_][^/]+)?\\.apk$")"
+  I18N_URL="$(find_asset_url "$JSON" "luci-i18n-clashoo-zh-cn([-_][^/]+)?\\.apk$")"
+fi
 
 if [ -z "$CORE_URL" ] || [ -z "$LUCI_URL" ]; then
   echo "Cannot find required release assets for arch: $ARCH"

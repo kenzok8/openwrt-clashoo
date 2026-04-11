@@ -54,6 +54,8 @@
 
 ### A. 一键安装（推荐）
 
+安装脚本会优先下载最新的 `Pre-release` 包；如果当前没有 `Pre-release`，才会回退到最新正式版 `Release`。
+
 ```bash
 wget -O - https://github.com/kenzok8/openwrt-clashoo/raw/refs/heads/main/scripts/install.sh | ash
 ```
