@@ -9,12 +9,12 @@ TMP_DIR="/tmp/clashoo-install"
 
 fetch_text() {
   url="$1"
-  if command -v wget >/dev/null 2>&1; then
-    wget -qO- "$url"
-    return $?
-  fi
   if command -v curl >/dev/null 2>&1; then
     curl -fsSL "$url"
+    return $?
+  fi
+  if command -v wget >/dev/null 2>&1; then
+    wget -qO- "$url"
     return $?
   fi
   return 127
@@ -23,11 +23,11 @@ fetch_text() {
 download_file() {
   url="$1"
   out="$2"
-  if command -v wget >/dev/null 2>&1; then
-    wget -qO "$out" "$url"
+  if command -v curl >/dev/null 2>&1; then
+    curl -fL "$url" -o "$out"
     return $?
   fi
-  curl -fL "$url" -o "$out"
+  wget -qO "$out" "$url"
 }
 
 detect_manager() {
