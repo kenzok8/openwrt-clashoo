@@ -651,11 +651,21 @@ _config_needs_mmdb() {
 }
 
 _has_valid_local_mmdb() {
-	local mmdb_size
-	[ -f /etc/clash/Country.mmdb ] || return 1
-	mmdb_size=$(wc -c </etc/clash/Country.mmdb 2>/dev/null)
-	[ -n "$mmdb_size" ] || return 1
-	[ "$mmdb_size" -ge 2000000 ]
+	local db_file db_size
+
+	for db_file in /etc/clash/geoip.metadb /etc/clash/Country.mmdb; do
+		[ -f "$db_file" ] || continue
+		db_size=$(wc -c <"$db_file" 2>/dev/null)
+		[ -n "$db_size" ] || continue
+		if [ "$db_file" = "/etc/clash/geoip.metadb" ] && [ "$db_size" -ge 1000000 ]; then
+			return 0
+		fi
+		if [ "$db_file" = "/etc/clash/Country.mmdb" ] && [ "$db_size" -ge 2000000 ]; then
+			return 0
+		fi
+	done
+
+	return 1
 }
 
 _config_needs_geosite() {
@@ -706,6 +716,23 @@ _strip_yaml_rule_lines() {
 	' "$CONFIG_YAML" > /tmp/_clashoo_geo_rules.yaml && mv /tmp/_clashoo_geo_rules.yaml "$CONFIG_YAML"
 }
 
+_force_dns_fallback_geoip_false() {
+	grep -q '^dns:[[:space:]]*$' "$CONFIG_YAML" 2>/dev/null || return 0
+	grep -Eq '^[[:space:]]*fallback:[[:space:]]' "$CONFIG_YAML" 2>/dev/null || return 0
+	awk '
+	BEGIN { inserted=0 }
+	{
+		if ($0 ~ /^external-controller:[[:space:]]*/ && !inserted) {
+			print "    fallback-filter:"
+			print "      geoip: false"
+			inserted=1
+		}
+		print
+	}
+	END { }
+	' "$CONFIG_YAML" > /tmp/_clashoo_dns_fallback.yaml && mv /tmp/_clashoo_dns_fallback.yaml "$CONFIG_YAML"
+}
+
 _start_geoip_update_async() {
 	if [ -f /var/run/geoip_update ]; then
 		return 0
@@ -725,9 +752,10 @@ _prepare_geo_bootstrap_mode() {
 
 	if [ "$needs_mmdb" -eq 1 ] && _has_valid_local_mmdb; then
 		needs_mmdb=0
-	elif [ "$needs_mmdb" -eq 1 ] && [ -f /etc/clash/Country.mmdb ]; then
+	elif [ "$needs_mmdb" -eq 1 ] && { [ -f /etc/clash/Country.mmdb ] || [ -f /etc/clash/geoip.metadb ]; }; then
 		rm -f /etc/clash/Country.mmdb >/dev/null 2>&1
-		log_msg "Country.mmdb is invalid or incomplete, fallback to bootstrap mode" "Country.mmdb 无效或下载不完整，已回退到引导模式"
+		rm -f /etc/clash/geoip.metadb >/dev/null 2>&1
+		log_msg "GeoIP database is invalid or incomplete, fallback to bootstrap mode" "GeoIP 数据库无效或下载不完整，已回退到引导模式"
 	fi
 	[ "$needs_geosite" -eq 1 ] && [ -f /etc/clash/geosite.dat ] && needs_geosite=0
 
@@ -847,10 +875,15 @@ _start_prepare_config() {
 	smart_inject >/dev/null 2>&1
 
 	if ! _has_valid_local_mmdb; then
-		log_msg "Country.mmdb not found, continue without local MMDB" "未找到 Country.mmdb，继续启动（可在系统页更新 GeoIP）"
+		log_msg "GeoIP database not found, continue without local GeoIP DB" "未找到本地 GeoIP 数据库，继续启动（可在系统页更新 GeoIP）"
 	fi
 
 	_prepare_geo_bootstrap_mode
+
+	if ! _has_valid_local_mmdb; then
+		_strip_yaml_child_block '^[[:space:]]*fallback-filter:[[:space:]]*$'
+		_force_dns_fallback_geoip_false
+	fi
 
 	if [ ! -f /etc/clash/config.yaml ];then
 		log_msg "Cannot find config.yaml" "找不到config.yaml"
