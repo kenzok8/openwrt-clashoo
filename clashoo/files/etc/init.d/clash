@@ -742,6 +742,7 @@ _prepare_geo_bootstrap_mode() {
 		_strip_yaml_rule_lines "^[[:space:]]*-[[:space:]]*[\"']?GEOIP,"
 		sed -i '/^[[:space:]]*geoip:[[:space:]]*/d' "$CONFIG_YAML" 2>/dev/null
 		sed -i '/^[[:space:]]*geoip-code:[[:space:]]*/d' "$CONFIG_YAML" 2>/dev/null
+		_strip_yaml_child_block '^[[:space:]]*fallback-filter:[[:space:]]*$'
 	fi
 
 	if [ "$needs_geosite" -eq 1 ]; then
