@@ -124,11 +124,13 @@ render_ip_elements() {
 }
 
 render_china_elements() {
-	awk '!/^$/&&!/^#/{printf sep $0; sep=", "}' /usr/share/clash/china_ip.txt 2>/dev/null
+	[ -f /usr/share/clash/china_ip.txt ] || return 0
+	awk '!/^$/&&!/^#/{printf sep $0; sep=", "}' /usr/share/clash/china_ip.txt 2>/dev/null || true
 }
 
 render_china6_elements() {
-	awk '!/^$/&&!/^#/{printf sep $0; sep=", "}' /usr/share/clash/china_ipv6.txt 2>/dev/null
+	[ -f /usr/share/clash/china_ipv6.txt ] || return 0
+	awk '!/^$/&&!/^#/{printf sep $0; sep=", "}' /usr/share/clash/china_ipv6.txt 2>/dev/null || true
 }
 
 render_token_elements() {
