@@ -193,8 +193,31 @@ jobs:
             name=$(basename "$dir")
             sdk=$(echo "$name" | sed 's/packages-sdk\([^-]*\)-.*/\1/')
             arch=$(echo "$name" | sed 's/packages-sdk[^-]*-//')
-            mkdir -p "feed/${sdk}/${arch}"
-            cp -v "$dir/feed/"* "feed/${sdk}/${arch}/" 2>/dev/null || true
+            target="feed/${sdk}/${arch}"
+            mkdir -p "$target"
+            cp -v "$dir/feed/"* "$target/" 2>/dev/null || true
+
+            core=""
+            luci=""
+            i18n=""
+
+            if ls "$target"/clashoo_*.ipk >/dev/null 2>&1; then
+              core=$(basename "$(ls "$target"/clashoo_*.ipk | head -1)")
+              luci=$(basename "$(ls "$target"/luci-app-clashoo_*.ipk | head -1)")
+              i18n=$(basename "$(ls "$target"/luci-i18n-clashoo-zh-cn_*.ipk | head -1)")
+            elif ls "$target"/clashoo-*.apk >/dev/null 2>&1; then
+              core=$(basename "$(ls "$target"/clashoo-*.apk | head -1)")
+              luci=$(basename "$(ls "$target"/luci-app-clashoo-*.apk | head -1)")
+              i18n=$(basename "$(ls "$target"/luci-i18n-clashoo-zh-cn-*.apk | head -1)")
+            fi
+
+            if [ -n "$core" ] && [ -n "$luci" ]; then
+              {
+                echo "core=$core"
+                echo "luci=$luci"
+                [ -n "$i18n" ] && echo "i18n=$i18n"
+              } > "$target/manifest.txt"
+            fi
           done
           find feed -type f | sort
 

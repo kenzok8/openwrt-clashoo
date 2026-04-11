@@ -2,9 +2,7 @@
 
 set -eu
 
-REPO="kenzok8/openwrt-clashoo"
-RELEASES_API_URL="https://api.github.com/repos/${REPO}/releases?per_page=20"
-LATEST_API_URL="https://api.github.com/repos/${REPO}/releases/latest"
+B2_FEED_BASE_URL="https://kenzo111.s3.us-west-004.backblazeb2.com/clashoo"
 TMP_DIR="/tmp/clashoo-install"
 
 fetch_text() {
@@ -51,103 +49,119 @@ detect_arch() {
   apk --print-arch
 }
 
-find_asset_url() {
-  json="$1"
-  pattern="$2"
-  printf '%s\n' "$json" \
-    | grep -o '"browser_download_url"[[:space:]]*:[[:space:]]*"[^"]*"' \
-    | sed 's/^.*"browser_download_url"[[:space:]]*:[[:space:]]*"//; s/"$//' \
-    | grep -E "$pattern" \
-    | head -n 1
+detect_sdk() {
+  if [ ! -r /etc/openwrt_release ]; then
+    return 1
+  fi
+
+  release="$(sed -n "s/^DISTRIB_RELEASE=['\"]\\([^'\"]*\\)['\"]$/\\1/p" /etc/openwrt_release | head -n 1)"
+  [ -n "$release" ] || return 1
+
+  sdk="$(printf '%s\n' "$release" | grep -Eo '[0-9]+\.[0-9]+' | head -n 1)"
+  [ -n "$sdk" ] || return 1
+  printf '%s\n' "$sdk"
 }
 
-split_release_objects() {
-  awk '
-    BEGIN {
-      in_string = 0
-      escaped = 0
-      depth = 0
-      buf = ""
+find_feed_filename() {
+  package_name="$1"
+  packages_text="$2"
+  printf '%s\n' "$packages_text" | awk -v pkg="$package_name" '
+    $0 == "Package: " pkg {
+      in_pkg = 1
+      next
     }
-    {
-      for (i = 1; i <= length($0); i++) {
-        c = substr($0, i, 1)
-
-        if (!in_string && c == "{") {
-          depth++
-          if (depth == 1) {
-            buf = "{"
-          } else {
-            buf = buf c
-          }
-          continue
-        }
-
-        if (depth > 0) {
-          buf = buf c
-        }
-
-        if (escaped) {
-          escaped = 0
-          continue
-        }
-
-        if (c == "\\") {
-          if (in_string) {
-            escaped = 1
-          }
-          continue
-        }
-
-        if (c == "\"") {
-          in_string = !in_string
-          continue
-        }
-
-        if (!in_string && c == "}" && depth > 0) {
-          depth--
-          if (depth == 0) {
-            print buf
-            buf = ""
-          }
-        }
-      }
+    in_pkg && /^Filename: / {
+      sub(/^Filename: /, "")
+      print
+      exit
+    }
+    in_pkg && /^$/ {
+      in_pkg = 0
     }
   '
 }
 
-find_release_object() {
-  json="$1"
-  match="$2"
-  printf '%s\n' "$json" | split_release_objects | grep -E -m 1 "$match" || true
+find_manifest_value() {
+  key="$1"
+  manifest_text="$2"
+  printf '%s\n' "$manifest_text" | sed -n "s/^${key}=//p" | head -n 1
 }
 
-extract_release_string() {
-  json="$1"
-  key="$2"
-  printf '%s\n' "$json" | sed -n "s/.*\"${key}\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" | head -n 1
+append_unique_word() {
+  value="$1"
+  list="$2"
+  [ -n "$value" ] || {
+    printf '%s\n' "$list"
+    return
+  }
+  case " $list " in
+    *" $value "*) ;;
+    *) list="${list}${list:+ }${value}" ;;
+  esac
+  printf '%s\n' "$list"
 }
 
-list_asset_names() {
-  json="$1"
-  printf '%s\n' "$json" \
-    | grep -o '"name"[[:space:]]*:[[:space:]]*"[^"]*"' \
-    | sed 's/^.*"name"[[:space:]]*:[[:space:]]*"//; s/"$//'
-}
+build_sdk_candidates() {
+  pm="$1"
+  candidates=""
+  detected_sdk="$(detect_sdk || true)"
+  candidates="$(append_unique_word "$detected_sdk" "$candidates")"
 
-resolve_release_json() {
-  releases_json="$(fetch_text "$RELEASES_API_URL" || true)"
-  if [ -n "$releases_json" ]; then
-    prerelease_json="$(find_release_object "$releases_json" '"prerelease"[[:space:]]*:[[:space:]]*true')"
-    if [ -n "$prerelease_json" ]; then
-      RELEASE_KIND="prerelease"
-      RELEASE_JSON="$prerelease_json"
-      return 0
-    fi
+  if [ "$pm" = "opkg" ]; then
+    for sdk in 24.10 23.05 22.03 21.02; do
+      candidates="$(append_unique_word "$sdk" "$candidates")"
+    done
+  else
+    for sdk in 25.12 24.10; do
+      candidates="$(append_unique_word "$sdk" "$candidates")"
+    done
   fi
 
-  RELEASE_KIND="latest"
-  RELEASE_JSON="$(fetch_text "$LATEST_API_URL")"
+  printf '%s\n' "$candidates"
+}
+
+load_manifest_urls() {
+  sdk="$1"
+  arch="$2"
+  manifest_url="${B2_FEED_BASE_URL}/${sdk}/${arch}/manifest.txt"
+  manifest_text="$(fetch_text "$manifest_url" || true)"
+  [ -n "$manifest_text" ] || return 1
+
+  core_file="$(find_manifest_value "core" "$manifest_text")"
+  luci_file="$(find_manifest_value "luci" "$manifest_text")"
+  i18n_file="$(find_manifest_value "i18n" "$manifest_text")"
+
+  [ -n "$core_file" ] || return 1
+  [ -n "$luci_file" ] || return 1
+
+  CORE_URL="${B2_FEED_BASE_URL}/${sdk}/${arch}/${core_file}"
+  LUCI_URL="${B2_FEED_BASE_URL}/${sdk}/${arch}/${luci_file}"
+  I18N_URL=""
+  [ -n "$i18n_file" ] && I18N_URL="${B2_FEED_BASE_URL}/${sdk}/${arch}/${i18n_file}"
+  return 0
+}
+
+load_opkg_feed_urls() {
+  sdk="$1"
+  arch="$2"
+  packages_url="${B2_FEED_BASE_URL}/${sdk}/${arch}/Packages"
+  packages_text="$(fetch_text "$packages_url" || true)"
+  if ! printf '%s' "$packages_text" | grep -q '^Package: '; then
+    return 1
+  fi
+
+  core_file="$(find_feed_filename "clashoo" "$packages_text")"
+  luci_file="$(find_feed_filename "luci-app-clashoo" "$packages_text")"
+  i18n_file="$(find_feed_filename "luci-i18n-clashoo-zh-cn" "$packages_text")"
+
+  [ -n "$core_file" ] || return 1
+  [ -n "$luci_file" ] || return 1
+
+  CORE_URL="${B2_FEED_BASE_URL}/${sdk}/${arch}/${core_file}"
+  LUCI_URL="${B2_FEED_BASE_URL}/${sdk}/${arch}/${luci_file}"
+  I18N_URL=""
+  [ -n "$i18n_file" ] && I18N_URL="${B2_FEED_BASE_URL}/${sdk}/${arch}/${i18n_file}"
+  return 0
 }
 
 PM="$(detect_manager)"
@@ -159,33 +173,32 @@ fi
 ARCH="$(detect_arch "$PM")"
 [ -n "$ARCH" ] || { echo "Cannot detect architecture"; exit 1; }
 
-RELEASE_KIND=""
-RELEASE_JSON=""
-resolve_release_json
-JSON="$RELEASE_JSON"
-[ -n "$JSON" ] || { echo "Cannot fetch release info"; exit 1; }
-RELEASE_TAG="$(extract_release_string "$JSON" "tag_name")"
-[ -n "$RELEASE_TAG" ] && echo "Using ${RELEASE_KIND} release: $RELEASE_TAG"
+SDK_CANDIDATES="$(build_sdk_candidates "$PM")"
 
 EXT="ipk"
 [ "$PM" = "apk" ] && EXT="apk"
 
-if [ "$PM" = "opkg" ]; then
-  CORE_URL="$(find_asset_url "$JSON" "clashoo_[^/]*_${ARCH}\\.ipk$")"
-  LUCI_URL="$(find_asset_url "$JSON" "luci-app-clashoo_[^/]*_all\\.ipk$")"
-  I18N_URL="$(find_asset_url "$JSON" "luci-i18n-clashoo-zh-cn_[^/]*_all\\.ipk$")"
-else
-  CORE_URL="$(find_asset_url "$JSON" "clashoo([-_][^/]+)?\\.apk$")"
-  LUCI_URL="$(find_asset_url "$JSON" "luci-app-clashoo([-_][^/]+)?\\.apk$")"
-  I18N_URL="$(find_asset_url "$JSON" "luci-i18n-clashoo-zh-cn([-_][^/]+)?\\.apk$")"
+CORE_URL=""
+LUCI_URL=""
+I18N_URL=""
+
+if [ -n "$SDK_CANDIDATES" ]; then
+  for SDK in $SDK_CANDIDATES; do
+    if load_manifest_urls "$SDK" "$ARCH"; then
+      echo "Using B2 manifest: ${SDK}/${ARCH}"
+      break
+    fi
+    if [ "$PM" = "opkg" ] && load_opkg_feed_urls "$SDK" "$ARCH"; then
+      echo "Using B2 feed: ${SDK}/${ARCH}"
+      break
+    fi
+  done
 fi
 
 if [ -z "$CORE_URL" ] || [ -z "$LUCI_URL" ]; then
-  echo "Cannot find required release assets for arch: $ARCH"
-  [ -n "$RELEASE_TAG" ] && echo "Resolved release tag: $RELEASE_TAG"
+  echo "Cannot find required B2 packages for arch: $ARCH"
   echo "Detected package manager: $PM"
-  echo "Available assets:"
-  list_asset_names "$JSON" | sed -n '1,40p'
+  echo "Tried SDKs: $SDK_CANDIDATES"
   exit 1
 fi
 
