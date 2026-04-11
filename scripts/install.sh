@@ -136,13 +136,13 @@ resolve_release_json() {
     prerelease_json="$(find_release_object "$releases_json" '"prerelease"[[:space:]]*:[[:space:]]*true')"
     if [ -n "$prerelease_json" ]; then
       RELEASE_KIND="prerelease"
-      printf '%s\n' "$prerelease_json"
+      RELEASE_JSON="$prerelease_json"
       return 0
     fi
   fi
 
   RELEASE_KIND="latest"
-  fetch_text "$LATEST_API_URL"
+  RELEASE_JSON="$(fetch_text "$LATEST_API_URL")"
 }
 
 PM="$(detect_manager)"
@@ -154,7 +154,10 @@ fi
 ARCH="$(detect_arch "$PM")"
 [ -n "$ARCH" ] || { echo "Cannot detect architecture"; exit 1; }
 
-JSON="$(resolve_release_json)"
+RELEASE_KIND=""
+RELEASE_JSON=""
+resolve_release_json
+JSON="$RELEASE_JSON"
 [ -n "$JSON" ] || { echo "Cannot fetch release info"; exit 1; }
 RELEASE_TAG="$(extract_release_string "$JSON" "tag_name")"
 [ -n "$RELEASE_TAG" ] && echo "Using ${RELEASE_KIND} release: $RELEASE_TAG"
