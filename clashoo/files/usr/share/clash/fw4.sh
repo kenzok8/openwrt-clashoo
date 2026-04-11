@@ -7,6 +7,9 @@ SETS_RULES="${NFT_DIR}/fw4_sets.nft"
 DSTNAT_RULES="${NFT_DIR}/fw4_dstnat.nft"
 MANGLE_RULES="${NFT_DIR}/fw4_mangle.nft"
 OUTPUT_RULES="${NFT_DIR}/fw4_output.nft"
+BUILTIN_NFT_DIR="/usr/share/clash/nftables"
+GEOIP_CN_NFT="${BUILTIN_NFT_DIR}/geoip_cn.nft"
+GEOIP6_CN_NFT="${BUILTIN_NFT_DIR}/geoip6_cn.nft"
 LOCAL_OUTPUT_TABLE="clash_local"
 PROXY_FWMARK="0x162"
 PROXY_ROUTE_TABLE="0x162"
@@ -123,16 +126,6 @@ render_ip_elements() {
 	done
 }
 
-render_china_elements() {
-	[ -f /usr/share/clash/china_ip.txt ] || return 0
-	awk '!/^$/&&!/^#/{printf sep $0; sep=", "}' /usr/share/clash/china_ip.txt 2>/dev/null || true
-}
-
-render_china6_elements() {
-	[ -f /usr/share/clash/china_ipv6.txt ] || return 0
-	awk '!/^$/&&!/^#/{printf sep $0; sep=", "}' /usr/share/clash/china_ipv6.txt 2>/dev/null || true
-}
-
 render_token_elements() {
 	printf '%s\n' "$1" | tr ',\t' '  ' | awk '
 		BEGIN { first = 1 }
@@ -181,6 +174,26 @@ remove_local_output_rule() {
 	nft delete table ip ${LOCAL_OUTPUT_TABLE} >/dev/null 2>&1 || true
 }
 
+write_empty_set() {
+	local set_name="$1"
+	local set_type="$2"
+
+	printf 'set %s {\n\ttype %s;\n\tflags interval;\n\tauto-merge;\n}\n\n' "$set_name" "$set_type"
+}
+
+append_set_from_file_or_empty() {
+	local file_path="$1"
+	local set_name="$2"
+	local set_type="$3"
+
+	if [ -s "$file_path" ]; then
+		cat "$file_path"
+		printf '\n'
+	else
+		write_empty_set "$set_name" "$set_type"
+	fi
+}
+
 generate_rules() {
 	local redir_port tproxy_port tcp_mode udp_mode access_control fake_ip_range proxy_lan_ips reject_lan_ips
 	local proxy_tcp_dport proxy_udp_dport bypass_dscp bypass_fwmark
@@ -201,9 +214,7 @@ generate_rules() {
 	mkdir -p "$NFT_DIR"
 
 	# Build optional elements lines (nftables rejects empty elements = {})
-	local china_elements china6_elements proxy_elements reject_elements dscp_elements fwmark_elements
-	china_elements="$(render_china_elements)"
-	china6_elements="$(render_china6_elements)"
+	local proxy_elements reject_elements dscp_elements fwmark_elements
 	proxy_elements="$(render_ip_elements "$proxy_lan_ips")"
 	reject_elements="$(render_ip_elements "$reject_lan_ips")"
 	dscp_elements="$(render_token_elements "$bypass_dscp")"
@@ -213,13 +224,8 @@ generate_rules() {
 		printf 'set clash_localnetwork {\n\ttype ipv4_addr;\n\tflags interval;\n\tauto-merge;\n'
 		printf '\telements = { 0.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16, 224.0.0.0/4, 240.0.0.0/4 }\n}\n\n'
 
-		printf 'set clash_china {\n\ttype ipv4_addr;\n\tflags interval;\n\tauto-merge;\n'
-		[ -n "$china_elements" ] && printf '\telements = { %s }\n' "$china_elements"
-		printf '}\n\n'
-
-		printf 'set clash_china6 {\n\ttype ipv6_addr;\n\tflags interval;\n\tauto-merge;\n'
-		[ -n "$china6_elements" ] && printf '\telements = { %s }\n' "$china6_elements"
-		printf '}\n\n'
+		append_set_from_file_or_empty "$GEOIP_CN_NFT" clash_china ipv4_addr
+		append_set_from_file_or_empty "$GEOIP6_CN_NFT" clash_china6 ipv6_addr
 
 		printf 'set clash_proxy_lan {\n\ttype ipv4_addr;\n\tflags interval;\n\tauto-merge;\n'
 		[ -n "$proxy_elements" ] && printf '\telements = { %s }\n' "$proxy_elements"

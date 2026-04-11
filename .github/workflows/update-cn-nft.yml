@@ -1,0 +1,36 @@
+name: Update CN NFT Data
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 3 * * 1'
+
+jobs:
+  update-cn-nft:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Generate CN nftables sets
+        run: |
+          sh scripts/gen-cn-nft.sh
+
+      - name: Commit changes
+        run: |
+          if git diff --quiet -- clashoo/files/usr/share/clash/nftables; then
+            echo "No CN nft data changes."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add clashoo/files/usr/share/clash/nftables
+          git commit -m "chore: refresh cn nft data"
+          git push

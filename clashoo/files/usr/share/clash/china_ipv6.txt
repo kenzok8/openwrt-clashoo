@@ -1,2 +1,0 @@
-# Placeholder file for IPv6 China IP ranges.
-# update_china_ip.sh will replace this file when an IPv6 list is available.

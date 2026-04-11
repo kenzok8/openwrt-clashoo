@@ -3,10 +3,13 @@
 set -eu
 
 LOG_FILE="/usr/share/clash/clash.txt"
-TARGET_V4="/usr/share/clash/china_ip.txt"
-TARGET_V6="/usr/share/clash/china_ipv6.txt"
+NFT_DIR="/usr/share/clash/nftables"
+TARGET_V4="${NFT_DIR}/geoip_cn.nft"
+TARGET_V6="${NFT_DIR}/geoip6_cn.nft"
 TMP_V4="/tmp/china_ip.txt.$$"
 TMP_V6="/tmp/china_ipv6.txt.$$"
+OUT_V4="/tmp/geoip_cn.nft.$$"
+OUT_V6="/tmp/geoip6_cn.nft.$$"
 
 log() {
 	printf '  %s - %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1" >> "$LOG_FILE"
@@ -36,10 +39,43 @@ download_with_fallback() {
 }
 
 cleanup() {
-	rm -f "$TMP_V4" "$TMP_V6"
+	rm -f "$TMP_V4" "$TMP_V6" "$OUT_V4" "$OUT_V6"
 }
 
 trap cleanup EXIT INT TERM
+
+render_nft_set() {
+	local source_file="$1"
+	local output_file="$2"
+	local set_name="$3"
+	local set_type="$4"
+
+	awk -v set_name="$set_name" -v set_type="$set_type" '
+	BEGIN {
+		print "set " set_name " {"
+		print "\ttype " set_type ";"
+		print "\tflags interval;"
+		print "\tauto-merge;"
+		print "\telements = {"
+		first = 1
+	}
+	!/^[[:space:]]*$/ && !/^[[:space:]]*#/ {
+		gsub(/^[[:space:]]+|[[:space:]]+$/, "", $0)
+		if ($0 == "")
+			next
+		if (!first)
+			print ","
+		printf "\t\t%s", $0
+		first = 0
+	}
+	END {
+		if (!first)
+			print ""
+		print "\t}"
+		print "}"
+	}
+	' "$source_file" > "$output_file"
+}
 
 url4="$(uci -q get clash.config.china_ip_url 2>/dev/null || true)"
 url6="$(uci -q get clash.config.china_ipv6_url 2>/dev/null || true)"
@@ -48,6 +84,8 @@ bypass_china="$(uci -q get clash.config.bypass_china 2>/dev/null || true)"
 [ -n "$url4" ] || url4='https://ispip.clang.cn/all_cn.txt'
 [ -n "$url6" ] || url6='https://ispip.clang.cn/all_cn_ipv6.txt'
 
+mkdir -p "$NFT_DIR"
+
 log '开始更新大陆白名单'
 
 download_with_fallback "$url4" "$TMP_V4"
@@ -55,13 +93,15 @@ download_with_fallback "$url4" "$TMP_V4"
 	log '大陆 IPv4 白名单下载失败：返回为空'
 	exit 1
 }
-mv "$TMP_V4" "$TARGET_V4"
+render_nft_set "$TMP_V4" "$OUT_V4" clash_china ipv4_addr
+mv "$OUT_V4" "$TARGET_V4"
 chmod 644 "$TARGET_V4" >/dev/null 2>&1 || true
 log '大陆 IPv4 白名单更新完成'
 
 if download_with_fallback "$url6" "$TMP_V6"; then
 	if [ -s "$TMP_V6" ]; then
-		mv "$TMP_V6" "$TARGET_V6"
+		render_nft_set "$TMP_V6" "$OUT_V6" clash_china6 ipv6_addr
+		mv "$OUT_V6" "$TARGET_V6"
 		chmod 600 "$TARGET_V6" >/dev/null 2>&1 || true
 		log '大陆 IPv6 白名单更新完成'
 	else
