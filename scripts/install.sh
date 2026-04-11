@@ -55,7 +55,7 @@ find_asset_url() {
   json="$1"
   pattern="$2"
   printf '%s\n' "$json" | sed 's/},{/}\
-{/g' | sed -n 's/.*"browser_download_url":"\([^"]*\)".*/\1/p' | grep -E "$pattern" | head -n 1
+{/g' | sed -n 's/.*"browser_download_url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | grep -E "$pattern" | head -n 1
 }
 
 split_release_objects() {
@@ -116,19 +116,32 @@ split_release_objects() {
 find_release_object() {
   json="$1"
   match="$2"
-  printf '%s\n' "$json" | split_release_objects | grep -F -m 1 "$match" || true
+  printf '%s\n' "$json" | split_release_objects | grep -E -m 1 "$match" || true
+}
+
+extract_release_string() {
+  json="$1"
+  key="$2"
+  printf '%s\n' "$json" | sed -n "s/.*\"${key}\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" | head -n 1
+}
+
+list_asset_names() {
+  json="$1"
+  printf '%s\n' "$json" | sed -n 's/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p'
 }
 
 resolve_release_json() {
   releases_json="$(fetch_text "$RELEASES_API_URL" || true)"
   if [ -n "$releases_json" ]; then
-    prerelease_json="$(find_release_object "$releases_json" '"prerelease":true')"
+    prerelease_json="$(find_release_object "$releases_json" '"prerelease"[[:space:]]*:[[:space:]]*true')"
     if [ -n "$prerelease_json" ]; then
+      RELEASE_KIND="prerelease"
       printf '%s\n' "$prerelease_json"
       return 0
     fi
   fi
 
+  RELEASE_KIND="latest"
   fetch_text "$LATEST_API_URL"
 }
 
@@ -143,6 +156,8 @@ ARCH="$(detect_arch "$PM")"
 
 JSON="$(resolve_release_json)"
 [ -n "$JSON" ] || { echo "Cannot fetch release info"; exit 1; }
+RELEASE_TAG="$(extract_release_string "$JSON" "tag_name")"
+[ -n "$RELEASE_TAG" ] && echo "Using ${RELEASE_KIND} release: $RELEASE_TAG"
 
 EXT="ipk"
 [ "$PM" = "apk" ] && EXT="apk"
@@ -159,6 +174,10 @@ fi
 
 if [ -z "$CORE_URL" ] || [ -z "$LUCI_URL" ]; then
   echo "Cannot find required release assets for arch: $ARCH"
+  [ -n "$RELEASE_TAG" ] && echo "Resolved release tag: $RELEASE_TAG"
+  echo "Detected package manager: $PM"
+  echo "Available assets:"
+  list_asset_names "$JSON" | sed -n '1,40p'
   exit 1
 fi
 

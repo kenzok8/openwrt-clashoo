@@ -465,8 +465,6 @@ yml_change() {
 		return 0
 	fi
 	sh /usr/share/clash/yum_change.sh 2>/dev/null
-	# 兼容订阅内置 dns.listen 缩进异常，避免 YAML 语法错误导致启动失败
-	sed -i 's/^    listen:/  listen:/g' /etc/clash/config.yaml 2>/dev/null
 #===========================================================================================================================
 }
 
@@ -737,7 +735,6 @@ _start_prepare_config() {
 	sleep 1
 	yml_change >/dev/null 2>&1
 	smart_inject >/dev/null 2>&1
-	sed -i 's/^    listen:/  listen:/g' /etc/clash/config.yaml 2>/dev/null
 
 	if [ ! -f /etc/clash/Country.mmdb ];then
 		log_msg "Country.mmdb not found, continue without local MMDB" "未找到 Country.mmdb，继续启动（可在系统页更新 GeoIP）"
