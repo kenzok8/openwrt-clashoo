@@ -54,8 +54,11 @@ detect_arch() {
 find_asset_url() {
   json="$1"
   pattern="$2"
-  printf '%s\n' "$json" | sed 's/},{/}\
-{/g' | sed -n 's/.*"browser_download_url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | grep -E "$pattern" | head -n 1
+  printf '%s\n' "$json" \
+    | grep -o '"browser_download_url"[[:space:]]*:[[:space:]]*"[^"]*"' \
+    | sed 's/^.*"browser_download_url"[[:space:]]*:[[:space:]]*"//; s/"$//' \
+    | grep -E "$pattern" \
+    | head -n 1
 }
 
 split_release_objects() {
@@ -127,7 +130,9 @@ extract_release_string() {
 
 list_asset_names() {
   json="$1"
-  printf '%s\n' "$json" | sed -n 's/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p'
+  printf '%s\n' "$json" \
+    | grep -o '"name"[[:space:]]*:[[:space:]]*"[^"]*"' \
+    | sed 's/^.*"name"[[:space:]]*:[[:space:]]*"//; s/"$//'
 }
 
 resolve_release_json() {
