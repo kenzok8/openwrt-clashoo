@@ -70,8 +70,8 @@ jobs:
             cp -v "$f" "dist/feed/${safe}.apk"
           done
 
-          # Packages 索引（仅 feed）
-          for f in bin/packages/${ARCH}/clashoo/Packages*; do
+          # Feed 索引（仅 feed）
+          for f in bin/packages/${ARCH}/clashoo/Packages* bin/packages/${ARCH}/clashoo/APKINDEX*; do
             [ -f "$f" ] || continue
             cp -v "$f" dist/feed/
           done
