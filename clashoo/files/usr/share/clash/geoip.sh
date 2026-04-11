@@ -2,6 +2,7 @@
 
 LOG_FILE="/tmp/geoip_update.txt"
 TMP_DIR="/tmp/clash_geoip_$$"
+MMDB_MIN_SIZE=2000000
 
 geoip_source="$(uci -q get clash.config.geoip_source 2>/dev/null)"
 license_key="$(uci -q get clash.config.license_key 2>/dev/null)"
@@ -11,7 +12,7 @@ cfg_geosite_url="$(uci -q get clash.config.geosite_url 2>/dev/null)"
 cfg_geoip_dat_url="$(uci -q get clash.config.geoip_dat_url 2>/dev/null)"
 cfg_geoip_asn_url="$(uci -q get clash.config.geoip_asn_url 2>/dev/null)"
 
-DEFAULT_MMDB_URL="https://raw.githubusercontent.com/alecthw/mmdb_china_ip_list/release/Country.mmdb"
+DEFAULT_MMDB_URL="https://raw.githubusercontent.com/Loyalsoldier/geoip/release/Country.mmdb"
 DEFAULT_GEOSITE_URL="https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geosite.dat"
 DEFAULT_GEOIP_DAT_URL="https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geoip.dat"
 DEFAULT_GEOIP_ASN_URL="https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/GeoLite2-ASN.mmdb"
@@ -26,6 +27,7 @@ log() {
 
 cleanup() {
 	rm -rf "$TMP_DIR" >/dev/null 2>&1
+	rm -f /var/run/geoip_update >/dev/null 2>&1
 }
 
 download_to() {
@@ -34,6 +36,10 @@ download_to() {
 	if [ -z "$url" ]; then
 		return 1
 	fi
+	if command -v curl >/dev/null 2>&1; then
+		curl -fsSL --connect-timeout 15 --max-time 300 -A "Clash/OpenWRT" "$url" -o "$target"
+		return $?
+	fi
 	wget -q -c4 --timeout=300 --no-check-certificate --user-agent="Clash/OpenWRT" "$url" -O "$target"
 }
 
@@ -41,16 +47,40 @@ download_optional() {
 	url="$1"
 	target="$2"
 	name="$3"
+	tmp_target="${TMP_DIR}/$(basename "$target").tmp"
 	if [ -z "$url" ]; then
 		log "$name skip (url empty)"
 		return 0
 	fi
-	if download_to "$url" "$target"; then
+	rm -f "$tmp_target" >/dev/null 2>&1
+	if download_to "$url" "$tmp_target"; then
+		mv -f "$tmp_target" "$target" >/dev/null 2>&1 || return 1
 		chmod 644 "$target" >/dev/null 2>&1
 		log "$name updated"
 		return 0
 	fi
+	rm -f "$tmp_target" >/dev/null 2>&1
 	log "$name update failed"
+	return 0
+}
+
+download_mmdb() {
+	url="$1"
+	tmp_target="${TMP_DIR}/Country.mmdb.tmp"
+	size=0
+	rm -f "$tmp_target" >/dev/null 2>&1
+	if ! download_to "$url" "$tmp_target"; then
+		rm -f "$tmp_target" >/dev/null 2>&1
+		return 1
+	fi
+	size=$(wc -c <"$tmp_target" 2>/dev/null)
+	if [ -z "$size" ] || [ "$size" -lt "$MMDB_MIN_SIZE" ]; then
+		log "Country.mmdb download invalid or incomplete (${size:-0} bytes)"
+		rm -f "$tmp_target" >/dev/null 2>&1
+		return 1
+	fi
+	mv -f "$tmp_target" /etc/clash/Country.mmdb >/dev/null 2>&1 || return 1
+	chmod 644 /etc/clash/Country.mmdb >/dev/null 2>&1
 	return 0
 }
 
@@ -110,11 +140,10 @@ esac
 
 if [ "$geoip_source" != "1" ]; then
 	log "Updating Country.mmdb"
-	if ! download_to "$mmdb_url" /etc/clash/Country.mmdb; then
+	if ! download_mmdb "$mmdb_url"; then
 		log "Country.mmdb download failed"
 		exit 1
 	fi
-	chmod 644 /etc/clash/Country.mmdb >/dev/null 2>&1
 	log "Country.mmdb updated"
 
 	download_optional "$geosite_url" /etc/clash/geosite.dat "geosite.dat"
@@ -123,11 +152,9 @@ if [ "$geoip_source" != "1" ]; then
 fi
 
 touch /var/run/geoip_down_complete >/dev/null 2>&1
-rm -f /var/run/geoip_update >/dev/null 2>&1
 
 if pidof mihomo >/dev/null 2>&1 || pidof clash-meta >/dev/null 2>&1; then
-	/etc/init.d/clash restart >/dev/null 2>&1
-	log "Clashoo restarted"
+	log "GeoIP update completed, apply on next Clashoo restart"
 fi
 
 log "GeoIP update completed"

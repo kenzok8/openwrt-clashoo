@@ -646,6 +646,115 @@ restore() {
 	sh /usr/share/clash/restore.sh >/dev/null 2>&1
 }
 
+_config_needs_mmdb() {
+	grep -Eq '^[[:space:]]*-[[:space:]]*["'\'']?GEOIP,|^[[:space:]]*geoip:[[:space:]]|^[[:space:]]*geoip-code:[[:space:]]' "$CONFIG_YAML"
+}
+
+_has_valid_local_mmdb() {
+	local mmdb_size
+	[ -f /etc/clash/Country.mmdb ] || return 1
+	mmdb_size=$(wc -c </etc/clash/Country.mmdb 2>/dev/null)
+	[ -n "$mmdb_size" ] || return 1
+	[ "$mmdb_size" -ge 2000000 ]
+}
+
+_config_needs_geosite() {
+	grep -Eq "^[[:space:]]*-[[:space:]]*[\"']?GEOSITE,|^[[:space:]]*geosite:[[:space:]]|^[[:space:]]*'geosite:" "$CONFIG_YAML"
+}
+
+_strip_geox_url_block() {
+	awk '
+	BEGIN { skip=0 }
+	/^geox-url:[[:space:]]*$/ { skip=1; next }
+	skip && /^[^[:space:]]/ { skip=0 }
+	!skip { print }
+	' "$CONFIG_YAML" > /tmp/_clashoo_geox.yaml && mv /tmp/_clashoo_geox.yaml "$CONFIG_YAML"
+}
+
+_strip_yaml_child_block() {
+	local regex="$1"
+	awk -v target="$regex" '
+	function indent_of(line) {
+		match(line, /^[[:space:]]*/)
+		return RLENGTH
+	}
+	{
+		if (skip) {
+			if (length($0) == 0) {
+				next
+			}
+			if (indent_of($0) > base_indent) {
+				next
+			}
+			skip=0
+		}
+		if ($0 ~ target) {
+			skip=1
+			base_indent=indent_of($0)
+			next
+		}
+		print
+	}
+	' "$CONFIG_YAML" > /tmp/_clashoo_geo_block.yaml && mv /tmp/_clashoo_geo_block.yaml "$CONFIG_YAML"
+}
+
+_strip_yaml_rule_lines() {
+	local regex="$1"
+	awk -v target="$regex" '
+	$0 ~ target { next }
+	{ print }
+	' "$CONFIG_YAML" > /tmp/_clashoo_geo_rules.yaml && mv /tmp/_clashoo_geo_rules.yaml "$CONFIG_YAML"
+}
+
+_start_geoip_update_async() {
+	if [ -f /var/run/geoip_update ]; then
+		return 0
+	fi
+	touch /var/run/geoip_update >/dev/null 2>&1
+	nohup /usr/share/clash/geoip.sh >/dev/null 2>&1 &
+}
+
+_prepare_geo_bootstrap_mode() {
+	local needs_mmdb needs_geosite
+
+	needs_mmdb=0
+	needs_geosite=0
+
+	_config_needs_mmdb && needs_mmdb=1
+	_config_needs_geosite && needs_geosite=1
+
+	if [ "$needs_mmdb" -eq 1 ] && _has_valid_local_mmdb; then
+		needs_mmdb=0
+	elif [ "$needs_mmdb" -eq 1 ] && [ -f /etc/clash/Country.mmdb ]; then
+		rm -f /etc/clash/Country.mmdb >/dev/null 2>&1
+		log_msg "Country.mmdb is invalid or incomplete, fallback to bootstrap mode" "Country.mmdb 无效或下载不完整，已回退到引导模式"
+	fi
+	[ "$needs_geosite" -eq 1 ] && [ -f /etc/clash/geosite.dat ] && needs_geosite=0
+
+	if [ "$needs_mmdb" -eq 0 ] && [ "$needs_geosite" -eq 0 ]; then
+		return 0
+	fi
+
+	sed -i '/^geodata-mode:/d; /^geodata-loader:/d' "$CONFIG_YAML" 2>/dev/null
+	_strip_geox_url_block
+
+	if [ "$needs_mmdb" -eq 1 ]; then
+		_strip_yaml_rule_lines "^[[:space:]]*-[[:space:]]*[\"']?GEOIP,"
+		sed -i '/^[[:space:]]*geoip:[[:space:]]*/d' "$CONFIG_YAML" 2>/dev/null
+		sed -i '/^[[:space:]]*geoip-code:[[:space:]]*/d' "$CONFIG_YAML" 2>/dev/null
+	fi
+
+	if [ "$needs_geosite" -eq 1 ]; then
+		_strip_yaml_rule_lines "^[[:space:]]*-[[:space:]]*[\"']?GEOSITE,"
+		_strip_yaml_child_block '^[[:space:]]*geosite:[[:space:]]*$'
+		_strip_yaml_child_block "^[[:space:]]*'geosite:[^']*'[[:space:]]*:[[:space:]]*$"
+		sed -i '/^[[:space:]]*geosite:[[:space:]]*[^[:space:]].*/d' "$CONFIG_YAML" 2>/dev/null
+	fi
+
+	_start_geoip_update_async
+	log_msg "Geo data missing, start in bootstrap mode and update in background" "Geo 数据缺失，已切换为引导模式并后台更新"
+}
+
 
 
 
@@ -736,9 +845,11 @@ _start_prepare_config() {
 	yml_change >/dev/null 2>&1
 	smart_inject >/dev/null 2>&1
 
-	if [ ! -f /etc/clash/Country.mmdb ];then
+	if ! _has_valid_local_mmdb; then
 		log_msg "Country.mmdb not found, continue without local MMDB" "未找到 Country.mmdb，继续启动（可在系统页更新 GeoIP）"
 	fi
+
+	_prepare_geo_bootstrap_mode
 
 	if [ ! -f /etc/clash/config.yaml ];then
 		log_msg "Cannot find config.yaml" "找不到config.yaml"
