@@ -45,23 +45,34 @@ jobs:
           FEEDNAME: clashoo
           PACKAGES: clashoo luci-app-clashoo
           NO_REFRESH_CHECK: true
+          INDEX: 1
 
       - name: Collect packages
         run: |
-          mkdir -p dist
           ARCH="${{ matrix.arch }}"
+          mkdir -p dist/release dist/feed
+
+          # IPK：release 和 feed 都需要
           for f in bin/packages/${ARCH}/clashoo/*.ipk; do
             [ -f "$f" ] || continue
             [[ "$(basename $f)" == Packages* ]] && continue
-            cp -v "$f" dist/
+            cp -v "$f" dist/release/
+            cp -v "$f" dist/feed/
           done
+
+          # APK：release 加架构后缀，feed 保留原名
           for f in bin/packages/${ARCH}/clashoo/*.apk; do
             [ -f "$f" ] || continue
             [[ "$(basename $f)" == Packages* ]] && continue
             base=$(basename "$f" .apk)
-            # 把版本中的 ~ 替换为 . 保持与 GitHub Release 存储一致
-            newname="${base//\~/.}-${ARCH}"
-            cp -v "$f" "dist/${newname}.apk"
+            safe="${base//\~/.}"
+            cp -v "$f" "dist/release/${safe}-${ARCH}.apk"
+            cp -v "$f" "dist/feed/${safe}.apk"
+          done
+
+          # Packages 索引（仅 feed）
+          for f in bin/packages/${ARCH}/clashoo/Packages*; do
+            [ -f "$f" ] && cp -v "$f" dist/feed/
           done
 
       - name: Upload artifact
@@ -79,11 +90,16 @@ jobs:
       contents: write
 
     steps:
-      - name: Download all packages
+      - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          path: dist
-          merge-multiple: true
+          path: all-artifacts
+          pattern: packages-*
+
+      - name: Flatten release files
+        run: |
+          mkdir -p dist
+          find all-artifacts -path "*/release/*" -type f -exec cp -v {} dist/ \;
 
       - name: Determine tag
         id: meta
@@ -122,13 +138,12 @@ jobs:
             echo ""
             echo "| 架构 | clashoo | luci-app-clashoo |"
             echo "| :--- | :--- | :--- |"
-            # luci 是 arch-independent，取任意架构的第一个即可
-            luci_apk=$(ls dist/luci-app-clashoo-*.apk 2>/dev/null | grep -v "i18n\|zh-cn" | head -1)
-            luci_apk_link=$( [ -n "$luci_apk" ] && echo "[$(basename $luci_apk)](${BASE}/$(basename $luci_apk))" || echo "—" )
             for arch in $ARCHS; do
-              f=$(ls dist/clashoo-*-${arch}.apk 2>/dev/null | head -1)
-              link=$( [ -n "$f" ] && echo "[$(basename $f)](${BASE}/$(basename $f))" || echo "—" )
-              echo "| \`${arch}\` | ${link} | ${luci_apk_link} |"
+              f_core=$(ls dist/clashoo-*-${arch}.apk 2>/dev/null | head -1)
+              f_luci=$(ls dist/luci-app-clashoo-*-${arch}.apk 2>/dev/null | head -1)
+              link_core=$( [ -n "$f_core" ] && echo "[$(basename $f_core)](${BASE}/$(basename $f_core))" || echo "—" )
+              link_luci=$( [ -n "$f_luci" ] && echo "[$(basename $f_luci)](${BASE}/$(basename $f_luci))" || echo "—" )
+              echo "| \`${arch}\` | ${link_core} | ${link_luci} |"
             done
           } > release_notes.md
 
@@ -144,3 +159,51 @@ jobs:
           files: dist/**
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  upload_feed:
+    name: Upload Feed to B2
+    needs: build
+    runs-on: ubuntu-latest
+    if: ${{ !cancelled() }}
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: packages-*
+
+      - name: Organize feed structure
+        run: |
+          mkdir -p feed
+          for dir in artifacts/packages-sdk*; do
+            [ -d "$dir/feed" ] || continue
+            name=$(basename "$dir")
+            sdk=$(echo "$name" | sed 's/packages-sdk\([^-]*\)-.*/\1/')
+            arch=$(echo "$name" | sed 's/packages-sdk[^-]*-//')
+            mkdir -p "feed/${sdk}/${arch}"
+            cp -v "$dir/feed/"* "feed/${sdk}/${arch}/" 2>/dev/null || true
+          done
+          find feed -type f | sort
+
+      - name: Upload to Backblaze B2
+        env:
+          B2_KEY_ID: ${{ secrets.B2_KEY_ID }}
+          B2_APPLICATION_KEY: ${{ secrets.B2_APPLICATION_KEY }}
+          B2_BUCKET: ${{ secrets.B2_BUCKET }}
+        run: |
+          [ -z "$B2_KEY_ID" ] && { echo "No B2 credentials, skipping"; exit 0; }
+          curl -fsSL https://rclone.org/install.sh | sudo bash
+          mkdir -p ~/.config/rclone
+          cat > ~/.config/rclone/rclone.conf <<EOF
+          [b2]
+          type = b2
+          account = ${B2_KEY_ID}
+          key = ${B2_APPLICATION_KEY}
+          hard_delete = true
+          EOF
+          rclone sync feed/ "b2:${B2_BUCKET}/clashoo/" \
+            --checksum \
+            --fast-list \
+            --transfers 8 \
+            --checkers 16
