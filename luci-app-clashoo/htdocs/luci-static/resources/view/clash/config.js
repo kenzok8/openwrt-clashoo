@@ -311,18 +311,18 @@ return view.extend({
             if (!document.getElementById('clashoo-rewrite-style')) {
                 document.head.appendChild(E('style', { id: 'clashoo-rewrite-style' }, `
                     .clashoo-rewrite .rw-input { width: 320px; max-width: 100%; min-width: 0; box-sizing: border-box; }
-                    .clashoo-rewrite .rw-inline { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; max-width: 100%; }
+                    .clashoo-rewrite .rw-inline { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; max-width: 100%; }
                     .clashoo-rewrite .rw-btn { flex: 0 0 auto; white-space: nowrap; }
                     .clashoo-rewrite .rw-output { width: 100%; max-width: 320px; text-align: right; color: #7f8a98; }
-                    .clashoo-rewrite .rw-template-actions { width: 100%; max-width: 320px; display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
                     .clashoo-rewrite .rw-actions { width: 100%; display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
-                    @media (max-width: 768px) {
+                    @media (max-width: 1100px), (hover: none) and (pointer: coarse) {
                         .clashoo-rewrite .cbi-value-title { width: 100% !important; margin-bottom: 6px; }
                         .clashoo-rewrite .cbi-value-field { width: 100% !important; }
-                        .clashoo-rewrite .rw-input { width: 100% !important; }
-                        .clashoo-rewrite .rw-inline { flex-wrap: wrap; }
-                        .clashoo-rewrite .rw-template-actions, .clashoo-rewrite .rw-actions { max-width: 100%; width: 100%; justify-content: space-between; }
-                        .clashoo-rewrite .rw-template-actions .rw-btn, .clashoo-rewrite .rw-actions .btn { flex: 1 1 calc(50% - 6px); text-align: center; }
+                        .clashoo-rewrite .rw-input { width: 100% !important; min-width: 0; }
+                        .clashoo-rewrite .rw-inline { display: block; }
+                        .clashoo-rewrite .rw-inline .rw-btn { margin-top: 8px; width: 100%; text-align: center; }
+                        .clashoo-rewrite .rw-actions { max-width: 100%; width: 100%; justify-content: space-between; }
+                        .clashoo-rewrite .rw-actions .btn { flex: 1 1 calc(50% - 6px); text-align: center; }
                     }
                 `));
             }
@@ -468,12 +468,11 @@ return view.extend({
                     _('模板复写仅两步：上传/拉取模板，然后对订阅应用复写并生成新文件（示例：a.yaml + fx.yaml = a_fx.yaml）。')),
                 cbiRow(_('订阅文件'), subSel),
                 cbiRow(_('模板选择'), templateSel),
-                cbiRow(_('本地上传'), uploadInput),
-                cbiRow(_('远程拉取'), remoteUrl),
+                cbiRow(_('本地上传'), E('div', { class: 'rw-inline' }, [uploadInput, uploadBtn])),
+                cbiRow(_('远程拉取'), E('div', { class: 'rw-inline' }, [remoteUrl, remoteBtn])),
                 cbiRow(_('模板文件名'), remoteName),
-                cbiRow(_('模板操作'), E('div', { class: 'rw-template-actions' }, [uploadBtn, remoteBtn])),
                 cbiRow(_('生成文件名'), E('div', { class: 'rw-output' }, [outputHint])),
-                cbiRow('', E('div', { style: 'width:100%;max-width:320px;color:#7f8a98;font-size:12px;line-height:1.5;text-align:right' },
+                cbiRow('', E('div', { style: 'display:block;width:100%;color:#7f8a98;font-size:12px;line-height:1.5;text-align:center' },
                     _('生成文件：仅写入新文件；生成并启用：写入后立即切换生效。'))),
                 cbiRow(_('应用操作'), E('div', { class: 'rw-actions' }, [applyBtn, applyActivateBtn]))
             ]));
