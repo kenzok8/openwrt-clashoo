@@ -6,6 +6,7 @@ SUB_FILE="${1:-}"
 TEMPLATE_FILE="${2:-}"
 OUT_FILE="${3:-}"
 TMP_FILE="/tmp/clash_template_merge_$$.yaml"
+TMP_FILE2="${TMP_FILE}.norm"
 LOG_FILE="/tmp/clash_update.txt"
 
 log() {
@@ -13,7 +14,7 @@ log() {
 }
 
 cleanup() {
-	rm -f "$TMP_FILE" >/dev/null 2>&1 || true
+	rm -f "$TMP_FILE" "$TMP_FILE2" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT INT TERM
 
@@ -40,20 +41,42 @@ done
 mkdir -p "$(dirname "$OUT_FILE")" >/dev/null 2>&1
 
 log "开始模板复写：$(basename "$SUB_FILE") <- $(basename "$TEMPLATE_FILE")"
+export SUB_FILE TEMPLATE_FILE
 
-# 以模板为主结构，注入订阅节点/节点提供器
-yq eval-all '
-  (select(fileIndex == 0) | explode(.)) as $sub |
-  (select(fileIndex == 1) | explode(.)) as $tpl |
+# 以模板为主结构，注入订阅节点/节点提供器。
+# 使用 yq load() 强制单文档输出，避免 eval-all 在部分模板上产生重复根键。
+yq -n '
+  load(strenv(SUB_FILE)) as $sub |
+  load(strenv(TEMPLATE_FILE)) as $tpl |
   (
-    $tpl
-    * {
+    ($tpl * {
       "proxies": (((($tpl.proxies // []) + ($sub.proxies // [])) | unique_by(.name))),
       "proxy-providers": (($tpl."proxy-providers" // {}) * ($sub."proxy-providers" // {}))
-    }
+    })
+    | .dns = ((.dns // {}) * {
+        "proxy-server-nameserver": (
+          .dns."proxy-server-nameserver"
+          // $sub.dns."proxy-server-nameserver"
+          // $sub.dns.nameserver
+          // ["223.5.5.5", "119.29.29.29"]
+        )
+      })
   )
-' "$SUB_FILE" "$TEMPLATE_FILE" >"$TMP_FILE" 2>/dev/null || {
+' >"$TMP_FILE" 2>/dev/null || {
 	log "模板复写失败：YAML 合并错误"
+	exit 1
+}
+
+# 兼容第三方模板中使用“直连”字样，统一转换为 Clash 内置 DIRECT。
+yq e '
+  (.. | select(tag == "!!str")) |= sub("^直连$", "DIRECT")
+  | .rules = ((.rules // []) | map(sub(",直连,", ",DIRECT,") | sub(",直连$", ",DIRECT")))
+' "$TMP_FILE" >"$TMP_FILE2" 2>/dev/null || {
+	log "模板复写失败：直连别名标准化失败"
+	exit 1
+}
+mv -f "$TMP_FILE2" "$TMP_FILE" >/dev/null 2>&1 || {
+	log "模板复写失败：中间文件写入失败"
 	exit 1
 }
 

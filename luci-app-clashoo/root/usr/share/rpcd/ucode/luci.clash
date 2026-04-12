@@ -189,9 +189,9 @@ return arch;
 }
 
 function config_dir_by_type(type) {
-if (type == '1') return '/usr/share/clash/config/sub';
-if (type == '2') return '/usr/share/clash/config/upload';
-if (type == '3') return '/usr/share/clash/config/custom';
+if (type == '1' || type == 'sub') return '/usr/share/clash/config/sub';
+if (type == '2' || type == 'upload') return '/usr/share/clash/config/upload';
+if (type == '3' || type == 'custom') return '/usr/share/clash/config/custom';
 return '';
 }
 
@@ -1065,8 +1065,8 @@ let tmp_path = '/tmp/clash_rewrite_merged.yaml';
 
 system('mkdir -p ' + shell_quote(out_dir));
 
-/* Template mode: when rewrite file comes from custom dir, prefer template merge workflow. */
-if (rewrite_type == '3' && access('/usr/share/clash/template_merge.sh', 'x')) {
+/* Template mode: when rewrite file comes from custom dir, always prefer template merge workflow. */
+if (rewrite_type == '3' || rewrite_type == 'custom' || rewrite_dir == '/usr/share/clash/config/custom') {
 let tcmd = 'sh /usr/share/clash/template_merge.sh '
   + shell_quote(base_path) + ' '
   + shell_quote(rewrite_path) + ' '
