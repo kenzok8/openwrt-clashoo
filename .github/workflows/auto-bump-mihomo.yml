@@ -18,7 +18,7 @@ jobs:
       pkg_source_version: ${{ steps.info.outputs.pkg_source_version }}
     steps:
       - name: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: info
         id: info
@@ -34,7 +34,7 @@ jobs:
       mirror_hash: ${{ steps.info.outputs.mirror_hash }}
     steps:
       - name: checkout mihomo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: MetaCubeX/mihomo
           ref: Alpha
@@ -65,7 +65,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
