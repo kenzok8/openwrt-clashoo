@@ -375,6 +375,38 @@ return view.extend({
                 });
             });
 
+            function quickImportTemplate(url, name, label) {
+                setPageStatus(_('正在导入模板: ') + label, true);
+                callFetchRewriteUrl(url, name).then(function (r) {
+                    if (r && r.success) {
+                        setPageStatus((r.message || (_('模板导入成功: ') + label)) + '，页面将自动刷新', true);
+                        setTimeout(function () { location.reload(); }, 900);
+                    } else {
+                        setPageStatus((r && (r.message || r.error)) || (_('模板导入失败: ') + label), false);
+                    }
+                }).catch(function (e) {
+                    setPageStatus((_('模板导入失败: ') + label + ' - ') + (e && e.message ? e.message : e), false);
+                });
+            }
+
+            let quickFxBtn = E('button', { type: 'button', class: 'btn cbi-button cbi-button-action' }, _('导入 FX 模板'));
+            quickFxBtn.addEventListener('click', function () {
+                quickImportTemplate(
+                    'https://raw.githubusercontent.com/kenzok78/ruleset/refs/heads/main/rule/config/Clash/fx.yaml',
+                    'fx.yaml',
+                    'fx.yaml'
+                );
+            });
+
+            let quickFuxieBtn = E('button', { type: 'button', class: 'btn cbi-button cbi-button-action' }, _('导入 Fuxie 模板'));
+            quickFuxieBtn.addEventListener('click', function () {
+                quickImportTemplate(
+                    'https://raw.githubusercontent.com/qichiyuhub/rule/refs/heads/main/config/mihomo/fuxie.yaml',
+                    'fuxie.yaml',
+                    'fuxie.yaml'
+                );
+            });
+
             let batchBtn = E('button', { type: 'button', class: 'btn cbi-button cbi-button-apply' }, _('批量生成已启用绑定'));
             batchBtn.addEventListener('click', function () {
                 setPageStatus(_('正在批量生成模板配置...'), true);
@@ -479,6 +511,10 @@ return view.extend({
                 E('div', { style: rowStyle + ';padding:0 10px;box-sizing:border-box' }, [
                     E('span', { style: labelStyle }, _('远程模板')),
                     E('div', { style: inputGroupStyle }, [remoteUrl, remoteName, remoteBtn])
+                ]),
+                E('div', { style: rowStyle + ';padding:0 10px;box-sizing:border-box' }, [
+                    E('span', { style: labelStyle }, _('快捷模板')),
+                    E('div', { style: inputGroupStyle }, [quickFxBtn, quickFuxieBtn])
                 ]),
                 E('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;padding:0 10px 10px;box-sizing:border-box' }, [batchBtn, batchActivateBtn]),
                 E('div', { style: 'padding:0 10px 10px;box-sizing:border-box' }, [table])

@@ -229,7 +229,7 @@ s = replace(s, /[^A-Za-z0-9._-]/g, '-');
 t = replace(t, /[^A-Za-z0-9._-]/g, '-');
 if (!s) s = 'sub';
 if (!t) t = 'template';
-return s + '__' + t + '.yaml';
+return '_merged_' + s + '__' + t + '.yaml';
 }
 
 function mihomo_api_post(path) {
@@ -691,11 +691,13 @@ call: function() {
 let files = [];
 for (let f in (glob(TEMPLATE_DIR + '/*.yaml') || [])) {
 let name = replace(f, TEMPLATE_DIR + '/', '');
+if (index(name, '_merged_') == 0) continue;
 let fi = stat(f);
 push(files, { name, mtime: fi ? ('' + fi.mtime) : null, size: fi ? (int(fi.size / 1024) + ' KB') : null });
 }
 for (let f in (glob(TEMPLATE_DIR + '/*.yml') || [])) {
 let name = replace(f, TEMPLATE_DIR + '/', '');
+if (index(name, '_merged_') == 0) continue;
 let fi = stat(f);
 push(files, { name, mtime: fi ? ('' + fi.mtime) : null, size: fi ? (int(fi.size / 1024) + ' KB') : null });
 }

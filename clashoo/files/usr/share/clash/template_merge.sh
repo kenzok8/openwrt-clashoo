@@ -29,6 +29,14 @@ if ! command -v yq >/dev/null 2>&1; then
 	exit 1
 fi
 
+core_bin=""
+for b in mihomo clash-meta clash; do
+	if command -v "$b" >/dev/null 2>&1; then
+		core_bin="$b"
+		break
+	fi
+done
+
 mkdir -p "$(dirname "$OUT_FILE")" >/dev/null 2>&1
 
 log "开始模板复写：$(basename "$SUB_FILE") <- $(basename "$TEMPLATE_FILE")"
@@ -54,8 +62,8 @@ yq e '.' "$TMP_FILE" >/dev/null 2>&1 || {
 	exit 1
 }
 
-if command -v mihomo >/dev/null 2>&1; then
-	mihomo -t -f "$TMP_FILE" >/dev/null 2>&1 || {
+if [ -n "$core_bin" ]; then
+	"$core_bin" -t -f "$TMP_FILE" >/dev/null 2>&1 || {
 		log "模板复写失败：内核校验不通过"
 		exit 1
 	}
@@ -69,4 +77,3 @@ mv -f "$TMP_FILE" "$OUT_FILE" >/dev/null 2>&1 || {
 chmod 644 "$OUT_FILE" >/dev/null 2>&1 || true
 log "模板复写完成：$(basename "$OUT_FILE")"
 exit 0
-
