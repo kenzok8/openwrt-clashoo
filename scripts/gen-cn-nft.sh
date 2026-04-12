@@ -7,7 +7,7 @@ OUT_DIR="${ROOT_DIR}/clashoo/files/usr/share/clash/nftables"
 TMP_DIR="$(mktemp -d)"
 V2DAT_BIN="${V2DAT_BIN:-}"
 GEOIP_DAT_URL="${GEOIP_DAT_URL:-https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geoip.dat}"
-V2DAT_PKG="${V2DAT_PKG:-github.com/urlesistiana/v2dat}"
+V2DAT_PKG="${V2DAT_PKG:-github.com/kenzok8/v2dat}"
 
 cleanup() {
 	rm -rf "$TMP_DIR"
