@@ -127,9 +127,7 @@ return view.extend({
 
     handleSaveApply: function (ev) {
         return this.handleSave(ev).then(function () {
-            return Promise.resolve(ui.changes.apply(true)).then(function () {
-                return clash.restart();
-            });
+            return Promise.resolve(ui.changes.apply(true));
         });
     },
 

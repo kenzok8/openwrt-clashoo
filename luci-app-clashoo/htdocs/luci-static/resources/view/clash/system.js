@@ -313,10 +313,40 @@ return view.extend({
 
         return m.render().then(function (systemNode) {
             /* ─── 日志 Tab 工具函数 ─── */
+            function fmtLevel(level) {
+                let lv = String(level || '').toLowerCase();
+                if (lv === 'debug') return '调试';
+                if (lv === 'info') return '信息';
+                if (lv === 'warn' || lv === 'warning') return '警告';
+                if (lv === 'error') return '错误';
+                if (lv === 'silent') return '静默';
+                return level || '信息';
+            }
+
+            function pad2(n) {
+                return n < 10 ? ('0' + n) : String(n);
+            }
+
+            function fmtTime(ts) {
+                let d = new Date(ts);
+                if (!isNaN(d.getTime())) {
+                    return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + ' ' +
+                        pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
+                }
+                return String(ts || '').replace('T', ' ').replace(/\.\d+Z$/, '');
+            }
+
+            function prettyLine(line) {
+                let m = String(line || '').match(/^time="([^"]+)"\s+level=([a-zA-Z]+)\s+msg="(.*)"$/);
+                if (!m)
+                    return line;
+                return fmtTime(m[1]) + ' [' + fmtLevel(m[2]) + '] ' + m[3];
+            }
+
             function mkLogPanel(initialContent, readFn, clearFn) {
                 function processLog(raw) {
                     if (!raw) return '';
-                    return raw;
+                    return String(raw).split('\n').map(prettyLine).join('\n');
                 }
 
                 let stickBottom = false;
@@ -482,9 +512,7 @@ return view.extend({
 
     handleSaveApply: function (ev) {
         return this.handleSave(ev).then(function () {
-            return Promise.resolve(ui.changes.apply(true)).then(function () {
-                return clash.restart();
-            });
+            return Promise.resolve(ui.changes.apply(true));
         });
     },
 

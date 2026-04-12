@@ -1,6 +1,7 @@
 #!/bin/sh
 
 REAL_LOG="/usr/share/clash/clash_real.txt"
+UPDATE_LOG="/tmp/clash_update.txt"
 LIST_FILE="/usr/share/clashbackup/confit_list.conf"
 SUB_DIR="/usr/share/clash/config/sub"
 TMP_PREFIX="/tmp/clash_sub_$$"
@@ -15,6 +16,10 @@ log_text() {
 	else
 		echo "$1" >"$REAL_LOG"
 	fi
+}
+
+log_update() {
+	printf '  %s - %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1" >>"$UPDATE_LOG"
 }
 
 sanitize_name() {
@@ -166,6 +171,7 @@ get_subscription_urls | sed '/^[[:space:]]*$/d' | awk '!seen[$0]++' >"$URLS_FILE
 
 url_count="$(wc -l <"$URLS_FILE" 2>/dev/null | tr -d ' ')"
 if [ -z "$url_count" ] || [ "$url_count" -eq 0 ]; then
+	log_update "未找到订阅链接"
 	log_text "No subscription URL found" "未找到订阅链接"
 	sleep 2
 	log_text "Clash for OpenWRT" "Clash for OpenWRT"
@@ -173,6 +179,7 @@ if [ -z "$url_count" ] || [ "$url_count" -eq 0 ]; then
 fi
 
 ensure_system_dns
+log_update "开始下载订阅（共 ${url_count} 条）"
 log_text "Downloading subscription..." "开始下载订阅..."
 
 base_name="$(sanitize_custom_name "$config_name_raw")"
@@ -205,9 +212,11 @@ while IFS= read -r url; do
 	target_file="$SUB_DIR/${file_base}.yaml"
 	if download_subscription "$url" "$target_file"; then
 		upsert_meta "${file_base}.yaml" "$url" "$subtype"
+		log_update "订阅下载成功：${file_base}.yaml"
 		[ -n "$first_file" ] || first_file="$target_file"
 		success=$((success + 1))
 	else
+		log_update "订阅下载失败：${file_base}.yaml"
 		failed=$((failed + 1))
 	fi
 done <"$URLS_FILE"
@@ -220,9 +229,11 @@ if [ "$success" -gt 0 ]; then
 		uci commit clash
 	fi
 	log_text "Subscription download completed: ${success} success, ${failed} failed" "订阅下载完成：成功 ${success} 个，失败 ${failed} 个"
+	log_update "订阅下载完成：成功 ${success} 个，失败 ${failed} 个"
 	ret=0
 else
 	log_text "All subscription downloads failed" "订阅下载失败"
+	log_update "订阅下载失败：全部链接失败"
 	ret=1
 fi
 

@@ -2,7 +2,7 @@
 
 set -eu
 
-LOG_FILE="/usr/share/clash/clash.txt"
+LOG_FILE="/tmp/clash_update.txt"
 NFT_DIR="/usr/share/clash/nftables"
 TARGET_V4="${NFT_DIR}/geoip_cn.nft"
 TARGET_V6="${NFT_DIR}/geoip6_cn.nft"

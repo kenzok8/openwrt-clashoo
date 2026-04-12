@@ -27,6 +27,8 @@ const CONFIG_DIRS = [
 
 const LIST_FILE = '/usr/share/clashbackup/confit_list.conf';
 const SUB_DIR   = '/usr/share/clash/config/sub';
+const TEMPLATE_DIR = '/usr/share/clash/config/custom';
+const TEMPLATE_BIND_FILE = '/usr/share/clashbackup/template_bindings.conf';
 
 function find_binary() {
 for (let path in BINARY_PATHS)
@@ -220,6 +222,16 @@ function shell_quote(s) {
 return "'" + replace(s || '', /'/g, "'\\''") + "'";
 }
 
+function template_output_name(sub_name, tpl_name) {
+let s = replace((sub_name || ''), /\.(yaml|yml)$/, '');
+let t = replace((tpl_name || ''), /\.(yaml|yml)$/, '');
+s = replace(s, /[^A-Za-z0-9._-]/g, '-');
+t = replace(t, /[^A-Za-z0-9._-]/g, '-');
+if (!s) s = 'sub';
+if (!t) t = 'template';
+return s + '__' + t + '.yaml';
+}
+
 function mihomo_api_post(path) {
 let c = cursor();
 c.load('clash');
@@ -250,6 +262,45 @@ let typ  = length(parts) > 2 ? trim(parts[2]) : 'clash';
 if (name && url) push(rows, { name, url, type: typ });
 }
 return rows;
+}
+
+function read_template_bindings() {
+let rows = [];
+if (!access(TEMPLATE_BIND_FILE, 'r')) return rows;
+let content = readfile(TEMPLATE_BIND_FILE) || '';
+for (let line in split(content, '\n')) {
+line = trim(line || '');
+if (!line) continue;
+let parts = split(line, '#');
+if (length(parts) < 2) continue;
+let sub_name = ensure_yaml_name(parts[0] || '');
+let template_name = ensure_yaml_name(parts[1] || '');
+let enabled = length(parts) > 2 ? trim(parts[2] || '') : '1';
+if (!sub_name || !template_name) continue;
+push(rows, {
+sub_name,
+template_name,
+enabled: (enabled == '1' || enabled == 'true') ? '1' : '0'
+});
+}
+return rows;
+}
+
+function write_template_bindings(rows) {
+let lines = [];
+for (let row in (rows || [])) {
+if (!row || !row.sub_name || !row.template_name) continue;
+push(lines, row.sub_name + '#' + row.template_name + '#' + (row.enabled == '1' ? '1' : '0'));
+}
+system('mkdir -p /usr/share/clashbackup');
+return writefile(TEMPLATE_BIND_FILE, join('\n', lines) + '\n') !== null;
+}
+
+function find_template_binding(sub_name) {
+for (let row in read_template_bindings()) {
+if (row.sub_name == sub_name) return row;
+}
+return null;
 }
 
 const methods = {
@@ -303,7 +354,8 @@ return { success: system('service clash reload >/dev/null 2>&1') == 0 };
 
 restart: {
 call: function() {
-return { success: system('service clash restart >/dev/null 2>&1') == 0 };
+/* Run via wrapper to ensure immediate RPC return on busybox/rpcd environments. */
+return { success: system('sh /usr/share/clash/rpc_restart_async.sh >/dev/null 2>&1') == 0 };
 }
 },
 
@@ -634,6 +686,184 @@ return { subs: rows, active: active_name };
 }
 },
 
+list_templates: {
+call: function() {
+let files = [];
+for (let f in (glob(TEMPLATE_DIR + '/*.yaml') || [])) {
+let name = replace(f, TEMPLATE_DIR + '/', '');
+let fi = stat(f);
+push(files, { name, mtime: fi ? ('' + fi.mtime) : null, size: fi ? (int(fi.size / 1024) + ' KB') : null });
+}
+for (let f in (glob(TEMPLATE_DIR + '/*.yml') || [])) {
+let name = replace(f, TEMPLATE_DIR + '/', '');
+let fi = stat(f);
+push(files, { name, mtime: fi ? ('' + fi.mtime) : null, size: fi ? (int(fi.size / 1024) + ' KB') : null });
+}
+return { files };
+}
+},
+
+list_template_bindings: {
+call: function() {
+return { bindings: read_template_bindings() };
+}
+},
+
+set_template_binding: {
+args: { sub_name: 'sub_name', template_name: 'template_name', enabled: 'enabled' },
+call: function(req) {
+let sub_name = ensure_yaml_name(req.args?.sub_name || '');
+let template_name = ensure_yaml_name(req.args?.template_name || '');
+let enabled = (req.args?.enabled || '') == '0' ? '0' : '1';
+
+if (!sub_name)
+return { success: false, error: 'invalid_sub_name', message: '订阅名称无效' };
+
+if (!template_name) {
+let keep = [];
+for (let row in read_template_bindings()) {
+if (row.sub_name != sub_name)
+push(keep, row);
+}
+if (!write_template_bindings(keep))
+return { success: false, error: 'write_failed', message: '保存绑定失败' };
+return { success: true, message: '已移除模板绑定' };
+}
+
+if (!access(SUB_DIR + '/' + sub_name, 'r'))
+return { success: false, error: 'sub_not_found', message: '订阅文件不存在' };
+if (!access(TEMPLATE_DIR + '/' + template_name, 'r'))
+return { success: false, error: 'template_not_found', message: '模板文件不存在' };
+
+let rows = read_template_bindings();
+let updated = false;
+for (let i = 0; i < length(rows); i++) {
+if (rows[i].sub_name != sub_name) continue;
+rows[i].template_name = template_name;
+rows[i].enabled = enabled;
+updated = true;
+break;
+}
+if (!updated)
+push(rows, { sub_name, template_name, enabled });
+
+if (!write_template_bindings(rows))
+return { success: false, error: 'write_failed', message: '保存绑定失败' };
+
+return { success: true, message: '模板绑定已保存' };
+}
+},
+
+apply_template_for_sub: {
+args: { sub_name: 'sub_name', template_name: 'template_name', set_active: 'set_active' },
+call: function(req) {
+let sub_name = ensure_yaml_name(req.args?.sub_name || '');
+let template_name = ensure_yaml_name(req.args?.template_name || '');
+let set_active = (req.args?.set_active || '') == '1';
+
+if (!sub_name)
+return { success: false, error: 'invalid_sub_name', message: '订阅名称无效' };
+
+let sub_path = SUB_DIR + '/' + sub_name;
+if (!access(sub_path, 'r'))
+return { success: false, error: 'sub_not_found', message: '订阅文件不存在' };
+
+if (!template_name) {
+let b = find_template_binding(sub_name);
+if (!b || b.enabled != '1')
+return { success: false, error: 'binding_not_found', message: '未找到启用的模板绑定' };
+template_name = b.template_name;
+}
+
+let template_path = TEMPLATE_DIR + '/' + template_name;
+if (!access(template_path, 'r'))
+return { success: false, error: 'template_not_found', message: '模板文件不存在' };
+
+let output_name = template_output_name(sub_name, template_name);
+let out_path = TEMPLATE_DIR + '/' + output_name;
+let cmd = 'sh /usr/share/clash/template_merge.sh '
+  + shell_quote(sub_path) + ' '
+  + shell_quote(template_path) + ' '
+  + shell_quote(out_path);
+
+if (system(cmd + ' >/dev/null 2>&1') != 0)
+return { success: false, error: 'merge_failed', message: '模板复写生成失败，请检查模板内容' };
+
+if (set_active) {
+let c = cursor();
+c.load('clash');
+c.set('clash', 'config', 'use_config', out_path);
+c.set('clash', 'config', 'config_type', '3');
+c.commit('clash');
+if (is_running())
+system('service clash restart >/dev/null 2>&1');
+}
+
+return {
+success: true,
+output_name,
+output_path: out_path,
+template_name,
+message: '模板复写生成成功: ' + output_name
+};
+}
+},
+
+apply_enabled_template_bindings: {
+args: { set_active: 'set_active' },
+call: function(req) {
+let set_active = (req.args?.set_active || '') == '1';
+let rows = read_template_bindings();
+let done = [];
+let failed = [];
+
+for (let row in rows) {
+if (row.enabled != '1') continue;
+let sub_path = SUB_DIR + '/' + row.sub_name;
+let template_path = TEMPLATE_DIR + '/' + row.template_name;
+if (!access(sub_path, 'r') || !access(template_path, 'r')) {
+push(failed, row.sub_name);
+continue;
+}
+
+let output_name = template_output_name(row.sub_name, row.template_name);
+let out_path = TEMPLATE_DIR + '/' + output_name;
+let cmd = 'sh /usr/share/clash/template_merge.sh '
+  + shell_quote(sub_path) + ' '
+  + shell_quote(template_path) + ' '
+  + shell_quote(out_path)
+  + ' >/dev/null 2>&1';
+
+if (system(cmd) == 0) {
+push(done, row.sub_name);
+if (set_active) {
+let current = uci_get('clash', 'config', 'use_config');
+if (replace(current || '', /^.*\//, '') == row.sub_name) {
+let c = cursor();
+c.load('clash');
+c.set('clash', 'config', 'use_config', out_path);
+c.set('clash', 'config', 'config_type', '3');
+c.commit('clash');
+}
+}
+}
+else {
+push(failed, row.sub_name);
+}
+}
+
+if (set_active && is_running())
+system('service clash restart >/dev/null 2>&1');
+
+return {
+success: length(failed) == 0,
+done,
+failed,
+message: '模板生成完成: 成功 ' + length(done) + '，失败 ' + length(failed)
+};
+}
+},
+
 list_dir_files: {
 args: { type: 'type' },
 call: function(req) {
@@ -732,8 +962,8 @@ return { success: true };
 
 update_china_ip: {
 call: function() {
-system('sh /usr/share/clash/update_china_ip.sh >/dev/null 2>&1 &');
-return { success: true };
+/* Surface CN whitelist update progress in update log panel. */
+return { success: system('sh /usr/share/clash/rpc_update_china_ip_async.sh >/dev/null 2>&1') == 0 };
 }
 },
 
@@ -754,8 +984,38 @@ let c = cursor(); c.load('clash');
 c.set('clash', 'config', 'config_update_name', name);
 c.commit('clash');
 let rc = system('sh /usr/share/clash/update.sh >/dev/null 2>&1');
-let msg = rc == 0 ? ('更新完成: ' + name) : ('更新失败: ' + name);
-return { success: rc == 0, code: rc, message: msg };
+if (rc != 0) {
+return { success: false, code: rc, message: '更新失败: ' + name };
+}
+
+let msg = '更新完成: ' + name;
+let b = find_template_binding(name);
+if (b && b.enabled == '1' && access(TEMPLATE_DIR + '/' + b.template_name, 'r')) {
+let sub_path = SUB_DIR + '/' + name;
+let output_name = template_output_name(name, b.template_name);
+let out_path = TEMPLATE_DIR + '/' + output_name;
+let merge_cmd = 'sh /usr/share/clash/template_merge.sh '
+  + shell_quote(sub_path) + ' '
+  + shell_quote(TEMPLATE_DIR + '/' + b.template_name) + ' '
+  + shell_quote(out_path)
+  + ' >/dev/null 2>&1';
+if (system(merge_cmd) == 0) {
+let current = c.get('clash', 'config', 'use_config') || '';
+if (replace(current, /^.*\//, '') == name) {
+c.set('clash', 'config', 'use_config', out_path);
+c.set('clash', 'config', 'config_type', '3');
+c.commit('clash');
+if (is_running())
+system('service clash restart >/dev/null 2>&1');
+}
+msg = msg + '，模板已生成';
+}
+else {
+msg = msg + '，模板生成失败';
+}
+}
+
+return { success: true, code: rc, message: msg };
 }
 },
 

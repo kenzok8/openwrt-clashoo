@@ -281,7 +281,7 @@ config_type=$(uci get clash.config.config_type 2>/dev/null)
 		auto_update_time=$(uci get clash.config.auto_update_time 2>/dev/null)
 		echo "$auto_update_time" | grep -Eq '^[0-9]+$' || auto_update_time=12
 		[ "$auto_update_time" -lt 1 ] && auto_update_time=12
-		[ -z "$(grep -w "/usr/share/clash/update_all.sh" "$CRON_FILE")" ] && echo "0 */$auto_update_time * * * sh /usr/share/clash/update_all.sh >/usr/share/clash/clash.txt 2>&1 &" >> "$CRON_FILE"
+		[ -z "$(grep -w "/usr/share/clash/update_all.sh" "$CRON_FILE")" ] && echo "0 */$auto_update_time * * * sh /usr/share/clash/update_all.sh >/dev/null 2>&1 &" >> "$CRON_FILE"
 	fi
 	
 	auto_geoip=$(uci get clash.config.auto_update_geoip 2>/dev/null)
@@ -330,21 +330,21 @@ log_msg "Checking Config file" "正在检查配置文件"
 
 if [ -f "$CONFIG_YAML_PATH" ] && [ -s "$CONFIG_YAML_PATH" ];then
 
-	cp $CONFIG_YAML_PATH $CONFIG_YAML 2>/dev/null
+	cp "$CONFIG_YAML_PATH" "$CONFIG_YAML" 2>/dev/null
 	
 elif [ ! -f "$CONFIG_YAML_PATH" ] && [ ! -f "$CONFIG_YAML" ];then
 
 		log_msg "No config found" "找不到配置文章"
 		sleep 5
 		echo "Clashoo" >$REAL_LOG
-		exit 0	
+		return 1	
 	
 elif [ ! -s "$CONFIG_YAML_PATH" ] && [ ! -s "$CONFIG_YAML" ];then
 
 		log_msg "Your Config File is Empty" "你的config.yaml有问题还是为了空"
 		sleep 5
 		echo "Clashoo" >$REAL_LOG
-		exit 0	
+		return 1	
 		
 fi
 
@@ -540,12 +540,44 @@ smart_inject() {
 	' "$CONFIG_YAML" > /tmp/_smart_inject.yaml && mv /tmp/_smart_inject.yaml "$CONFIG_YAML"
 	rm -f "$PRIORITY_TMP" 2>/dev/null
 
-	# Step 4: profile.smart-collector-size (under profile: section)
-	if grep -q '^profile:' "$CONFIG_YAML"; then
-		if grep -q '^  smart-collector-size:' "$CONFIG_YAML"; then
-			sed -i "s/^  smart-collector-size:.*/  smart-collector-size: ${smart_collect_size}/" "$CONFIG_YAML" 2>/dev/null
+	# Step 4: profile.smart-collector-size (preserve profile child indentation from source YAML)
+	if grep -q '^profile:[ 	]*$' "$CONFIG_YAML"; then
+		profile_indent="$(
+			awk '
+			/^profile:[ \t]*$/ {
+				while (getline > 0) {
+					if ($0 ~ /^[ \t]*$/) {
+						continue
+					}
+					if ($0 ~ /^[^ \t]/) {
+						break
+					}
+					match($0, /^[ \t]+/)
+					print substr($0, RSTART, RLENGTH)
+					exit
+				}
+			}
+			' "$CONFIG_YAML"
+		)"
+		[ -n "$profile_indent" ] || profile_indent="  "
+
+		if grep -q '^[ 	]*smart-collector-size:[ 	]*' "$CONFIG_YAML"; then
+			awk -v indent="$profile_indent" -v size="$smart_collect_size" '
+			/^[ \t]*smart-collector-size:[ \t]*/ {
+				print indent "smart-collector-size: " size
+				next
+			}
+			{ print }
+			' "$CONFIG_YAML" > /tmp/_smart_profile.yaml && mv /tmp/_smart_profile.yaml "$CONFIG_YAML"
 		else
-			sed -i "/^profile:/a\\  smart-collector-size: ${smart_collect_size}" "$CONFIG_YAML" 2>/dev/null
+			awk -v indent="$profile_indent" -v size="$smart_collect_size" '
+			/^profile:[ \t]*$/ {
+				print
+				print indent "smart-collector-size: " size
+				next
+			}
+			{ print }
+			' "$CONFIG_YAML" > /tmp/_smart_profile.yaml && mv /tmp/_smart_profile.yaml "$CONFIG_YAML"
 		fi
 	else
 		printf '\nprofile:\n  store-selected: true\n  smart-collector-size: %s\n' "$smart_collect_size" >> "$CONFIG_YAML"
@@ -964,7 +996,10 @@ fi
 if [ "${enable:-0}" -eq 1 ]; then
  	log_msg "Starting Client" "启动客户端"
 	sleep 1
-	select_config >/dev/null 2>&1
+	if ! select_config >/dev/null 2>&1; then
+		_log_runtime_error "Config file is missing or empty; please import a subscription/config first"
+		return 1
+	fi
 	sleep 1
 	
 	if ! _require_runtime_network_stack; then
