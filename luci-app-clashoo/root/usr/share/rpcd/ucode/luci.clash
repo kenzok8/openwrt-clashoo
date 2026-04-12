@@ -1065,6 +1065,17 @@ let tmp_path = '/tmp/clash_rewrite_merged.yaml';
 
 system('mkdir -p ' + shell_quote(out_dir));
 
+/* Template mode: when rewrite file comes from custom dir, prefer template merge workflow. */
+if (rewrite_type == '3' && access('/usr/share/clash/template_merge.sh', 'x')) {
+let tcmd = 'sh /usr/share/clash/template_merge.sh '
+  + shell_quote(base_path) + ' '
+  + shell_quote(rewrite_path) + ' '
+  + shell_quote(out_path)
+  + ' >/dev/null 2>&1';
+if (system(tcmd) != 0)
+return { success: false, error: 'merge_failed', message: '模板复写失败，请检查模板内容与订阅格式' };
+}
+else {
 if (system('command -v yq >/dev/null 2>&1') != 0)
 return { success: false, error: 'missing_yq', message: '缺少 yq，无法执行复写' };
 
@@ -1088,6 +1099,7 @@ return { success: false, error: 'invalid_runtime_yaml', message: '复写结果�
 
 if (system('mv -f ' + shell_quote(tmp_path) + ' ' + shell_quote(out_path)) != 0)
 return { success: false, error: 'write_failed', message: '写入复写文件失败' };
+}
 
 if (set_active) {
 let c = cursor();
