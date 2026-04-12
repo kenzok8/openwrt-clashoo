@@ -140,7 +140,7 @@ return view.extend({
         o = s.option(form.Value, 'smart_policy_priority', '策略权重（Policy Priority）');
         o.placeholder = 'Premium:0.9;SG:1.3';
         o.rmempty = true;
-        o.description = '节点权重加成，&lt;1 表示较低优先级，&gt;1 表示较高优先级，默认为 1，匹配模式支持 Regex 和字符串';
+        o.description = '节点权重加成，格式示例：Premium:0.9;SG:1.3。&lt;1 表示较低优先级，&gt;1 表示较高优先级，默认为 1，匹配模式支持 Regex 和字符串';
 
         o = s.option(form.Flag, 'smart_prefer_asn', '<span style="color:#e06c75;font-weight:bold">ASN 优先</span>');
         o.rmempty = false;
