@@ -313,16 +313,17 @@ return view.extend({
                 .map(function (f) { return f.name; })
                 .filter(function (name) { return !/^_merged_/.test(name); });
 
-            let rowStyle = 'display:flex;align-items:center;margin:8px 0';
-            let labelStyle = 'min-width:108px;flex-shrink:0;font-weight:500';
-            let inputGroupStyle = 'display:flex;align-items:center;gap:8px;flex:1;flex-wrap:wrap';
+            let bodyStyle = 'max-width:980px;margin:0 auto;padding:0 10px 12px;box-sizing:border-box';
+            let rowStyle = 'display:flex;align-items:center;gap:14px;margin:10px 0;flex-wrap:wrap';
+            let labelStyle = 'width:120px;flex:0 0 120px;font-weight:600';
+            let controlStyle = 'flex:1;min-width:320px;max-width:640px';
 
-            let subSel = E('select', { class: 'cbi-input-select', style: 'min-width:260px' },
+            let subSel = E('select', { class: 'cbi-input-select', style: 'width:100%;max-width:640px' },
                 subs.length ? subs.map(function (n, i) { return E('option', { value: n, selected: i === 0 }, n); })
                             : [E('option', { value: '' }, _('暂无订阅'))]
             );
 
-            let templateSel = E('select', { class: 'cbi-input-select', style: 'min-width:260px' },
+            let templateSel = E('select', { class: 'cbi-input-select', style: 'width:100%;max-width:640px' },
                 [E('option', { value: '' }, _('请选择模板文件'))].concat(
                     templates.map(function (n, i) { return E('option', { value: n, selected: i === 0 }, n); })
                 )
@@ -351,7 +352,7 @@ return view.extend({
                 refreshOutputHint();
             }
 
-            let uploadInput = E('input', { type: 'file', accept: '.yaml,.yml', style: 'max-width:260px' });
+            let uploadInput = E('input', { type: 'file', accept: '.yaml,.yml', style: 'flex:1;min-width:260px;max-width:420px' });
             let uploadBtn = E('button', { type: 'button', class: 'btn cbi-button cbi-button-action' }, _('本地上传模板'));
             uploadBtn.addEventListener('click', function () {
                 let files = uploadInput.files;
@@ -375,11 +376,11 @@ return view.extend({
             });
 
             let remoteUrl = E('input', {
-                type: 'text', class: 'cbi-input-text', style: 'flex:1;min-width:260px',
+                type: 'text', class: 'cbi-input-text', style: 'flex:1;min-width:280px;max-width:640px',
                 placeholder: 'https://example.com/fx.yaml'
             });
             let remoteName = E('input', {
-                type: 'text', class: 'cbi-input-text', style: 'width:180px',
+                type: 'text', class: 'cbi-input-text', style: 'width:220px',
                 placeholder: _('模板文件名（可选）')
             });
             let remoteBtn = E('button', { type: 'button', class: 'btn cbi-button cbi-button-action' }, _('远程拉取模板'));
@@ -441,24 +442,32 @@ return view.extend({
                 E('h3', {}, _('复写设置')),
                 E('p', { class: 'cbi-value-description', style: 'margin:0 10px 10px' },
                     _('模板复写仅两步：上传/拉取模板，然后对订阅应用复写并生成新文件（示例：a.yaml + fx.yaml = a_fx.yaml）。')),
-                E('div', { style: rowStyle + ';padding:0 10px;box-sizing:border-box' }, [
-                    E('span', { style: labelStyle }, _('订阅文件')),
-                    E('div', { style: inputGroupStyle }, [subSel])
-                ]),
-                E('div', { style: rowStyle + ';padding:0 10px;box-sizing:border-box' }, [
-                    E('span', { style: labelStyle }, _('模板选择')),
-                    E('div', { style: inputGroupStyle }, [templateSel])
-                ]),
-                E('div', { style: rowStyle + ';padding:0 10px;box-sizing:border-box' }, [
-                    E('span', { style: labelStyle }, _('本地上传')),
-                    E('div', { style: inputGroupStyle }, [uploadInput, uploadBtn])
-                ]),
-                E('div', { style: rowStyle + ';padding:0 10px;box-sizing:border-box' }, [
-                    E('span', { style: labelStyle }, _('远程拉取')),
-                    E('div', { style: inputGroupStyle }, [remoteUrl, remoteName, remoteBtn])
-                ]),
-                E('div', { style: 'padding:0 10px 10px;box-sizing:border-box' }, [outputHint]),
-                E('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;padding:0 10px 10px;box-sizing:border-box' }, [applyBtn, applyActivateBtn])
+                E('div', { style: bodyStyle }, [
+                    E('div', { style: rowStyle }, [
+                        E('span', { style: labelStyle }, _('订阅文件')),
+                        E('div', { style: controlStyle }, [subSel])
+                    ]),
+                    E('div', { style: rowStyle }, [
+                        E('span', { style: labelStyle }, _('模板选择')),
+                        E('div', { style: controlStyle }, [templateSel])
+                    ]),
+                    E('div', { style: rowStyle }, [
+                        E('span', { style: labelStyle }, _('本地上传')),
+                        E('div', { style: controlStyle + ';display:flex;align-items:center;gap:10px;flex-wrap:wrap' }, [uploadInput, uploadBtn])
+                    ]),
+                    E('div', { style: rowStyle }, [
+                        E('span', { style: labelStyle }, _('远程拉取')),
+                        E('div', { style: controlStyle + ';display:flex;align-items:center;gap:10px;flex-wrap:wrap;max-width:none' }, [remoteUrl, remoteName, remoteBtn])
+                    ]),
+                    E('div', { style: rowStyle + ';margin-top:4px' }, [
+                        E('span', { style: labelStyle }, ''),
+                        E('div', { style: controlStyle + ';color:#7f8a98;font-size:.95rem' }, [outputHint])
+                    ]),
+                    E('div', { style: rowStyle + ';margin-top:0' }, [
+                        E('span', { style: labelStyle }, ''),
+                        E('div', { style: controlStyle + ';display:flex;gap:10px;flex-wrap:wrap' }, [applyBtn, applyActivateBtn])
+                    ])
+                ])
             ]));
         };
 
