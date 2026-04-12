@@ -169,6 +169,16 @@ DNS_STATE_NORESOLV_FILE="${DNS_STATE_DIR}/dnsmasq_noresolv.before"
 DNS_STATE_CACHE_FILE="${DNS_STATE_DIR}/dnsmasq_cachesize.before"
 DNS_STATE_RESOLV_FILE="${DNS_STATE_DIR}/dnsmasq_resolvfile.before"
 
+cleanup_legacy_startup_backups() {
+#===========================================================================================================================
+	# Historical backup artifacts can clutter LuCI "System -> Startup".
+	# Keep runtime clean by removing known obsolete backup filenames.
+	rm -f /etc/init.d/._clash \
+	      /etc/init.d/._* \
+	      /etc/init.d/*bak* >/dev/null 2>&1 || true
+#===========================================================================================================================
+}
+
 backup_dnsmasq_state() {
 #===========================================================================================================================
 	[ -f "$DNS_STATE_SERVER_FILE" ] && return 0
@@ -1047,6 +1057,8 @@ enable=$(uci get clash.config.enable 2>/dev/null)
 core=$(uci get clash.config.core 2>/dev/null)
 mode=$(uci get clash.config.mode 2>/dev/null)
 tun_mode=$(uci get clash.config.tun_mode 2>/dev/null)
+
+cleanup_legacy_startup_backups
 
 if _openclash_conflict; then
 	_log_runtime_error "OpenClash is enabled; skip Clashoo start to avoid firewall/DNS conflicts"
