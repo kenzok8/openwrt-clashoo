@@ -36,7 +36,7 @@ jobs:
           - "25.12"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Build packages
         uses: openwrt/gh-action-sdk@main
@@ -77,7 +77,7 @@ jobs:
           done
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: packages-sdk${{ matrix.sdk }}-${{ matrix.arch }}
           path: dist/
@@ -92,7 +92,7 @@ jobs:
 
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           path: all-artifacts
           pattern: packages-*
@@ -180,7 +180,7 @@ jobs:
 
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           path: artifacts
           pattern: packages-*
