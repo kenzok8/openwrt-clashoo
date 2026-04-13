@@ -15,7 +15,7 @@ while IFS='#' read -r filename _url _type; do
 	uci set clash.config.config_update_name="$filename"
 	uci commit clash
 	log_update "自动更新订阅：${filename}"
-	sh /usr/share/clash/update.sh >/dev/null 2>&1
+	sh /usr/share/clash/update/update.sh >/dev/null 2>&1
 done < "$LIST_FILE"
 log_update "自动更新任务完成"
 

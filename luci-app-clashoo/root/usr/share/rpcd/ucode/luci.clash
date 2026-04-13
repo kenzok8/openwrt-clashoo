@@ -355,7 +355,7 @@ return { success: system('service clash reload >/dev/null 2>&1') == 0 };
 restart: {
 call: function() {
 /* Run via wrapper to ensure immediate RPC return on busybox/rpcd environments. */
-	return { success: system('sh /usr/share/clash/rpc_async.sh restart >/dev/null 2>&1') == 0 };
+	return { success: system('sh /usr/share/clash/rpc/rpc_async.sh restart >/dev/null 2>&1') == 0 };
 }
 },
 
@@ -447,7 +447,7 @@ update_panel: {
 args: { name: 'name' },
 call: function(req) {
 let name = req.args?.name || 'metacubexd';
-system("sh /usr/share/clash/panel_download.sh '" + name + "' >/dev/null 2>&1 &");
+system("sh /usr/share/clash/update/panel_download.sh '" + name + "' >/dev/null 2>&1 &");
 return { success: true };
 }
 },
@@ -525,14 +525,14 @@ return { arch: get_cpu_arch() };
 
 download_core: {
 call: function() {
-system('sh /usr/share/clash/core_download.sh >>/usr/share/clash/clash.txt 2>&1 &');
+system('sh /usr/share/clash/update/core_download.sh >>/usr/share/clash/clash.txt 2>&1 &');
 return { success: true };
 }
 },
 
 update_geoip: {
 call: function() {
-system('sh /usr/share/clash/geoip.sh >/tmp/geoip_update.txt 2>&1 &');
+system('sh /usr/share/clash/update/geoip.sh >/tmp/geoip_update.txt 2>&1 &');
 return { success: true };
 }
 },
@@ -611,7 +611,7 @@ return { success: writefile('/tmp/geoip_update.txt', '') !== null };
 access_check: {
 call: function() {
 function probe(url) {
-let p = popen("/usr/share/clash/access_check.sh '" + url + "' 2>/dev/null");
+let p = popen("/usr/share/clash/net/access_check.sh '" + url + "' 2>/dev/null");
 let raw = '';
 if (p) { raw = trim(p.read('all')); p.close(); }
 let ok = 0;
@@ -783,7 +783,7 @@ return { success: false, error: 'template_not_found', message: '模板文件不�
 
 let output_name = template_output_name(sub_name, template_name);
 let out_path = TEMPLATE_DIR + '/' + output_name;
-let cmd = 'sh /usr/share/clash/template_merge.sh '
+let cmd = 'sh /usr/share/clash/update/template_merge.sh '
   + shell_quote(sub_path) + ' '
   + shell_quote(template_path) + ' '
   + shell_quote(out_path);
@@ -830,7 +830,7 @@ continue;
 
 let output_name = template_output_name(row.sub_name, row.template_name);
 let out_path = TEMPLATE_DIR + '/' + output_name;
-let cmd = 'sh /usr/share/clash/template_merge.sh '
+let cmd = 'sh /usr/share/clash/update/template_merge.sh '
   + shell_quote(sub_path) + ' '
   + shell_quote(template_path) + ' '
   + shell_quote(out_path)
@@ -965,13 +965,13 @@ return { success: true };
 update_china_ip: {
 call: function() {
 /* Surface CN whitelist update progress in update log panel. */
-	return { success: system('sh /usr/share/clash/rpc_async.sh update_china_ip >/dev/null 2>&1') == 0 };
+	return { success: system('sh /usr/share/clash/rpc/rpc_async.sh update_china_ip >/dev/null 2>&1') == 0 };
 }
 },
 
 download_subs: {
 call: function() {
-let rc = system('sh /usr/share/clash/clash.sh >/dev/null 2>&1');
+let rc = system('sh /usr/share/clash/runtime/clash.sh >/dev/null 2>&1');
 let msg = rc == 0 ? '订阅下载完成' : '订阅下载失败';
 return { success: rc == 0, code: rc, message: msg };
 }
@@ -985,7 +985,7 @@ if (!name) return { error: 'missing name' };
 let c = cursor(); c.load('clash');
 c.set('clash', 'config', 'config_update_name', name);
 c.commit('clash');
-let rc = system('sh /usr/share/clash/update.sh >/dev/null 2>&1');
+let rc = system('sh /usr/share/clash/update/update.sh >/dev/null 2>&1');
 if (rc != 0) {
 return { success: false, code: rc, message: '更新失败: ' + name };
 }
@@ -996,7 +996,7 @@ if (b && b.enabled == '1' && access(TEMPLATE_DIR + '/' + b.template_name, 'r')) 
 let sub_path = SUB_DIR + '/' + name;
 let output_name = template_output_name(name, b.template_name);
 let out_path = TEMPLATE_DIR + '/' + output_name;
-let merge_cmd = 'sh /usr/share/clash/template_merge.sh '
+let merge_cmd = 'sh /usr/share/clash/update/template_merge.sh '
   + shell_quote(sub_path) + ' '
   + shell_quote(TEMPLATE_DIR + '/' + b.template_name) + ' '
   + shell_quote(out_path)
@@ -1067,7 +1067,7 @@ system('mkdir -p ' + shell_quote(out_dir));
 
 /* Template mode: when rewrite file comes from custom dir, always prefer template merge workflow. */
 if (rewrite_type == '3' || rewrite_type == 'custom' || rewrite_dir == '/usr/share/clash/config/custom') {
-let tcmd = 'sh /usr/share/clash/template_merge.sh '
+let tcmd = 'sh /usr/share/clash/update/template_merge.sh '
   + shell_quote(base_path) + ' '
   + shell_quote(rewrite_path) + ' '
   + shell_quote(out_path)
@@ -1211,7 +1211,7 @@ return { success: (code == '204' || code == '200'), code };
 
 smart_upgrade_lgbm: {
 call: function() {
-system('sh /usr/share/clash/lgbm_update.sh >/tmp/lgbm_update.log 2>&1 &');
+system('sh /usr/share/clash/update/lgbm_update.sh >/tmp/lgbm_update.log 2>&1 &');
 return { success: true };
 }
 },

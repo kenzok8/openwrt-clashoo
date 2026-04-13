@@ -61,6 +61,11 @@ define Package/clashoo/install
 	$(INSTALL_DIR) $(1)/etc/clash/proxyprovider
 	$(INSTALL_DIR) $(1)/etc/clash/ruleprovider
 	$(INSTALL_DIR) $(1)/usr/share/clash
+	$(INSTALL_DIR) $(1)/usr/share/clash/runtime
+	$(INSTALL_DIR) $(1)/usr/share/clash/update
+	$(INSTALL_DIR) $(1)/usr/share/clash/net
+	$(INSTALL_DIR) $(1)/usr/share/clash/rpc
+	$(INSTALL_DIR) $(1)/usr/share/clash/lib
 	$(INSTALL_DIR) $(1)/usr/share/clashbackup
 	$(INSTALL_DIR) $(1)/usr/share/clash/config
 	$(INSTALL_DIR) $(1)/usr/share/clash/config/sub
@@ -82,6 +87,10 @@ define Package/clashoo/postinst
 #!/bin/sh
 if [ -z "${IPKG_INSTROOT}" ]; then
 	[ -x /usr/bin/mihomo ] && [ ! -x /usr/bin/clash-meta ] && ln -sf /usr/bin/mihomo /usr/bin/clash-meta
+	rm -f /usr/share/clash/check_luci_version.sh /usr/share/clash/check_clash_meta_version.sh /usr/share/clash/check_mihomo_core_version.sh
+	rm -f /usr/share/clash/cuslist.sh /usr/share/clash/groups.sh /usr/share/clash/load_groups.sh /usr/share/clash/panel_diag.sh
+	rm -f /usr/share/clash/rmlist.sh /usr/share/clash/uplist.sh /usr/share/clash/rpc_restart_async.sh /usr/share/clash/rpc_update_china_ip_async.sh
+	rm -rf /usr/share/clash/create
 	/etc/init.d/clash disable 2>/dev/null
 fi
 exit 0

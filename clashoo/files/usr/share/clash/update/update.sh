@@ -81,12 +81,12 @@ need_restart=0
 new_use_config=""
 new_config_type=""
 
-if [ -f "$TEMPLATE_BIND_FILE" ] && [ -x /usr/share/clash/template_merge.sh ]; then
+if [ -f "$TEMPLATE_BIND_FILE" ] && [ -x /usr/share/clash/update/template_merge.sh ]; then
 	template_name="$(awk -F '#' -v n="$config_name" '$1==n && ($3=="1" || $3=="true") {print $2; exit}' "$TEMPLATE_BIND_FILE" 2>/dev/null)"
 	if [ -n "$template_name" ] && [ -f "${TEMPLATE_DIR}/${template_name}" ]; then
 		merged_name="$(template_output_name "$config_name" "$template_name")"
 		merged_path="${TEMPLATE_DIR}/${merged_name}"
-		if sh /usr/share/clash/template_merge.sh "$target_file" "${TEMPLATE_DIR}/${template_name}" "$merged_path" >/dev/null 2>&1; then
+		if sh /usr/share/clash/update/template_merge.sh "$target_file" "${TEMPLATE_DIR}/${template_name}" "$merged_path" >/dev/null 2>&1; then
 			log_update "模板生成成功：${merged_name}"
 			if [ "$use_config" = "$target_file" ] || [ "$use_config" = "$merged_path" ]; then
 				new_use_config="$merged_path"

@@ -11,7 +11,7 @@ case "$ACTION" in
     ;;
   update_china_ip)
     echo "[china-ip] task started" >>"$LOG_FILE"
-    nohup /usr/share/clash/update_china_ip.sh >>"$LOG_FILE" 2>&1 </dev/null &
+    nohup /usr/share/clash/update/update_china_ip.sh >>"$LOG_FILE" 2>&1 </dev/null &
     exit 0
     ;;
   *)

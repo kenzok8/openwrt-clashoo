@@ -113,7 +113,7 @@ fi
 
 case "$bypass_china" in
 	1|true|TRUE|yes|on)
-		if /usr/share/clash/fw4.sh apply >/dev/null 2>&1; then
+		if /usr/share/clash/net/fw4.sh apply >/dev/null 2>&1; then
 			log '大陆白名单规则已重载'
 		else
 			log '大陆白名单规则重载失败'

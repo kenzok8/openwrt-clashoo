@@ -21,7 +21,7 @@ backend_name() {
 
 backend_apply_rules() {
 	if use_fw4_backend; then
-		/usr/share/clash/fw4.sh apply
+		/usr/share/clash/net/fw4.sh apply
 	else
 		_log_runtime_error "Current environment requires fw4+nft support"
 		return 1
@@ -30,7 +30,7 @@ backend_apply_rules() {
 
 backend_remove_rules() {
 	if use_fw4_backend; then
-		/usr/share/clash/fw4.sh remove
+		/usr/share/clash/net/fw4.sh remove
 	else
 		return 0
 	fi
@@ -276,8 +276,8 @@ revert_dns() {
 add_cron(){
 config_type=$(uci get clash.config.config_type 2>/dev/null)
 #===========================================================================================================================
-	[ -z "$(grep -w "/usr/share/clash/clash-watchdog.sh" "$CRON_FILE")" ] && echo "*/3 * * * * /usr/share/clash/clash-watchdog.sh" >> "$CRON_FILE"
-	[ -z "$(grep -w "/usr/share/clash/kill_watchdog.sh" "$CRON_FILE")" ] && echo "*/1 * * * * /usr/share/clash/kill_watchdog.sh" >> "$CRON_FILE"
+	[ -z "$(grep -w "/usr/share/clash/runtime/clash-watchdog.sh" "$CRON_FILE")" ] && echo "*/3 * * * * /usr/share/clash/runtime/clash-watchdog.sh" >> "$CRON_FILE"
+	[ -z "$(grep -w "/usr/share/clash/runtime/kill_watchdog.sh" "$CRON_FILE")" ] && echo "*/1 * * * * /usr/share/clash/runtime/kill_watchdog.sh" >> "$CRON_FILE"
 	clear=$(uci get clash.config.auto_clear_log 2>/dev/null)
 	if [ "${clear:-0}" -eq 1 ]; then
 		clear_time=$(uci get clash.config.clear_time 2>/dev/null)
@@ -291,7 +291,7 @@ config_type=$(uci get clash.config.config_type 2>/dev/null)
 		auto_update_time=$(uci get clash.config.auto_update_time 2>/dev/null)
 		echo "$auto_update_time" | grep -Eq '^[0-9]+$' || auto_update_time=12
 		[ "$auto_update_time" -lt 1 ] && auto_update_time=12
-		[ -z "$(grep -w "/usr/share/clash/update_all.sh" "$CRON_FILE")" ] && echo "0 */$auto_update_time * * * sh /usr/share/clash/update_all.sh >/dev/null 2>&1 &" >> "$CRON_FILE"
+		[ -z "$(grep -w "/usr/share/clash/update/update_all.sh" "$CRON_FILE")" ] && echo "0 */$auto_update_time * * * sh /usr/share/clash/update/update_all.sh >/dev/null 2>&1 &" >> "$CRON_FILE"
 	fi
 	
 	auto_geoip=$(uci get clash.config.auto_update_geoip 2>/dev/null)
@@ -305,7 +305,7 @@ config_type=$(uci get clash.config.config_type 2>/dev/null)
 		[ "$geoip_hour" -gt 23 ] && geoip_hour=3
 		echo "$geoip_interval" | grep -Eq '^[0-9]+$' || geoip_interval=7
 		[ "$geoip_interval" -lt 1 ] && geoip_interval=7
-		[ -z "$(grep -w "/usr/share/clash/geoip.sh" "$CRON_FILE")" ] && echo "0 $geoip_hour */$geoip_interval * * /usr/share/clash/geoip.sh" >> "$CRON_FILE"
+		[ -z "$(grep -w "/usr/share/clash/update/geoip.sh" "$CRON_FILE")" ] && echo "0 $geoip_hour */$geoip_interval * * /usr/share/clash/update/geoip.sh" >> "$CRON_FILE"
 	fi
 	lgbm_auto=$(uci get clash.config.smart_lgbm_auto_update 2>/dev/null)
 	if [ "${lgbm_auto:-0}" -eq 1 ]; then
@@ -314,7 +314,7 @@ config_type=$(uci get clash.config.config_type 2>/dev/null)
 		[ "$lgbm_interval" -lt 1 ] && lgbm_interval=72
 		lgbm_days=$(( lgbm_interval / 24 ))
 		[ "$lgbm_days" -lt 1 ] && lgbm_days=1
-		[ -z "$(grep -w "lgbm_update.sh" "$CRON_FILE")" ] && echo "0 3 */$lgbm_days * * sh /usr/share/clash/lgbm_update.sh >/dev/null 2>&1" >> "$CRON_FILE"
+		[ -z "$(grep -w "update/lgbm_update.sh" "$CRON_FILE")" ] && echo "0 3 */$lgbm_days * * sh /usr/share/clash/update/lgbm_update.sh >/dev/null 2>&1" >> "$CRON_FILE"
 	fi
 	crontab "$CRON_FILE"
 #=========================================================================================================================== 	
@@ -322,12 +322,17 @@ config_type=$(uci get clash.config.config_type 2>/dev/null)
 
 del_cron(){
 #=========================================================================================================================== 
-	sed -i '/clash-watchdog.sh/d' "$CRON_FILE"
-	sed -i '/kill_watchdog.sh/d' "$CRON_FILE"
-	sed -i '/geoip.sh/d' "$CRON_FILE"
-	sed -i '/update_all.sh/d' "$CRON_FILE"
+	sed -i '/runtime\/clash-watchdog.sh/d' "$CRON_FILE"
+	sed -i '/\/usr\/share\/clash\/clash-watchdog.sh/d' "$CRON_FILE"
+	sed -i '/runtime\/kill_watchdog.sh/d' "$CRON_FILE"
+	sed -i '/\/usr\/share\/clash\/kill_watchdog.sh/d' "$CRON_FILE"
+	sed -i '/update\/geoip.sh/d' "$CRON_FILE"
+	sed -i '/\/usr\/share\/clash\/geoip.sh/d' "$CRON_FILE"
+	sed -i '/update\/update_all.sh/d' "$CRON_FILE"
+	sed -i '/\/usr\/share\/clash\/update_all.sh/d' "$CRON_FILE"
 	sed -i '/clash.txt/d' "$CRON_FILE"
-	sed -i '/lgbm_update.sh/d' "$CRON_FILE"
+	sed -i '/update\/lgbm_update.sh/d' "$CRON_FILE"
+	sed -i '/\/usr\/share\/clash\/lgbm_update.sh/d' "$CRON_FILE"
 	/etc/init.d/cron restart
 #=========================================================================================================================== 	
 }
@@ -474,13 +479,13 @@ yml_change() {
 		fi
 		return 0
 	fi
-	sh /usr/share/clash/yum_change.sh 2>/dev/null
+	sh /usr/share/clash/runtime/yum_change.sh 2>/dev/null
 #===========================================================================================================================
 }
 
 ip_rules() {
 #===========================================================================================================================
-	sh /usr/share/clash/iprules.sh 2>/dev/null
+	sh /usr/share/clash/runtime/iprules.sh 2>/dev/null
 #===========================================================================================================================
 }
 
@@ -733,14 +738,14 @@ check(){
 
 rules(){
 #===========================================================================================================================
-		/usr/share/clash/fw4.sh apply >/dev/null 2>&1
+		/usr/share/clash/net/fw4.sh apply >/dev/null 2>&1
 		return $?
 #=========================================================================================================================== 
 }	 
 
 
 restore() {
-	sh /usr/share/clash/restore.sh >/dev/null 2>&1
+	sh /usr/share/clash/runtime/restore.sh >/dev/null 2>&1
 }
 
 _config_needs_mmdb() {
@@ -835,7 +840,7 @@ _start_geoip_update_async() {
 		return 0
 	fi
 	touch /var/run/geoip_update >/dev/null 2>&1
-	nohup /usr/share/clash/geoip.sh >/dev/null 2>&1 &
+	nohup /usr/share/clash/update/geoip.sh >/dev/null 2>&1 &
 }
 
 _prepare_geo_bootstrap_mode() {
@@ -1109,7 +1114,7 @@ fi
 
 
 remove_mark(){
-		/usr/share/clash/fw4.sh remove >/dev/null 2>&1
+		/usr/share/clash/net/fw4.sh remove >/dev/null 2>&1
 		return 0
 }
 
@@ -1132,7 +1137,7 @@ stop(){
 		log_msg "Removing mihomo $(backend_name) rules" "清理 mihomo 网络规则"
 		sleep 1
 		
-		sh /usr/share/clash/backup.sh >/dev/null 2>&1
+		sh /usr/share/clash/runtime/backup.sh >/dev/null 2>&1
 		
 		_kill_core
 
