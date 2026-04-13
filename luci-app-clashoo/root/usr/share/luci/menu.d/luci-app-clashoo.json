@@ -6,9 +6,7 @@
       "type": "firstchild"
     },
     "depends": {
-      "acl": [
-        "luci-app-clashoo"
-      ]
+      "acl": ["luci-app-clashoo"]
     }
   },
   "admin/services/clashoo/overview": {
@@ -19,61 +17,29 @@
       "path": "clash/overview"
     },
     "depends": {
-      "acl": [
-        "luci-app-clashoo"
-      ]
-    }
-  },
-  "admin/services/clashoo/app": {
-    "title": "代理配置",
-    "order": 20,
-    "action": {
-      "type": "view",
-      "path": "clash/app"
-    },
-    "depends": {
-      "acl": [
-        "luci-app-clashoo"
-      ]
+      "acl": ["luci-app-clashoo"]
     }
   },
   "admin/services/clashoo/config": {
-    "title": "配置管理",
-    "order": 30,
+    "title": "配置",
+    "order": 20,
     "action": {
       "type": "view",
       "path": "clash/config"
     },
     "depends": {
-      "acl": [
-        "luci-app-clashoo"
-      ]
-    }
-  },
-  "admin/services/clashoo/dns": {
-    "title": "DNS 设置",
-    "order": 40,
-    "action": {
-      "type": "view",
-      "path": "clash/dns"
-    },
-    "depends": {
-      "acl": [
-        "luci-app-clashoo"
-      ]
+      "acl": ["luci-app-clashoo"]
     }
   },
   "admin/services/clashoo/system": {
-    "title": "系统设置",
-    "order": 50,
+    "title": "系统",
+    "order": 30,
     "action": {
       "type": "view",
       "path": "clash/system"
     },
     "depends": {
-      "acl": [
-        "luci-app-clashoo"
-      ]
+      "acl": ["luci-app-clashoo"]
     }
   }
 }
