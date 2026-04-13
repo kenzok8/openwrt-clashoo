@@ -314,6 +314,9 @@ return view.extend({
                     .clashoo-rewrite .rw-inline { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; max-width: 100%; }
                     .clashoo-rewrite .rw-btn { flex: 0 0 auto; white-space: nowrap; }
                     .clashoo-rewrite .rw-output { width: 100%; max-width: 320px; text-align: right; color: #7f8a98; }
+                    .clashoo-rewrite .rw-hint-row .cbi-value-title { display: none !important; }
+                    .clashoo-rewrite .rw-hint-row .cbi-value-field { margin-left: 0 !important; width: 100% !important; }
+                    .clashoo-rewrite .rw-hint-text { display: block; width: 100%; margin: 0 auto; color: #7f8a98; font-size: 12px; line-height: 1.5; text-align: center !important; }
                     .clashoo-rewrite .rw-actions { width: 100%; display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
                     @media (max-width: 1100px), (hover: none) and (pointer: coarse) {
                         .clashoo-rewrite .cbi-value-title { width: 100% !important; margin-bottom: 6px; }
@@ -452,11 +455,11 @@ return view.extend({
 
             refreshOutputHint();
 
-            function cbiRow(title, fieldNode, descNode) {
+            function cbiRow(title, fieldNode, descNode, rowClass) {
                 let fieldChildren = [fieldNode];
                 if (descNode)
                     fieldChildren.push(descNode);
-                return E('div', { class: 'cbi-value' }, [
+                return E('div', { class: 'cbi-value' + (rowClass ? (' ' + rowClass) : '') }, [
                     E('label', { class: 'cbi-value-title' }, title || ''),
                     E('div', { class: 'cbi-value-field' }, fieldChildren)
                 ]);
@@ -472,8 +475,8 @@ return view.extend({
                 cbiRow(_('远程拉取'), E('div', { class: 'rw-inline' }, [remoteUrl, remoteBtn])),
                 cbiRow(_('模板文件名'), remoteName),
                 cbiRow(_('生成文件名'), E('div', { class: 'rw-output' }, [outputHint])),
-                cbiRow('', E('div', { style: 'display:block;width:100%;color:#7f8a98;font-size:12px;line-height:1.5;text-align:center' },
-                    _('生成文件：仅写入新文件；生成并启用：写入后立即切换生效。'))),
+                cbiRow('', E('div', { class: 'rw-hint-text' },
+                    _('生成文件：仅写入新文件；生成并启用：写入后立即切换生效。')), null, 'rw-hint-row'),
                 cbiRow(_('应用操作'), E('div', { class: 'rw-actions' }, [applyBtn, applyActivateBtn]))
             ]));
         };
