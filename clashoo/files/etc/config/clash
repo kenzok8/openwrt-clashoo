@@ -25,7 +25,6 @@ config clash 'config'
 	option interf '0'
 	option download_core 'x86_64'
 	option dcore '2'
-	option provider_config '1'
 	option same_tag '1'
 	option geoip_source '2'
 	option geoip_format 'mmdb'
@@ -90,101 +89,6 @@ config hosts
 	option adress 'alpha.clash.dev'
 	option ip '::1'
 
-config conf_groups
-	option name 'Proxy'
-	option type 'select'
-
-config conf_groups
-	option name 'Domestic'
-	option type 'select'
-
-config conf_groups
-	option name 'Others'
-	option type 'select'
-
-config conf_groups
-	option name 'Netflix'
-	option type 'select'
-
-config conf_groups
-	option name 'Disney'
-	option type 'select'
-
-config conf_groups
-	option name 'YouTube'
-	option type 'select'
-
-config conf_groups
-	option name 'Spotify'
-	option type 'select'
-
-config conf_groups
-	option name 'Asian TV'
-	option type 'select'
-
-config conf_groups
-	option name 'Global TV'
-	option type 'select'
-
-config conf_groups
-	option name 'AppleAI'
-	option type 'select'
-
-config conf_groups
-	option name 'Apple'
-	option type 'select'
-
-config conf_groups
-	option name 'Apple TV'
-	option type 'select'
-
-config conf_groups
-	option name 'Telegram'
-	option type 'select'
-
-config conf_groups
-	option name 'Google FCM'
-	option type 'select'
-
-config conf_groups
-	option name 'Crypto'
-	option type 'select'
-
-config conf_groups
-	option name 'Discord'
-	option type 'select'
-
-config conf_groups
-	option name 'Microsoft'
-	option type 'select'
-
-config conf_groups
-	option name 'OpenAI'
-	option type 'select'
-
-config conf_groups
-	option name 'PayPal'
-	option type 'select'
-
-config conf_groups
-	option name 'Scholar'
-	option type 'select'
-
-config conf_groups
-	option name 'Speedtest'
-	option type 'select'
-
-config conf_groups
-	option name 'Steam'
-	option type 'select'
-
-config conf_groups
-	option name 'miHoYo'
-	option type 'select'
-
-config conf_groups
-	option name 'Auto - UrlTest'
-	option type 'url-test'
 
 config dnsservers
 	option enabled '1'
