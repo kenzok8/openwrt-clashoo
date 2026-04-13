@@ -739,10 +739,6 @@ rules(){
 }	 
 
 
-custom_list() {
-	sh /usr/share/clash/list.sh  >/dev/null 2>&1
-}
-
 restore() {
 	sh /usr/share/clash/restore.sh >/dev/null 2>&1
 }
@@ -934,8 +930,6 @@ _start_validate_core() {
 
 _start_prepare_config() {
 	check >/dev/null 2>&1
-
-	custom_list >/dev/null 2>&1
 
 	sleep 1
 

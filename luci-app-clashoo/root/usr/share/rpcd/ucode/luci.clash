@@ -355,7 +355,7 @@ return { success: system('service clash reload >/dev/null 2>&1') == 0 };
 restart: {
 call: function() {
 /* Run via wrapper to ensure immediate RPC return on busybox/rpcd environments. */
-return { success: system('sh /usr/share/clash/rpc_restart_async.sh >/dev/null 2>&1') == 0 };
+	return { success: system('sh /usr/share/clash/rpc_async.sh restart >/dev/null 2>&1') == 0 };
 }
 },
 
@@ -965,7 +965,7 @@ return { success: true };
 update_china_ip: {
 call: function() {
 /* Surface CN whitelist update progress in update log panel. */
-return { success: system('sh /usr/share/clash/rpc_update_china_ip_async.sh >/dev/null 2>&1') == 0 };
+	return { success: system('sh /usr/share/clash/rpc_async.sh update_china_ip >/dev/null 2>&1') == 0 };
 }
 },
 
