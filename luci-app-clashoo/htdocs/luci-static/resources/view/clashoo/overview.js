@@ -188,8 +188,11 @@ return view.extend({
         if (chkEl) {
           chkEl.innerHTML = '';
           [['微信', ac.wechat], ['YouTube', ac.youtube], ['Google', ac.google]].forEach(function (kv) {
-            chkEl.appendChild(E('span', { style: 'margin-right:6px' },
-              kv[0] + (kv[1] ? ' ✓' : ' ✗')));
+            var probe = kv[1] || {};
+            var ok = probe.ok === true;
+            var ms = ok && probe.avg_ms ? ' ' + probe.avg_ms + 'ms' : '';
+            chkEl.appendChild(E('span', { style: 'margin-right:8px;white-space:nowrap' },
+              kv[0] + (ok ? (' ✓' + ms) : ' ✗')));
           });
         }
         Array.from(cards.children).forEach(function (old, i) {
