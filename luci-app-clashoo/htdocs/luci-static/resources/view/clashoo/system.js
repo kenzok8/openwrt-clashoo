@@ -116,16 +116,9 @@ return view.extend({
     o = s.option(form.ListValue, 'core_arch', 'CPU 架构');
     ['amd64','arm64','armv7','armv6','armv5','386','mips','mipsle','mips64','mips64le'].forEach(function(a){ o.value(a,a); });
     if (detectedArch) o.default = detectedArch;
-    o = s.option(form.DummyValue, '_arch_hint', '');
-    o.rawattr = { style: 'padding-top:0' };
-    (function (raw, mapped) {
-      o.cfgvalue = function () {
-        if (!raw) return E('span', { style: 'font-size:11px;opacity:.5' }, '无法自动检测，请手动选择架构');
-        return E('span', { style: 'font-size:11px;opacity:.55' },
-          '检测到系统架构：' + raw + (mapped ? '  →  下载架构：' + mapped : '  （未知，请手动选择）'));
-      };
-    })(cpuArch, detectedArch);
-    o.write = function () {};
+    o.description = cpuArch
+      ? ('检测到系统架构：' + cpuArch + (detectedArch ? '  →  下载架构：' + detectedArch : '  （未知，请手动选择）'))
+      : '无法自动检测，请手动选择架构';
     o = s.option(form.ListValue, 'download_source', '镜像源');
     o.value('github', 'GitHub'); o.value('ghproxy', 'GHProxy');
     o = s.option(form.DummyValue, '_dl_btn', '');
