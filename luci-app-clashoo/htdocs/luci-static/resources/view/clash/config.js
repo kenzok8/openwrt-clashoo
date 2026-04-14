@@ -181,6 +181,20 @@ return view.extend({
     var baseSel  = mkSel(subFiles,  '选择订阅文件');
     var tplSel   = mkSel(tplFiles,  '选择模板文件');
     var tplUrlIn = E('input', { type: 'text', 'class': 'cl-sub-url', placeholder: '或输入远程模板 URL', style: 'margin-top:6px' });
+    var fetchTplBtn = E('button', { 'class': 'btn cbi-button cl-btn-sm', style: 'margin-top:6px', click: function () {
+      var url = tplUrlIn.value.trim();
+      if (!url) { ui.addNotification(null, E('p', '请输入远程模板 URL')); return; }
+      var seg = url.split('?')[0].split('/').filter(Boolean).pop();
+      var name = (seg && seg.length > 0) ? seg : 'remote-template.yaml';
+      L.resolveDefault(callFetchUrl(url, name), {}).then(function (r) {
+        if (r && r.name) {
+          ui.addNotification(null, E('p', '拉取成功: ' + r.name));
+          location.reload();
+        } else {
+          ui.addNotification(null, E('p', '拉取失败'));
+        }
+      });
+    } }, '拉取模板');
     var outNameIn= E('input', { type: 'text', 'class': 'cl-sub-url', placeholder: '输出文件名（不含扩展名）', style: 'margin-top:6px' });
 
     var rwApply = function (setActive) {
@@ -217,6 +231,7 @@ return view.extend({
         E('h4', {}, '模板复写'),
         E('div', { 'class': 'cl-rewrite-grid' }, [baseSel, tplSel]),
         tplUrlIn,
+        fetchTplBtn,
         outNameIn,
         E('div', { 'class': 'cl-actions', style: 'margin-top:8px' }, [
           E('button', { 'class': 'btn cbi-button cl-btn-sm', click: function(){ rwApply(false); } }, '生成（不切换）'),
