@@ -1,0 +1,294 @@
+'use strict';
+'require view';
+'require form';
+'require uci';
+'require ui';
+'require poll';
+'require tools.clashoo as clashoo';
+
+var CSS = [
+  '.cl-tabs{display:flex;border-bottom:2px solid rgba(128,128,128,.15);margin-bottom:18px}',
+  '.cl-tab{padding:10px 20px;cursor:pointer;font-size:13px;opacity:.55;border-bottom:2px solid transparent;margin-bottom:-2px}',
+  '.cl-tab.active{opacity:1;border-bottom-color:currentColor;font-weight:600}',
+  '.cl-panel{display:none}.cl-panel.active{display:block}',
+  '.cl-section{margin-bottom:20px}',
+  '.cl-section h4{font-size:13px;font-weight:700;margin-bottom:10px;opacity:.7}',
+  '.cl-save-bar{display:flex;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid rgba(128,128,128,.15)}',
+  '.cl-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}',
+  '.cl-log-area{font-family:monospace;font-size:11px;opacity:.75;max-height:300px;overflow-y:auto;border:1px solid rgba(128,128,128,.2);border-radius:8px;padding:10px;white-space:pre-wrap;margin-top:8px}',
+  '.cl-log-tabs{display:flex;gap:8px;margin-bottom:8px}',
+  '.cl-log-tab{padding:4px 12px;border:1px solid rgba(128,128,128,.2);border-radius:20px;font-size:12px;cursor:pointer;opacity:.6}',
+  '.cl-log-tab.active{opacity:1;font-weight:600;background:rgba(128,128,128,.1)}'
+].join('');
+
+return view.extend({
+  _tab:    'kernel',
+  _logTab: 'run',
+
+  load: function () {
+    return Promise.all([
+      clashoo.getCpuArch(),
+      clashoo.getLogStatus(),
+      clashoo.readLog(),
+      uci.load('clashoo')
+    ]);
+  },
+
+  render: function (data) {
+    var self      = this;
+    var cpuArch   = data[0] || '';
+    var logStatus = data[1] || {};
+    var runLog    = data[2] || '';
+
+    if (!document.getElementById('cl-css')) {
+      var s = document.createElement('style');
+      s.id = 'cl-css'; s.textContent = CSS;
+      document.head.appendChild(s);
+    }
+
+    var tabs = [
+      { id: 'kernel', label: '内核与数据' },
+      { id: 'rules',  label: '规则与控制' },
+      { id: 'logs',   label: '日志' }
+    ];
+    var tabEls = {}, panelEls = {};
+
+    var tabBar = E('div', { 'class': 'cl-tabs' },
+      tabs.map(function (t) {
+        var el = E('div', {
+          'class': 'cl-tab' + (self._tab === t.id ? ' active' : ''),
+          click: function () {
+            Object.keys(tabEls).forEach(function (k) {
+              tabEls[k].className   = 'cl-tab'   + (k === t.id ? ' active' : '');
+              panelEls[k].className = 'cl-panel' + (k === t.id ? ' active' : '');
+            });
+            self._tab = t.id;
+          }
+        }, t.label);
+        tabEls[t.id] = el;
+        return el;
+      })
+    );
+
+    var kernelPanel = E('div', { 'class': 'cl-panel' + (this._tab === 'kernel' ? ' active' : '') });
+    panelEls['kernel'] = kernelPanel;
+    this._buildKernelPanel(kernelPanel, cpuArch);
+
+    var rulesPanel = E('div', { 'class': 'cl-panel' + (this._tab === 'rules' ? ' active' : '') });
+    panelEls['rules'] = rulesPanel;
+    this._buildRulesForm(rulesPanel);
+
+    var logsPanel = E('div', { 'class': 'cl-panel' + (this._tab === 'logs' ? ' active' : '') },
+      this._buildLogsPanel(runLog)
+    );
+    panelEls['logs'] = logsPanel;
+
+    poll.add(L.bind(this._pollLogs, this), 8);
+
+    return E('div', {}, [tabBar, kernelPanel, rulesPanel, logsPanel]);
+  },
+
+  _detectMihomoArch: function (raw) {
+    if (!raw) return '';
+    if (raw === 'x86_64')             return 'amd64';
+    if (/^aarch64/.test(raw))         return 'arm64';
+    if (/^armv7|^arm_cortex-a[7-9]|^arm_cortex-a1[0-9]/.test(raw)) return 'armv7';
+    if (/^armv6|^arm_cortex-a[56]/.test(raw))  return 'armv6';
+    if (/^arm/.test(raw))             return 'armv5';
+    if (/^i[3-6]86/.test(raw))        return '386';
+    if (/^mips64el/.test(raw))        return 'mips64le';
+    if (/^mips64/.test(raw))          return 'mips64';
+    if (/^mipsel/.test(raw))          return 'mipsle';
+    if (/^mips/.test(raw))            return 'mips';
+    return '';
+  },
+
+  _buildKernelPanel: function (container, cpuArch) {
+    var self = this;
+    var detectedArch = this._detectMihomoArch(cpuArch);
+    var m = new form.Map('clashoo', '', '');
+    var s, o;
+
+    s = m.section(form.NamedSection, 'config', 'clashoo', '内核下载');
+    s.addremove = false;
+    o = s.option(form.ListValue, 'core', '版本类型');
+    o.value('mihomo', 'Mihomo（正式版）'); o.value('mihomo-alpha', 'Mihomo Alpha（预发布）');
+    o = s.option(form.ListValue, 'core_arch', 'CPU 架构');
+    ['amd64','arm64','armv7','armv6','armv5','386','mips','mipsle','mips64','mips64le'].forEach(function(a){ o.value(a,a); });
+    if (detectedArch) o.default = detectedArch;
+    o = s.option(form.DummyValue, '_arch_hint', '');
+    o.rawattr = { style: 'padding-top:0' };
+    (function (raw, mapped) {
+      o.cfgvalue = function () {
+        if (!raw) return E('span', { style: 'font-size:11px;opacity:.5' }, '无法自动检测，请手动选择架构');
+        return E('span', { style: 'font-size:11px;opacity:.55' },
+          '检测到系统架构：' + raw + (mapped ? '  →  下载架构：' + mapped : '  （未知，请手动选择）'));
+      };
+    })(cpuArch, detectedArch);
+    o.write = function () {};
+    o = s.option(form.ListValue, 'download_source', '镜像源');
+    o.value('github', 'GitHub'); o.value('ghproxy', 'GHProxy');
+    o = s.option(form.DummyValue, '_dl_btn', '');
+    o.cfgvalue = function () {
+      return E('button', {
+        'class': 'btn cbi-button-action',
+        click: function () {
+          clashoo.downloadCore().then(function () {
+            ui.addNotification(null, E('p', '内核下载任务已启动，请查看日志'));
+          });
+        }
+      }, '下载内核');
+    };
+    o.write = function () {};
+
+    s = m.section(form.NamedSection, 'config', 'clashoo', 'GeoIP / GeoSite');
+    s.addremove = false;
+    o = s.option(form.Flag,  'auto_update_geoip',  '自动更新');
+    o = s.option(form.Value, 'geoip_update_time',  '更新时间（HH:MM）');
+    o = s.option(form.Value, 'geoip_update_day',   '每周几（0=每天）');
+    o = s.option(form.ListValue, 'geodata_source', '数据源');
+    o.value('github', 'GitHub'); o.value('custom', '自定义');
+    o = s.option(form.DummyValue, '_geo_btn', '');
+    o.cfgvalue = function () {
+      return E('button', {
+        'class': 'btn cbi-button',
+        click: function () {
+          clashoo.updateGeoip().then(function () {
+            ui.addNotification(null, E('p', 'GeoIP 更新任务已启动'));
+          });
+        }
+      }, '立即更新 GeoIP');
+    };
+    o.write = function () {};
+
+    s = m.section(form.NamedSection, 'config', 'clashoo', '管理面板配置');
+    s.addremove = false;
+    o = s.option(form.Value, 'dashboard_port', '面板端口');
+    o = s.option(form.Value, 'dashboard_pass', '访问密钥');
+    o = s.option(form.ListValue, 'panel_ui', '面板 UI');
+    ['metacubexd','yacd','zashboard','razord'].forEach(function(p){ o.value(p,p); });
+
+    m.render().then(function (node) {
+      container.appendChild(node);
+      container.appendChild(E('div', { 'class': 'cl-save-bar' }, [
+        E('button', { 'class': 'btn cbi-button', click: function () {
+          m.save().then(function () { ui.addNotification(null, E('p', '配置已保存')); });
+        }}, '保存配置'),
+        E('button', { 'class': 'btn cbi-button-action', click: function () {
+          m.save().then(function () { return uci.apply(); })
+            .then(function () { ui.addNotification(null, E('p', '配置已保存并应用')); });
+        }}, '应用配置')
+      ]));
+    });
+  },
+
+  _buildRulesForm: function (container) {
+    var m = new form.Map('clashoo', '', '');
+    var s, o;
+
+    s = m.section(form.NamedSection, 'config', 'clashoo', '绕过规则');
+    s.addremove = false;
+    o = s.option(form.Flag, 'cn_redirect',  '大陆 IP 绕过');
+    o = s.option(form.DynamicList, 'bypass_port',  '绕过端口');
+    o = s.option(form.DynamicList, 'bypass_dscp',  '绕过 DSCP 标记');
+    o = s.option(form.DynamicList, 'bypass_fwmark','绕过 FWMark');
+
+    s = m.section(form.NamedSection, 'config', 'clashoo', '局域网控制');
+    s.addremove = false;
+    o = s.option(form.ListValue, 'access_control_mode', '访问控制');
+    o.value('all', '所有设备'); o.value('allow', '白名单'); o.value('deny', '黑名单');
+    o = s.option(form.DynamicList, 'access_control_list', 'IP 列表');
+
+    s = m.section(form.NamedSection, 'config', 'clashoo', '自动化任务');
+    s.addremove = false;
+    o = s.option(form.Flag,  'auto_update_sub',   '定时更新订阅');
+    o = s.option(form.Value, 'update_sub_time',   '更新时间（HH:MM）');
+    o = s.option(form.Flag,  'auto_clear_log',    '定时清理日志');
+    o = s.option(form.Value, 'clear_log_interval','清理间隔（天）');
+
+    m.render().then(function (node) {
+      container.appendChild(node);
+      container.appendChild(E('div', { 'class': 'cl-save-bar' }, [
+        E('button', { 'class': 'btn cbi-button', click: function () {
+          m.save().then(function () { ui.addNotification(null, E('p', '配置已保存')); });
+        }}, '保存配置'),
+        E('button', { 'class': 'btn cbi-button-action', click: function () {
+          m.save().then(function () { return uci.apply(); })
+            .then(function () { ui.addNotification(null, E('p', '配置已保存并应用')); });
+        }}, '应用配置')
+      ]));
+    });
+  },
+
+  _buildLogsPanel: function (runLog) {
+    var self = this;
+    var logTypes = [
+      { id: 'run',    label: '运行日志',   read: clashoo.readLog.bind(clashoo),        clear: clashoo.clearLog.bind(clashoo) },
+      { id: 'update', label: '更新日志',   read: clashoo.readUpdateLog.bind(clashoo),  clear: clashoo.clearUpdateLog.bind(clashoo) },
+      { id: 'geoip',  label: 'GeoIP 日志', read: clashoo.readGeoipLog.bind(clashoo),   clear: clashoo.clearGeoipLog.bind(clashoo) }
+    ];
+
+    var logTabEls = {};
+    var logArea = E('div', { 'class': 'cl-log-area', id: 'cl-log-area' }, runLog);
+
+    var logTabBar = E('div', { 'class': 'cl-log-tabs' },
+      logTypes.map(function (lt) {
+        var el = E('span', {
+          'class': 'cl-log-tab' + (self._logTab === lt.id ? ' active' : ''),
+          click: function () {
+            Object.keys(logTabEls).forEach(function (k) {
+              logTabEls[k].className = 'cl-log-tab' + (k === lt.id ? ' active' : '');
+            });
+            self._logTab = lt.id;
+            lt.read().then(function (content) { logArea.textContent = content || '（空）'; });
+          }
+        }, lt.label);
+        logTabEls[lt.id] = el;
+        return el;
+      })
+    );
+
+    var currentType = function () {
+      return logTypes.find(function (lt) { return lt.id === self._logTab; }) || logTypes[0];
+    };
+
+    return [
+      logTabBar,
+      logArea,
+      E('div', { 'class': 'cl-actions', style: 'margin-top:8px' }, [
+        E('button', {
+          'class': 'btn cbi-button',
+          click: function () {
+            logArea.scrollTop = logArea.scrollHeight;
+          }
+        }, '滚动到底部'),
+        E('button', {
+          'class': 'btn cbi-button-negative',
+          click: function () {
+            if (!confirm('清空当前日志？')) return;
+            currentType().clear().then(function () { logArea.textContent = ''; });
+          }
+        }, '清空日志')
+      ])
+    ];
+  },
+
+  _pollLogs: function () {
+    if (this._tab !== 'logs') return Promise.resolve();
+    var self = this;
+    var logFns = {
+      run:    clashoo.readLog.bind(clashoo),
+      update: clashoo.readUpdateLog.bind(clashoo),
+      geoip:  clashoo.readGeoipLog.bind(clashoo)
+    };
+    var readFn = logFns[this._logTab] || logFns.run;
+    return readFn().then(function (content) {
+      var el = document.getElementById('cl-log-area');
+      if (el && content) el.textContent = content;
+    });
+  },
+
+  handleSaveApply: null,
+  handleSave:      null,
+  handleReset:     null
+});
