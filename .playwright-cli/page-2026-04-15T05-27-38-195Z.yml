@@ -1,0 +1,150 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - link "u3" [ref=e3] [cursor=pointer]:
+      - /url: /
+    - list [ref=e4]:
+      - listitem [ref=e5]:
+        - link "状态 &darr;" [ref=e6] [cursor=pointer]:
+          - /url: "#"
+        - list [ref=e7]:
+          - listitem [ref=e8]:
+            - link "概况" [ref=e9] [cursor=pointer]:
+              - /url: /cgi-bin/luci/admin/status/overview
+          - listitem [ref=e10]:
+            - link "路由" [ref=e11] [cursor=pointer]:
+              - /url: /cgi-bin/luci/admin/status/routesj
+          - listitem [ref=e12]:
+            - link "防火墙" [ref=e13] [cursor=pointer]:
+              - /url: /cgi-bin/luci/admin/status/nftables
+          - listitem [ref=e14]:
+            - link "系统日志" [ref=e15] [cursor=pointer]:
+              - /url: /cgi-bin/luci/admin/status/logs
+          - listitem [ref=e16]:
+            - link "进程" [ref=e17] [cursor=pointer]:
+              - /url: /cgi-bin/luci/admin/status/processes
+          - listitem [ref=e18]:
+            - link "实时信息" [ref=e19] [cursor=pointer]:
+              - /url: /cgi-bin/luci/admin/status/realtime
+      - listitem [ref=e20]:
+        - link "系统 &darr;" [ref=e21] [cursor=pointer]:
+          - /url: "#"
+        - list [ref=e22]:
+          - listitem [ref=e23]:
+            - link "系统" [ref=e24] [cursor=pointer]:
+              - /url: /cgi-bin/luci/admin/system/system
+          - listitem [ref=e25]:
+            - link "管理权" [ref=e26] [cursor=pointer]:
+              - /url: /cgi-bin/luci/admin/system/admin
+          - listitem [ref=e27]:
+            - link "软件包" [ref=e28] [cursor=pointer]:
+              - /url: /cgi-bin/luci/admin/system/package-manager
+          - listitem [ref=e29]:
+            - link "启动项" [ref=e30] [cursor=pointer]:
+              - /url: /cgi-bin/luci/admin/system/startup
+          - listitem [ref=e31]:
+            - link "计划任务" [ref=e32] [cursor=pointer]:
+              - /url: /cgi-bin/luci/admin/system/crontab
+          - listitem [ref=e33]:
+            - link "挂载点" [ref=e34] [cursor=pointer]:
+              - /url: /cgi-bin/luci/admin/system/mounts
+          - listitem [ref=e35]:
+            - link "LED 配置" [ref=e36] [cursor=pointer]:
+              - /url: /cgi-bin/luci/admin/system/leds
+          - listitem [ref=e37]:
+            - link "备份与更新" [ref=e38] [cursor=pointer]:
+              - /url: /cgi-bin/luci/admin/system/flash
+          - listitem [ref=e39]:
+            - link "Argon 主题设置" [ref=e40] [cursor=pointer]:
+              - /url: /cgi-bin/luci/admin/system/argon-config
+          - listitem [ref=e41]:
+            - link "重启" [ref=e42] [cursor=pointer]:
+              - /url: /cgi-bin/luci/admin/system/reboot
+      - listitem [ref=e43]:
+        - link "服务 &darr;" [ref=e44] [cursor=pointer]:
+          - /url: "#"
+        - list [ref=e45]:
+          - listitem [ref=e46]:
+            - link "HomeProxy" [ref=e47] [cursor=pointer]:
+              - /url: /cgi-bin/luci/admin/services/homeproxy
+          - listitem [ref=e48]:
+            - link "OpenClash" [ref=e49] [cursor=pointer]:
+              - /url: /cgi-bin/luci/admin/services/openclash
+          - listitem [ref=e50]:
+            - link "Clashoo" [ref=e51] [cursor=pointer]:
+              - /url: /cgi-bin/luci/admin/services/clashoo
+          - listitem [ref=e52]:
+            - link "OpenClaw" [ref=e53] [cursor=pointer]:
+              - /url: /cgi-bin/luci/admin/services/openclaw
+          - listitem [ref=e54]:
+            - link "Momo" [ref=e55] [cursor=pointer]:
+              - /url: /cgi-bin/luci/admin/services/momo
+          - listitem [ref=e56]:
+            - link "Nikki" [ref=e57] [cursor=pointer]:
+              - /url: /cgi-bin/luci/admin/services/nikki
+      - listitem [ref=e58]:
+        - link "网络 &darr;" [ref=e59] [cursor=pointer]:
+          - /url: "#"
+        - list [ref=e60]:
+          - listitem [ref=e61]:
+            - link "接口" [ref=e62] [cursor=pointer]:
+              - /url: /cgi-bin/luci/admin/network/network
+          - listitem [ref=e63]:
+            - link "路由" [ref=e64] [cursor=pointer]:
+              - /url: /cgi-bin/luci/admin/network/routes
+          - listitem [ref=e65]:
+            - link "DHCP" [ref=e66] [cursor=pointer]:
+              - /url: /cgi-bin/luci/admin/network/dhcp
+          - listitem [ref=e67]:
+            - link "DNS" [ref=e68] [cursor=pointer]:
+              - /url: /cgi-bin/luci/admin/network/dns
+          - listitem [ref=e69]:
+            - link "网络诊断" [ref=e70] [cursor=pointer]:
+              - /url: /cgi-bin/luci/admin/network/diagnostics
+          - listitem [ref=e71]:
+            - link "防火墙" [ref=e72] [cursor=pointer]:
+              - /url: /cgi-bin/luci/admin/network/firewall
+      - listitem [ref=e73]:
+        - link "退出" [ref=e74] [cursor=pointer]:
+          - /url: /cgi-bin/luci/admin/logout
+  - generic [ref=e75]:
+    - list [ref=e77]:
+      - listitem [ref=e78]:
+        - link "概览" [ref=e79] [cursor=pointer]:
+          - /url: /cgi-bin/luci/admin/services/clashoo/overview
+      - listitem [ref=e80]:
+        - link "配置" [ref=e81] [cursor=pointer]:
+          - /url: /cgi-bin/luci/admin/services/clashoo/config
+      - listitem [ref=e82]:
+        - link "系统" [ref=e83] [cursor=pointer]:
+          - /url: /cgi-bin/luci/admin/services/clashoo/system
+    - generic [ref=e85]:
+      - generic [ref=e86]:
+        - generic [ref=e87] [cursor=pointer]: 配置文件
+        - generic [ref=e88] [cursor=pointer]: 快速向导
+      - generic [ref=e89]:
+        - generic [ref=e90]:
+          - heading "sing-box 配置文件" [level=4] [ref=e91]
+          - table [ref=e92]:
+            - rowgroup [ref=e93]:
+              - row "文件名 大小 操作" [ref=e94]:
+                - columnheader "文件名" [ref=e95]
+                - columnheader "大小" [ref=e96]
+                - columnheader "操作" [ref=e97]
+            - rowgroup [ref=e98]:
+              - row "暂无配置文件，请使用快速向导生成或上传 JSON 文件" [ref=e99]:
+                - cell "暂无配置文件，请使用快速向导生成或上传 JSON 文件" [ref=e100]
+          - button "上传 JSON 配置" [ref=e102] [cursor=pointer]
+        - generic [ref=e103]:
+          - generic [ref=e104]: 选择上方配置后可在此处编辑
+          - textbox "选择配置文件后内容将显示在这里…" [ref=e105]
+          - generic [ref=e106]:
+            - button "保存" [disabled]
+            - generic [ref=e107]: 编辑后点击保存；切换配置后服务将自动重启
+  - contentinfo [ref=e108]:
+    - generic [ref=e109]:
+      - text: Powered by
+      - link "LuCI openwrt-25.12 branch (26.056.21255~8e584af)" [ref=e110] [cursor=pointer]:
+        - /url: https://github.com/openwrt/luci
+      - text: /
+      - link "ImmortalWrt 25.12-SNAPSHOT (r0-791c94e)" [ref=e111] [cursor=pointer]:
+        - /url: https://immortalwrt.org/

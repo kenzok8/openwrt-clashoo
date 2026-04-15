@@ -1,0 +1,123 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - link "u3" [ref=e5]:
+        - /url: "#"
+      - list [ref=e6]:
+        - listitem [ref=e7] [cursor=pointer]:
+          - link " 状态 " [ref=e8]:
+            - /url: /cgi-bin/luci/admin/status
+        - listitem [ref=e9] [cursor=pointer]:
+          - link " 系统 " [ref=e10]:
+            - /url: /cgi-bin/luci/admin/system
+        - listitem [ref=e11] [cursor=pointer]:
+          - link " 服务 " [ref=e12]:
+            - /url: /cgi-bin/luci/admin/services
+          - list [ref=e13]:
+            - listitem [ref=e14]:
+              - link "HomeProxy" [ref=e15]:
+                - /url: /cgi-bin/luci/admin/services/homeproxy
+            - listitem [ref=e16]:
+              - link "OpenClash" [ref=e17]:
+                - /url: /cgi-bin/luci/admin/services/openclash
+            - listitem [ref=e18]:
+              - link "Clashoo" [ref=e19]:
+                - /url: /cgi-bin/luci/admin/services/clashoo
+            - listitem [ref=e20]:
+              - link "OpenClaw" [ref=e21]:
+                - /url: /cgi-bin/luci/admin/services/openclaw
+            - listitem [ref=e22]:
+              - link "Momo" [ref=e23]:
+                - /url: /cgi-bin/luci/admin/services/momo
+            - listitem [ref=e24]:
+              - link "Nikki" [ref=e25]:
+                - /url: /cgi-bin/luci/admin/services/nikki
+        - listitem [ref=e26] [cursor=pointer]:
+          - link " 网络 " [ref=e27]:
+            - /url: /cgi-bin/luci/admin/network
+        - listitem [ref=e28] [cursor=pointer]:
+          - link " 退出" [ref=e29]:
+            - /url: /cgi-bin/luci/admin/logout
+    - generic [ref=e30]:
+      - banner [ref=e31]:
+        - generic [ref=e56] [cursor=pointer]: 刷新
+      - generic [ref=e34]:
+        - generic [ref=e35]:
+          - list [ref=e37]:
+            - listitem [ref=e38] [cursor=pointer]:
+              - link "概览" [ref=e39]:
+                - /url: /cgi-bin/luci/admin/services/clashoo/overview
+            - listitem [ref=e40]:
+              - link "配置" [ref=e41] [cursor=pointer]:
+                - /url: /cgi-bin/luci/admin/services/clashoo/config
+            - listitem [ref=e42]:
+              - link "系统" [ref=e43] [cursor=pointer]:
+                - /url: /cgi-bin/luci/admin/services/clashoo/system
+          - generic [ref=e58]:
+            - generic [ref=e59]:
+              - generic [ref=e149]:
+                - generic [ref=e150]: 运行状态
+                - generic [ref=e152]:
+                  - generic [ref=e153]: 运行中
+                  - text: Mihomo
+              - generic [ref=e154]:
+                - generic [ref=e155]: 代理模式
+                - generic [ref=e156]: rule
+              - generic [ref=e157]:
+                - generic [ref=e158]: 当前配置
+                - generic [ref=e159]: 白月光-20260415.yaml
+              - generic [ref=e160]:
+                - generic [ref=e161]: 连通测试
+                - generic [ref=e163]: 微信 ✗YouTube ✗Google ✗
+              - generic [ref=e164]:
+                - generic [ref=e165]: 管理面板
+                - link "metacubexd :9090" [ref=e167] [cursor=pointer]:
+                  - /url: http://192.168.3.252:9090
+              - generic [ref=e168]:
+                - generic [ref=e169]: 运行模式
+                - generic [ref=e170]: TCP Redirect / UDP TProxy
+            - generic [ref=e82]:
+              - button "▶ 启动" [ref=e83] [cursor=pointer]
+              - button "⏹ 停止" [active] [ref=e84] [cursor=pointer]
+              - button "🔄 重启" [ref=e85] [cursor=pointer]
+              - button "⬇ 更新订阅" [ref=e86] [cursor=pointer]
+            - generic [ref=e87]:
+              - generic [ref=e88]:
+                - generic [ref=e89]: 代理模式
+                - combobox [ref=e90]:
+                  - option "规则" [selected]
+                  - option "全局"
+                  - option "直连"
+              - generic [ref=e91]:
+                - generic [ref=e92]: 透明代理
+                - combobox [ref=e93]:
+                  - option "Fake-IP" [selected]
+                  - option "TUN"
+                  - option "混合"
+              - generic [ref=e94]:
+                - generic [ref=e95]: 配置文件
+                - combobox [ref=e96]:
+                  - option "白月光-20260415.yaml" [selected]
+              - generic [ref=e97]:
+                - generic [ref=e98]: 管理面板
+                - generic [ref=e99]:
+                  - combobox [ref=e100]:
+                    - option "metacubexd" [selected]
+                    - option "yacd"
+                    - option "zashboard"
+                    - option "razord"
+                  - button "更新" [ref=e101] [cursor=pointer]
+            - generic [ref=e103] [cursor=pointer]:
+              - text: 📋 实时日志
+              - generic [ref=e104]: ▾
+        - contentinfo [ref=e45]:
+          - generic [ref=e46]:
+            - link "Powered by LuCI openwrt-25.12 branch (26.056.21255~8e584af)" [ref=e47] [cursor=pointer]:
+              - /url: https://github.com/openwrt/luci
+            - generic [ref=e48]: "|"
+            - link "ArgonTheme v2.4.3" [ref=e49] [cursor=pointer]:
+              - /url: https://github.com/jerrykuku/luci-theme-argon
+            - generic [ref=e50]: "|"
+            - link "ImmortalWrt 25.12-SNAPSHOT-r0-791c94e" [ref=e51] [cursor=pointer]:
+              - /url: https://immortalwrt.org/
+  - dialog [ref=e53]

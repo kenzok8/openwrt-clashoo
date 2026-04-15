@@ -1,0 +1,155 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - link "u3" [ref=e5]:
+        - /url: "#"
+      - list [ref=e6]:
+        - listitem [ref=e7] [cursor=pointer]:
+          - link " 状态 " [ref=e8]:
+            - /url: /cgi-bin/luci/admin/status
+        - listitem [ref=e9] [cursor=pointer]:
+          - link " 系统 " [ref=e10]:
+            - /url: /cgi-bin/luci/admin/system
+        - listitem [ref=e11] [cursor=pointer]:
+          - link " 服务 " [ref=e12]:
+            - /url: /cgi-bin/luci/admin/services
+          - list [ref=e13]:
+            - listitem [ref=e14]:
+              - link "HomeProxy" [ref=e15]:
+                - /url: /cgi-bin/luci/admin/services/homeproxy
+            - listitem [ref=e16]:
+              - link "OpenClash" [ref=e17]:
+                - /url: /cgi-bin/luci/admin/services/openclash
+            - listitem [ref=e18]:
+              - link "Clashoo" [ref=e19]:
+                - /url: /cgi-bin/luci/admin/services/clashoo
+            - listitem [ref=e20]:
+              - link "OpenClaw" [ref=e21]:
+                - /url: /cgi-bin/luci/admin/services/openclaw
+            - listitem [ref=e22]:
+              - link "Momo" [ref=e23]:
+                - /url: /cgi-bin/luci/admin/services/momo
+            - listitem [ref=e24]:
+              - link "Nikki" [ref=e25]:
+                - /url: /cgi-bin/luci/admin/services/nikki
+        - listitem [ref=e26] [cursor=pointer]:
+          - link " 网络 " [ref=e27]:
+            - /url: /cgi-bin/luci/admin/network
+        - listitem [ref=e28] [cursor=pointer]:
+          - link " 退出" [ref=e29]:
+            - /url: /cgi-bin/luci/admin/logout
+    - generic [ref=e30]:
+      - banner [ref=e31]:
+        - generic [ref=e34]:
+          - generic [ref=e35] [cursor=pointer]: 刷新
+          - generic [ref=e142] [cursor=pointer]: "未保存的配置: 1"
+      - generic [ref=e36]:
+        - generic [ref=e143]:
+          - paragraph [ref=e145]: 配置已保存并应用
+          - button "关闭" [ref=e147] [cursor=pointer]
+        - generic [ref=e37]:
+          - list [ref=e39]:
+            - listitem [ref=e40]:
+              - link "概览" [ref=e41] [cursor=pointer]:
+                - /url: /cgi-bin/luci/admin/services/clashoo/overview
+            - listitem [ref=e42]:
+              - link "配置" [ref=e43] [cursor=pointer]:
+                - /url: /cgi-bin/luci/admin/services/clashoo/config
+            - listitem [ref=e44] [cursor=pointer]:
+              - link "系统" [ref=e45]:
+                - /url: /cgi-bin/luci/admin/services/clashoo/system
+          - generic [ref=e47]:
+            - generic [ref=e48]:
+              - generic [ref=e49] [cursor=pointer]: 内核与数据
+              - generic [ref=e50] [cursor=pointer]: 规则与控制
+              - generic [ref=e51] [cursor=pointer]: 日志
+            - generic [ref=e52]:
+              - generic [ref=e53]:
+                - generic [ref=e148]:
+                  - heading "后端核心" [level=3] [ref=e149]
+                  - generic [ref=e151]:
+                    - generic [ref=e152]: 核心类型
+                    - generic [ref=e153]:
+                      - combobox "核心类型" [ref=e155]:
+                        - option "Mihomo / Clash Meta"
+                        - option "sing-box（需已安装并配置 clash_api）" [selected]
+                      - generic [ref=e156]: 切换后需重启服务；sing-box 须在 experimental.clash_api 中开启 Clash 兼容 API
+                - generic [ref=e157]:
+                  - heading "内核下载" [level=3] [ref=e158]
+                  - generic [ref=e159]:
+                    - generic [ref=e160]:
+                      - generic [ref=e161]: 版本类型
+                      - combobox "版本类型" [ref=e164]:
+                        - option "Mihomo（正式版）"
+                        - option "Mihomo Alpha（预发布）" [selected]
+                    - generic [ref=e165]:
+                      - generic [ref=e166]: CPU 架构
+                      - generic [ref=e167]:
+                        - combobox "CPU 架构" [ref=e169]:
+                          - option "amd64" [selected]
+                          - option "arm64"
+                          - option "armv7"
+                          - option "armv6"
+                          - option "armv5"
+                          - option "386"
+                          - option "mips"
+                          - option "mipsle"
+                          - option "mips64"
+                          - option "mips64le"
+                        - generic [ref=e170]: 检测到系统架构：x86_64 → 下载架构：amd64
+                    - generic [ref=e171]:
+                      - generic [ref=e172]: 镜像源
+                      - combobox "镜像源" [ref=e175]:
+                        - option "GitHub" [selected]
+                        - option "GHProxy"
+                    - status [ref=e177]:
+                      - button "下载内核" [ref=e178] [cursor=pointer]
+                - generic [ref=e179]:
+                  - heading "GeoIP / GeoSite" [level=3] [ref=e180]
+                  - generic [ref=e181]:
+                    - generic [ref=e182]:
+                      - generic [ref=e183]: 自动更新
+                      - checkbox [checked] [ref=e186] [cursor=pointer]
+                    - generic [ref=e187]:
+                      - generic [ref=e188]: 更新时间（HH:MM）
+                      - textbox "更新时间（HH:MM）" [ref=e191]: "2"
+                    - generic [ref=e192]:
+                      - generic [ref=e193]: 每周几（0=每天）
+                      - textbox "每周几（0=每天）" [ref=e196]: "1"
+                    - generic [ref=e197]:
+                      - generic [ref=e198]: 数据源
+                      - combobox "数据源" [ref=e201]:
+                        - option "GitHub" [selected]
+                        - option "自定义"
+                    - status [ref=e203]:
+                      - button "立即更新 GeoIP" [ref=e204] [cursor=pointer]
+                - generic [ref=e205]:
+                  - heading "管理面板配置" [level=3] [ref=e206]
+                  - generic [ref=e207]:
+                    - generic [ref=e208]:
+                      - generic [ref=e209]: 面板端口
+                      - textbox "面板端口" [ref=e212]: "9090"
+                    - generic [ref=e213]:
+                      - generic [ref=e214]: 访问密钥
+                      - textbox "访问密钥" [ref=e217]
+                    - generic [ref=e218]:
+                      - generic [ref=e219]: 面板 UI
+                      - combobox "面板 UI" [ref=e222]:
+                        - option "metacubexd" [selected]
+                        - option "yacd"
+                        - option "zashboard"
+                        - option "razord"
+              - generic [ref=e129]:
+                - button "保存配置" [ref=e130] [cursor=pointer]
+                - button "应用配置" [active] [ref=e131] [cursor=pointer]
+        - contentinfo [ref=e132]:
+          - generic [ref=e133]:
+            - link "Powered by LuCI openwrt-25.12 branch (26.056.21255~8e584af)" [ref=e134] [cursor=pointer]:
+              - /url: https://github.com/openwrt/luci
+            - generic [ref=e135]: "|"
+            - link "ArgonTheme v2.4.3" [ref=e136] [cursor=pointer]:
+              - /url: https://github.com/jerrykuku/luci-theme-argon
+            - generic [ref=e137]: "|"
+            - link "ImmortalWrt 25.12-SNAPSHOT-r0-791c94e" [ref=e138] [cursor=pointer]:
+              - /url: https://immortalwrt.org/
+  - dialog [ref=e140]

@@ -109,6 +109,13 @@ return view.extend({
     var m = new form.Map('clashoo', '', '');
     var s, o;
 
+    s = m.section(form.NamedSection, 'config', 'clashoo', '后端核心');
+    s.addremove = false;
+    o = s.option(form.ListValue, 'core_type', '核心类型');
+    o.value('mihomo', 'Mihomo / Clash Meta');
+    o.value('singbox', 'sing-box（需已安装并配置 clash_api）');
+    o.description = '切换后需重启服务；sing-box 须在 experimental.clash_api 中开启 Clash 兼容 API';
+
     s = m.section(form.NamedSection, 'config', 'clashoo', '内核下载');
     s.addremove = false;
     o = s.option(form.ListValue, 'core', '版本类型');

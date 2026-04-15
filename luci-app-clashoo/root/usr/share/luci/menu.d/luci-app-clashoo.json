@@ -14,7 +14,7 @@
     "order": 10,
     "action": {
       "type": "view",
-      "path": "clash/overview"
+      "path": "clashoo/overview"
     },
     "depends": {
       "acl": ["luci-app-clashoo"]
@@ -25,7 +25,7 @@
     "order": 20,
     "action": {
       "type": "view",
-      "path": "clash/config"
+      "path": "clashoo/config"
     },
     "depends": {
       "acl": ["luci-app-clashoo"]
@@ -36,7 +36,7 @@
     "order": 30,
     "action": {
       "type": "view",
-      "path": "clash/system"
+      "path": "clashoo/system"
     },
     "depends": {
       "acl": ["luci-app-clashoo"]

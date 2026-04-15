@@ -1,0 +1,79 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - link "u3" [ref=e5]:
+        - /url: "#"
+      - list [ref=e6]:
+        - listitem [ref=e7] [cursor=pointer]:
+          - link " 状态 " [ref=e8]:
+            - /url: /cgi-bin/luci/admin/status
+        - listitem [ref=e9] [cursor=pointer]:
+          - link " 系统 " [ref=e10]:
+            - /url: /cgi-bin/luci/admin/system
+        - listitem [ref=e11] [cursor=pointer]:
+          - link " 服务 " [ref=e12]:
+            - /url: /cgi-bin/luci/admin/services
+          - list [ref=e13]:
+            - listitem [ref=e14]:
+              - link "HomeProxy" [ref=e15]:
+                - /url: /cgi-bin/luci/admin/services/homeproxy
+            - listitem [ref=e16]:
+              - link "OpenClash" [ref=e17]:
+                - /url: /cgi-bin/luci/admin/services/openclash
+            - listitem [ref=e18]:
+              - link "Clashoo" [ref=e19]:
+                - /url: /cgi-bin/luci/admin/services/clashoo
+            - listitem [ref=e20]:
+              - link "OpenClaw" [ref=e21]:
+                - /url: /cgi-bin/luci/admin/services/openclaw
+            - listitem [ref=e22]:
+              - link "Momo" [ref=e23]:
+                - /url: /cgi-bin/luci/admin/services/momo
+            - listitem [ref=e24]:
+              - link "Nikki" [ref=e25]:
+                - /url: /cgi-bin/luci/admin/services/nikki
+        - listitem [ref=e26] [cursor=pointer]:
+          - link " 网络 " [ref=e27]:
+            - /url: /cgi-bin/luci/admin/network
+        - listitem [ref=e28] [cursor=pointer]:
+          - link " 退出" [ref=e29]:
+            - /url: /cgi-bin/luci/admin/logout
+    - generic [ref=e30]:
+      - banner [ref=e31]
+      - generic [ref=e34]:
+        - generic [ref=e35]:
+          - list [ref=e37]:
+            - listitem [ref=e38]:
+              - link "概览" [ref=e39] [cursor=pointer]:
+                - /url: /cgi-bin/luci/admin/services/clashoo/overview
+            - listitem [ref=e40] [cursor=pointer]:
+              - link "配置" [ref=e41]:
+                - /url: /cgi-bin/luci/admin/services/clashoo/config
+            - listitem [ref=e42]:
+              - link "系统" [ref=e43] [cursor=pointer]:
+                - /url: /cgi-bin/luci/admin/services/clashoo/system
+          - generic [ref=e45]:
+            - generic [ref=e46]:
+              - generic [ref=e47] [cursor=pointer]: 配置文件
+              - generic [ref=e48] [cursor=pointer]: 快速向导
+            - generic [ref=e79]:
+              - heading "一键生成 sing-box 配置" [level=4] [ref=e80]
+              - generic [ref=e81]:
+                - textbox "粘贴 Clash / mihomo 订阅链接（支持 vmess / vless / trojan 等）" [ref=e82]
+                - textbox "配置文件名（选填，留空自动生成 singbox.json）" [ref=e83]
+                - textbox "API 密钥（选填，留空使用当前面板密码）" [ref=e84]
+                - generic [ref=e85]:
+                  - button "生成配置" [ref=e86] [cursor=pointer]
+                  - button "生成并切换" [ref=e87] [cursor=pointer]
+              - paragraph [ref=e88]: 生成的配置使用 sing-box outbound_providers 直接拉取 Clash 格式订阅（支持 sing-box 1.9+）， 包含 TUN 透明代理、geoip/geosite 大陆直连、自动延迟测速策略组。 生成后可在「配置文件」Tab 中编辑 JSON 细节。
+        - contentinfo [ref=e68]:
+          - generic [ref=e69]:
+            - link "Powered by LuCI openwrt-25.12 branch (26.056.21255~8e584af)" [ref=e70] [cursor=pointer]:
+              - /url: https://github.com/openwrt/luci
+            - generic [ref=e71]: "|"
+            - link "ArgonTheme v2.4.3" [ref=e72] [cursor=pointer]:
+              - /url: https://github.com/jerrykuku/luci-theme-argon
+            - generic [ref=e73]: "|"
+            - link "ImmortalWrt 25.12-SNAPSHOT-r0-791c94e" [ref=e74] [cursor=pointer]:
+              - /url: https://immortalwrt.org/
+  - dialog [ref=e76]

@@ -1,0 +1,1844 @@
+#!/usr/bin/ucode
+
+'use strict';
+
+import { access, popen, glob, readfile, writefile, stat, unlink } from 'fs';
+import { cursor } from 'uci';
+
+const BINARY_PATHS = [
+'/usr/bin/mihomo',
+'/usr/bin/clash-meta',
+'/usr/bin/clash',
+'/etc/clashoo/clash'
+];
+
+const SINGBOX_BINARY_PATHS = [
+'/usr/bin/sing-box',
+'/usr/local/bin/sing-box'
+];
+
+const LOG_PATHS = [
+'/var/log/clash.log',
+'/var/log/clash/clash.log',
+'/tmp/clash.log',
+'/usr/share/clashoo/clashoo.txt'
+];
+
+const CONFIG_DIRS = [
+{ path: '/usr/share/clashoo/config/sub',    type: '1' },
+{ path: '/usr/share/clashoo/config/upload', type: '2' },
+{ path: '/usr/share/clashoo/config/custom', type: '3' }
+];
+
+const LIST_FILE = '/usr/share/clashbackup/confit_list.conf';
+const SUB_DIR   = '/usr/share/clashoo/config/sub';
+const TEMPLATE_DIR = '/usr/share/clashoo/config/custom';
+const TEMPLATE_BIND_FILE = '/usr/share/clashbackup/template_bindings.conf';
+
+function get_core_type() {
+return uci_get('clashoo', 'config', 'core_type') || 'mihomo';
+}
+
+function get_mihomo_service_name() {
+for (let name in ['clashoo', 'clash']) {
+  if (access('/etc/init.d/' + name, 'x')) return name;
+}
+return 'clash';
+}
+
+function get_service_name() {
+return get_core_type() === 'singbox' ? 'sing-box' : get_mihomo_service_name();
+}
+
+function find_binary() {
+let paths = get_core_type() === 'singbox' ? SINGBOX_BINARY_PATHS : BINARY_PATHS;
+for (let path in paths)
+if (access(path, 'x')) return path;
+return '';
+}
+
+function read_first_line(path) {
+if (!access(path, 'r')) return '';
+let content = readfile(path);
+return content ? trim(split(content, '\n')[0] || '') : '';
+}
+
+function uci_get(pkg, sec, opt) {
+let c = cursor();
+c.load(pkg);
+return c.get(pkg, sec, opt) || '';
+}
+
+function is_running() {
+let cmd = get_core_type() === 'singbox'
+? "pidof sing-box >/dev/null 2>&1; echo $?"
+: "pidof mihomo clash-meta clash >/dev/null 2>&1; echo $?";
+let p = popen(cmd);
+if (!p) return false;
+let r = trim(p.read('all')); p.close();
+return r === '0';
+}
+
+function get_local_ip() {
+let p = popen("ip route get 1.1.1.1 2>/dev/null | grep -o 'src [0-9.]*' | awk '{print $2}'");
+if (!p) return '';
+let ip = trim(p.read('all'));
+p.close();
+return ip;
+}
+
+function get_core_version(binary) {
+if (!binary) return '';
+let p = popen(binary + ' -v 2>&1 | head -1');
+if (!p) return '';
+let v = trim(p.read('all'));
+p.close();
+return v;
+}
+
+function detect_firewall_backend() {
+if (system('command -v fw4 >/dev/null 2>&1') == 0) return 'fw4';
+if (system('command -v firewall >/dev/null 2>&1') == 0) return 'fw3';
+return '';
+}
+
+function detect_missing_fw4_tools() {
+let missing = [];
+if (system('command -v fw4 >/dev/null 2>&1') != 0) push(missing, 'fw4');
+if (system('command -v nft >/dev/null 2>&1') != 0) push(missing, 'nft');
+if (system('command -v ip >/dev/null 2>&1') != 0) push(missing, 'ip');
+return missing;
+}
+
+function get_profiles() {
+let profiles = [];
+let dirs = ['/etc/clashoo/profiles', '/etc/clash'];
+
+function has_profile_name(arr, name) {
+for (let i = 0; i < length(arr); i++)
+if (arr[i] == name) return true;
+return false;
+}
+
+for (let dir in dirs) {
+if (!access(dir, 'r')) continue;
+for (let f in (glob(dir + '/*.yaml') || [])) {
+let name = replace(f, dir + '/', '');
+if (name && name != 'config.yaml' && !has_profile_name(profiles, name))
+push(profiles, name);
+}
+if (length(profiles) > 0) break;
+}
+return profiles;
+}
+
+function get_log_content() {
+for (let path in LOG_PATHS) {
+if (!access(path, 'r')) continue;
+let p = popen("tail -300 '" + path + "'");
+if (p) { let c = p.read('all'); p.close(); return c; }
+}
+return '';
+}
+
+function list_config_files() {
+let configs = [];
+let subs = read_subscriptions();
+
+function has_name(arr, n) {
+for (let i = 0; i < length(arr); i++)
+if (arr[i] == n) return true;
+return false;
+}
+
+function sub_has_name(n) {
+for (let i = 0; i < length(subs); i++) {
+if (subs[i].name == n) return true;
+}
+return false;
+}
+
+for (let dir in CONFIG_DIRS) {
+for (let f in (glob(dir.path + '/*.yaml') || [])) {
+let name = replace(f, dir.path + '/', '');
+if (dir.type == '1') {
+if (!sub_has_name(name))
+continue;
+}
+if (!has_name(configs, name)) push(configs, name);
+}
+
+for (let f in (glob(dir.path + '/*.yml') || [])) {
+let name = replace(f, dir.path + '/', '');
+if (dir.type == '1') {
+if (!sub_has_name(name))
+continue;
+}
+if (!has_name(configs, name)) push(configs, name);
+}
+}
+
+let cur = get_current_config();
+if (cur && !has_name(configs, cur))
+push(configs, cur);
+
+return configs;
+}
+
+function first_available_config(exclude_path) {
+for (let dir in CONFIG_DIRS) {
+for (let f in (glob(dir.path + '/*.yaml') || [])) {
+if (f != exclude_path)
+return { path: f, type: dir.type };
+}
+for (let f in (glob(dir.path + '/*.yml') || [])) {
+if (f != exclude_path)
+return { path: f, type: dir.type };
+}
+}
+return null;
+}
+
+function get_current_config() {
+let use_config = uci_get('clashoo', 'config', 'use_config');
+return replace(use_config, /^.*\//, '');
+}
+
+function get_cpu_arch() {
+let p = popen("opkg status libc 2>/dev/null | grep Architecture | awk -F': ' '{print $2}'");
+if (!p) return '';
+let arch = trim(p.read('all'));
+p.close();
+return arch;
+}
+
+function config_dir_by_type(type) {
+if (type == '1' || type == 'sub') return '/usr/share/clashoo/config/sub';
+if (type == '2' || type == 'upload') return '/usr/share/clashoo/config/upload';
+if (type == '3' || type == 'custom') return '/usr/share/clashoo/config/custom';
+return '';
+}
+
+function safe_name(name) {
+name = trim(name || '');
+if (!name) return '';
+if (index(name, '/') >= 0 || index(name, '..') >= 0) return '';
+return name;
+}
+
+function ensure_yaml_name(name) {
+name = safe_name(name);
+if (!name) return '';
+if (!match(name, /\.(yaml|yml)$/))
+name = name + '.yaml';
+return name;
+}
+
+function file_name_from_url(url) {
+url = trim(url || '');
+if (!url) return '';
+url = replace(url, /[?#].*$/, '');
+let name = replace(url, /^.*\//, '');
+return ensure_yaml_name(name);
+}
+
+function shell_quote(s) {
+return "'" + replace(s || '', /'/g, "'\\''") + "'";
+}
+
+function template_output_name(sub_name, tpl_name) {
+let s = replace((sub_name || ''), /\.(yaml|yml)$/, '');
+let t = replace((tpl_name || ''), /\.(yaml|yml)$/, '');
+s = replace(s, /[^A-Za-z0-9._-]/g, '-');
+t = replace(t, /[^A-Za-z0-9._-]/g, '-');
+if (!s) s = 'sub';
+if (!t) t = 'template';
+return '_merged_' + s + '__' + t + '.yaml';
+}
+
+function mihomo_api_post(path) {
+let c = cursor();
+c.load('clashoo');
+let dash_port = c.get('clashoo', 'config', 'dash_port') || '9090';
+let dash_pass = c.get('clashoo', 'config', 'dash_pass') || '';
+let auth = dash_pass ? ('-H ' + shell_quote('Authorization: Bearer ' + dash_pass) + ' ') : '';
+let url  = 'http://127.0.0.1:' + dash_port + path;
+let cmd  = 'curl -s -o /dev/null -w "%{http_code}" -m 10 -X POST ' + auth + shell_quote(url) + ' 2>/dev/null';
+let p = popen(cmd);
+if (!p) return '000';
+let code = trim(p.read('all'));
+p.close();
+return code || '000';
+}
+
+function read_subscriptions() {
+let rows = [];
+if (!access(LIST_FILE, 'r')) return rows;
+let content = readfile(LIST_FILE) || '';
+for (let line in split(content, '\n')) {
+line = trim(line);
+if (!line) continue;
+let parts = split(line, '#');
+if (length(parts) < 2) continue;
+let name = trim(parts[0]);
+let url  = trim(parts[1]);
+let typ  = length(parts) > 2 ? trim(parts[2]) : 'clashoo';
+if (name && url) push(rows, { name, url, type: typ });
+}
+return rows;
+}
+
+function read_template_bindings() {
+let rows = [];
+if (!access(TEMPLATE_BIND_FILE, 'r')) return rows;
+let content = readfile(TEMPLATE_BIND_FILE) || '';
+for (let line in split(content, '\n')) {
+line = trim(line || '');
+if (!line) continue;
+let parts = split(line, '#');
+if (length(parts) < 2) continue;
+let sub_name = ensure_yaml_name(parts[0] || '');
+let template_name = ensure_yaml_name(parts[1] || '');
+let enabled = length(parts) > 2 ? trim(parts[2] || '') : '1';
+if (!sub_name || !template_name) continue;
+push(rows, {
+sub_name,
+template_name,
+enabled: (enabled == '1' || enabled == 'true') ? '1' : '0'
+});
+}
+return rows;
+}
+
+function write_template_bindings(rows) {
+let lines = [];
+for (let row in (rows || [])) {
+if (!row || !row.sub_name || !row.template_name) continue;
+push(lines, row.sub_name + '#' + row.template_name + '#' + (row.enabled == '1' ? '1' : '0'));
+}
+system('mkdir -p /usr/share/clashbackup');
+return writefile(TEMPLATE_BIND_FILE, join('\n', lines) + '\n') !== null;
+}
+
+function find_template_binding(sub_name) {
+for (let row in read_template_bindings()) {
+if (row.sub_name == sub_name) return row;
+}
+return null;
+}
+
+const methods = {
+version: {
+call: function() {
+let binary = find_binary();
+return {
+app:    read_first_line('/usr/share/clashoo/luci_version'),
+core:   get_core_version(binary),
+binary: binary
+};
+}
+},
+
+status: {
+call: function() {
+let c = cursor();
+c.load('clashoo');
+let p = popen("pidof mihomo clash-meta clash >/dev/null 2>&1; echo $?");
+let r = p ? trim(p.read('all')) : '1'; if (p) p.close();
+let running    = r === '0';
+let dash_port  = c.get('clashoo', 'config', 'dash_port')      || '9090';
+let dash_pass  = c.get('clashoo', 'config', 'dash_pass')      || '';
+let proxy_mode = c.get('clashoo', 'config', 'p_mode')         || 'rule';
+let conf_path  = c.get('clashoo', 'config', 'use_config')     || '';
+let panel_type = c.get('clashoo', 'config', 'dashboard_panel')|| 'metacubexd';
+let tcp_mode   = c.get('clashoo', 'config', 'tcp_mode')       || 'tun';
+let udp_mode   = c.get('clashoo', 'config', 'udp_mode')       || tcp_mode;
+let core_type  = c.get('clashoo', 'config', 'core_type')      || 'mihomo';
+let p2 = popen("ip route get 1.1.1.1 2>/dev/null | awk '/src/{print $(NF-2)}'");
+let local_ip = p2 ? trim(p2.read('all')) : ''; if (p2) p2.close();
+let slash = rindex(conf_path, '/');
+let conf_name = slash >= 0 ? substr(conf_path, slash + 1) : conf_path;
+return { running, dash_port, dash_pass, proxy_mode, conf_path: conf_name,
+         panel_type, tcp_mode, udp_mode, core_type, local_ip };
+}
+},
+
+reload: {
+call: function() {
+let svc = get_service_name();
+return { success: system('service ' + svc + ' reload >/dev/null 2>&1') == 0 };
+}
+},
+
+restart: {
+call: function() {
+let svc = get_service_name();
+if (svc === 'clash')
+return { success: system('sh /usr/share/clashoo/rpc/rpc_async.sh restart >/dev/null 2>&1') == 0 };
+return { success: system('service ' + svc + ' restart >/dev/null 2>&1') == 0 };
+}
+},
+
+start: {
+call: function() {
+let active = uci_get('clashoo', 'config', 'use_config');
+if (!active || !access(active, 'r')) {
+let fallback = first_available_config('');
+if (fallback) {
+let c = cursor();
+c.load('clashoo');
+c.set('clashoo', 'config', 'use_config', fallback.path);
+c.set('clashoo', 'config', 'config_type', fallback.type);
+c.commit('clashoo');
+active = fallback.path;
+}
+}
+
+if (!active || !access(active, 'r'))
+return { success: false, error: 'no_config', message: '请添加配置文件' };
+
+let svc = get_service_name();
+if (svc !== 'sing-box') system("uci set clashoo.config.enabled='1' && uci commit clashoo 2>/dev/null; uci set clash.config.enable='1' && uci commit clash 2>/dev/null; true");
+return { success: system('service ' + svc + ' start >/dev/null 2>&1') == 0 || is_running() };
+}
+},
+
+stop: {
+call: function() {
+let svc = get_service_name();
+if (svc !== 'sing-box') system("uci set clashoo.config.enabled='0' && uci commit clashoo 2>/dev/null; uci set clash.config.enable='0' && uci commit clash 2>/dev/null; true");
+return { success: system('service ' + svc + ' stop >/dev/null 2>&1') == 0 || !is_running() };
+}
+},
+
+set_mode: {
+args: { mode: 'mode' },
+call: function(req) {
+let mode = req.args?.mode || 'fake-ip';
+if (mode != 'fake-ip' && mode != 'tun' && mode != 'mixed')
+return { error: 'invalid mode' };
+let c = cursor(); c.load('clashoo');
+if (mode == 'tun' || mode == 'mixed') {
+c.set('clashoo', 'config', 'tun_mode', '1');
+c.set('clashoo', 'config', 'tcp_mode', 'tun');
+c.set('clashoo', 'config', 'udp_mode', 'tun');
+c.set('clashoo', 'config', 'stack', mode == 'mixed' ? 'mixed' : 'system');
+c.set('clashoo', 'config', 'enable_udp', '1');
+c.set('clashoo', 'config', 'enhanced_mode', 'fake-ip');
+} else {
+c.set('clashoo', 'config', 'tun_mode', '0');
+c.set('clashoo', 'config', 'tcp_mode', 'redirect');
+c.set('clashoo', 'config', 'udp_mode', 'tun');
+c.set('clashoo', 'config', 'stack', 'gvisor');
+c.set('clashoo', 'config', 'enhanced_mode', 'fake-ip');
+}
+c.commit('clashoo');
+if (is_running()) system('service ' + get_service_name() + ' restart >/dev/null 2>&1');
+return { success: true };
+}
+},
+
+set_proxy_mode: {
+args: { mode: 'mode' },
+call: function(req) {
+let mode = req.args?.mode || 'rule';
+if (mode != 'rule' && mode != 'global' && mode != 'direct')
+return { error: 'invalid mode' };
+let c = cursor(); c.load('clashoo');
+c.set('clashoo', 'config', 'p_mode', mode);
+c.commit('clashoo');
+if (is_running()) system('service ' + get_service_name() + ' restart >/dev/null 2>&1');
+return { success: true };
+}
+},
+
+set_panel: {
+args: { name: 'name' },
+call: function(req) {
+let name = req.args?.name || 'metacubexd';
+if (name != 'metacubexd' && name != 'yacd' && name != 'zashboard' && name != 'razord')
+name = 'metacubexd';
+let c = cursor(); c.load('clashoo');
+c.set('clashoo', 'config', 'dashboard_panel', name);
+c.commit('clashoo');
+return { success: true };
+}
+},
+
+update_panel: {
+args: { name: 'name' },
+call: function(req) {
+let name = req.args?.name || 'metacubexd';
+system("sh /usr/share/clashoo/update/panel_download.sh '" + name + "' >/dev/null 2>&1 &");
+return { success: true };
+}
+},
+
+list_configs: {
+call: function() {
+let configs = [];
+let subs = read_subscriptions();
+let current = get_current_config();
+
+function has_cfg(n) {
+for (let i = 0; i < length(configs); i++)
+if (configs[i] == n) return true;
+return false;
+}
+
+for (let row in subs) {
+let n = row.name;
+if (!n) continue;
+if (!access('/usr/share/clashoo/config/sub/' + n, 'r')) continue;
+if (!has_cfg(n)) push(configs, n);
+}
+
+for (let f in (glob('/usr/share/clashoo/config/upload/*.yaml') || [])) {
+let n = replace(f, '/usr/share/clashoo/config/upload/', '');
+if (n && !has_cfg(n)) push(configs, n);
+}
+for (let f in (glob('/usr/share/clashoo/config/upload/*.yml') || [])) {
+let n = replace(f, '/usr/share/clashoo/config/upload/', '');
+if (n && !has_cfg(n)) push(configs, n);
+}
+
+for (let f in (glob('/usr/share/clashoo/config/custom/*.yaml') || [])) {
+let n = replace(f, '/usr/share/clashoo/config/custom/', '');
+if (n && !has_cfg(n)) push(configs, n);
+}
+for (let f in (glob('/usr/share/clashoo/config/custom/*.yml') || [])) {
+let n = replace(f, '/usr/share/clashoo/config/custom/', '');
+if (n && !has_cfg(n)) push(configs, n);
+}
+
+if (current && !has_cfg(current))
+push(configs, current);
+
+return { configs: configs, current: current };
+}
+},
+
+set_config: {
+args: { name: 'name' },
+call: function(req) {
+let name = req.args?.name || '';
+if (!name) return { error: 'missing name' };
+let found_path = '';
+let found_type = '';
+for (let dir in CONFIG_DIRS) {
+let candidate = dir.path + '/' + name;
+if (access(candidate, 'r')) { found_path = candidate; found_type = dir.type; break; }
+}
+if (!found_path) return { error: 'not found' };
+let c = cursor(); c.load('clashoo');
+c.set('clashoo', 'config', 'use_config', found_path);
+c.set('clashoo', 'config', 'config_type', found_type);
+c.commit('clashoo');
+if (is_running()) system('service ' + get_service_name() + ' restart >/dev/null 2>&1');
+return { success: true };
+}
+},
+
+get_cpu_arch: {
+call: function() {
+return { arch: get_cpu_arch() };
+}
+},
+
+download_core: {
+call: function() {
+system('sh /usr/share/clashoo/update/core_download.sh >>/usr/share/clashoo/clashoo.txt 2>&1 &');
+return { success: true };
+}
+},
+
+update_geoip: {
+call: function() {
+system('sh /usr/share/clashoo/update/geoip.sh >/tmp/geoip_update.txt 2>&1 &');
+return { success: true };
+}
+},
+
+get_log_status: {
+call: function() {
+let core_updating  = !!access('/var/run/core_update', 'r');
+let geoip_updating = !!access('/var/run/geoip_update', 'r');
+let p = popen("tail -5 /tmp/clash_update.txt 2>/dev/null");
+let core_log = ''; if (p) { core_log = trim(p.read('all')); p.close(); }
+let p2 = popen("tail -5 /tmp/geoip_update.txt 2>/dev/null");
+let geoip_log = ''; if (p2) { geoip_log = trim(p2.read('all')); p2.close(); }
+return { core_updating, geoip_updating, core_log, geoip_log };
+}
+},
+
+list_profiles: {
+call: function() {
+return { profiles: get_profiles() };
+}
+},
+
+read_log: {
+call: function() {
+return { content: get_log_content() };
+}
+},
+
+read_real_log: {
+call: function() {
+return { content: trim(readfile('/usr/share/clashoo/clashoo_real.txt') || '') };
+}
+},
+
+clear_log: {
+call: function() {
+let cleared = false;
+for (let path in LOG_PATHS) {
+if (!access(path, 'r')) continue;
+if (writefile(path, '') !== null) cleared = true;
+}
+return { success: cleared };
+}
+},
+
+read_update_log: {
+call: function() {
+let p = popen("tail -300 /tmp/clash_update.txt 2>/dev/null");
+let content = '';
+if (p) { content = p.read('all'); p.close(); }
+return { content };
+}
+},
+
+clear_update_log: {
+call: function() {
+return { success: writefile('/tmp/clash_update.txt', '') !== null };
+}
+},
+
+read_geoip_log: {
+call: function() {
+let p = popen("tail -300 /tmp/geoip_update.txt 2>/dev/null");
+let content = '';
+if (p) { content = p.read('all'); p.close(); }
+return { content };
+}
+},
+
+clear_geoip_log: {
+call: function() {
+return { success: writefile('/tmp/geoip_update.txt', '') !== null };
+}
+},
+
+access_check: {
+call: function() {
+function probe(url) {
+let p = popen("/usr/share/clashoo/net/access_check.sh '" + url + "' 2>/dev/null");
+let raw = '';
+if (p) { raw = trim(p.read('all')); p.close(); }
+let ok = 0;
+let attempts = 3;
+let loss = 3;
+let avg_ms = 0;
+let last_code = '000';
+
+for (let token in split(raw, ' ')) {
+let kv = split(token, '=');
+if (length(kv) < 2) continue;
+if (kv[0] == 'ok') ok = int(kv[1]);
+else if (kv[0] == 'attempts') attempts = int(kv[1]);
+else if (kv[0] == 'loss') loss = int(kv[1]);
+else if (kv[0] == 'avg_ms') avg_ms = int(kv[1]);
+else if (kv[0] == 'code') last_code = kv[1];
+}
+
+let state = 'down';
+ if (ok == attempts) {
+ state = avg_ms >= 2500 ? 'high_latency' : 'ok';
+}
+else if (ok > 0) {
+state = 'loss';
+}
+
+return {
+ok: ok > 0,
+state,
+code: last_code,
+ok_count: ok,
+attempts,
+loss,
+avg_ms
+};
+}
+
+return {
+wechat: probe('https://res.wx.qq.com/a/wx_fed/assets/res/NTI4MWU5.ico'),
+youtube: probe('https://www.youtube.com/generate_204'),
+baidu: probe('https://www.baidu.com'),
+google: probe('https://www.google.com/generate_204')
+};
+}
+},
+
+capabilities: {
+call: function() {
+return {
+backend:           detect_firewall_backend(),
+missing_fw4_tools: detect_missing_fw4_tools(),
+has_mihomo:        !!access('/usr/bin/mihomo', 'x'),
+has_clash_meta:    !!access('/usr/bin/clash-meta', 'x'),
+has_builtin_core:  !!access('/etc/clashoo/clash', 'x')
+};
+}
+},
+
+list_subscriptions: {
+call: function() {
+let active = uci_get('clashoo', 'config', 'use_config');
+let active_name = replace(active, /^.*\//, '');
+let rows = read_subscriptions();
+for (let row in rows) {
+let fi = stat(SUB_DIR + '/' + row.name);
+row.mtime    = fi ? ('' + fi.mtime) : null;
+row.size     = fi ? (int(fi.size / 1024) + ' KB') : null;
+row.has_file = !!fi;
+row.active   = (row.name == active_name);
+}
+return { subs: rows, active: active_name };
+}
+},
+
+list_templates: {
+call: function() {
+let files = [];
+for (let f in (glob(TEMPLATE_DIR + '/*.yaml') || [])) {
+let name = replace(f, TEMPLATE_DIR + '/', '');
+if (index(name, '_merged_') == 0) continue;
+let fi = stat(f);
+push(files, { name, mtime: fi ? ('' + fi.mtime) : null, size: fi ? (int(fi.size / 1024) + ' KB') : null });
+}
+for (let f in (glob(TEMPLATE_DIR + '/*.yml') || [])) {
+let name = replace(f, TEMPLATE_DIR + '/', '');
+if (index(name, '_merged_') == 0) continue;
+let fi = stat(f);
+push(files, { name, mtime: fi ? ('' + fi.mtime) : null, size: fi ? (int(fi.size / 1024) + ' KB') : null });
+}
+return { files };
+}
+},
+
+list_template_bindings: {
+call: function() {
+return { bindings: read_template_bindings() };
+}
+},
+
+set_template_binding: {
+args: { sub_name: 'sub_name', template_name: 'template_name', enabled: 'enabled' },
+call: function(req) {
+let sub_name = ensure_yaml_name(req.args?.sub_name || '');
+let template_name = ensure_yaml_name(req.args?.template_name || '');
+let enabled = (req.args?.enabled || '') == '0' ? '0' : '1';
+
+if (!sub_name)
+return { success: false, error: 'invalid_sub_name', message: '订阅名称无效' };
+
+if (!template_name) {
+let keep = [];
+for (let row in read_template_bindings()) {
+if (row.sub_name != sub_name)
+push(keep, row);
+}
+if (!write_template_bindings(keep))
+return { success: false, error: 'write_failed', message: '保存绑定失败' };
+return { success: true, message: '已移除模板绑定' };
+}
+
+if (!access(SUB_DIR + '/' + sub_name, 'r'))
+return { success: false, error: 'sub_not_found', message: '订阅文件不存在' };
+if (!access(TEMPLATE_DIR + '/' + template_name, 'r'))
+return { success: false, error: 'template_not_found', message: '模板文件不存在' };
+
+let rows = read_template_bindings();
+let updated = false;
+for (let i = 0; i < length(rows); i++) {
+if (rows[i].sub_name != sub_name) continue;
+rows[i].template_name = template_name;
+rows[i].enabled = enabled;
+updated = true;
+break;
+}
+if (!updated)
+push(rows, { sub_name, template_name, enabled });
+
+if (!write_template_bindings(rows))
+return { success: false, error: 'write_failed', message: '保存绑定失败' };
+
+return { success: true, message: '模板绑定已保存' };
+}
+},
+
+apply_template_for_sub: {
+args: { sub_name: 'sub_name', template_name: 'template_name', set_active: 'set_active' },
+call: function(req) {
+let sub_name = ensure_yaml_name(req.args?.sub_name || '');
+let template_name = ensure_yaml_name(req.args?.template_name || '');
+let set_active = (req.args?.set_active || '') == '1';
+
+if (!sub_name)
+return { success: false, error: 'invalid_sub_name', message: '订阅名称无效' };
+
+let sub_path = SUB_DIR + '/' + sub_name;
+if (!access(sub_path, 'r'))
+return { success: false, error: 'sub_not_found', message: '订阅文件不存在' };
+
+if (!template_name) {
+let b = find_template_binding(sub_name);
+if (!b || b.enabled != '1')
+return { success: false, error: 'binding_not_found', message: '未找到启用的模板绑定' };
+template_name = b.template_name;
+}
+
+let template_path = TEMPLATE_DIR + '/' + template_name;
+if (!access(template_path, 'r'))
+return { success: false, error: 'template_not_found', message: '模板文件不存在' };
+
+let output_name = template_output_name(sub_name, template_name);
+let out_path = TEMPLATE_DIR + '/' + output_name;
+let cmd = 'sh /usr/share/clashoo/update/template_merge.sh '
+  + shell_quote(sub_path) + ' '
+  + shell_quote(template_path) + ' '
+  + shell_quote(out_path);
+
+if (system(cmd + ' >/dev/null 2>&1') != 0)
+return { success: false, error: 'merge_failed', message: '模板复写生成失败，请检查模板内容' };
+
+if (set_active) {
+let c = cursor();
+c.load('clashoo');
+c.set('clashoo', 'config', 'use_config', out_path);
+c.set('clashoo', 'config', 'config_type', '3');
+c.commit('clashoo');
+if (is_running())
+system('service clash restart >/dev/null 2>&1');
+}
+
+return {
+success: true,
+output_name,
+output_path: out_path,
+template_name,
+message: '模板复写生成成功: ' + output_name
+};
+}
+},
+
+apply_enabled_template_bindings: {
+args: { set_active: 'set_active' },
+call: function(req) {
+let set_active = (req.args?.set_active || '') == '1';
+let rows = read_template_bindings();
+let done = [];
+let failed = [];
+
+for (let row in rows) {
+if (row.enabled != '1') continue;
+let sub_path = SUB_DIR + '/' + row.sub_name;
+let template_path = TEMPLATE_DIR + '/' + row.template_name;
+if (!access(sub_path, 'r') || !access(template_path, 'r')) {
+push(failed, row.sub_name);
+continue;
+}
+
+let output_name = template_output_name(row.sub_name, row.template_name);
+let out_path = TEMPLATE_DIR + '/' + output_name;
+let cmd = 'sh /usr/share/clashoo/update/template_merge.sh '
+  + shell_quote(sub_path) + ' '
+  + shell_quote(template_path) + ' '
+  + shell_quote(out_path)
+  + ' >/dev/null 2>&1';
+
+if (system(cmd) == 0) {
+push(done, row.sub_name);
+if (set_active) {
+let current = uci_get('clashoo', 'config', 'use_config');
+if (replace(current || '', /^.*\//, '') == row.sub_name) {
+let c = cursor();
+c.load('clashoo');
+c.set('clashoo', 'config', 'use_config', out_path);
+c.set('clashoo', 'config', 'config_type', '3');
+c.commit('clashoo');
+}
+}
+}
+else {
+push(failed, row.sub_name);
+}
+}
+
+if (set_active && is_running())
+system('service clash restart >/dev/null 2>&1');
+
+return {
+success: length(failed) == 0,
+done,
+failed,
+message: '模板生成完成: 成功 ' + length(done) + '，失败 ' + length(failed)
+};
+}
+},
+
+list_dir_files: {
+args: { type: 'type' },
+call: function(req) {
+let type_map = { '1': '/usr/share/clashoo/config/sub', '2': '/usr/share/clashoo/config/upload', '3': '/usr/share/clashoo/config/custom' };
+let dir = type_map[req.args?.type || '2'];
+if (!dir) return { files: [] };
+let active = uci_get('clashoo', 'config', 'use_config');
+let active_name = replace(active, /^.*\//, '');
+let files = [];
+for (let f in (glob(dir + '/*.yaml') || [])) {
+let name = replace(f, dir + '/', '');
+let fi   = stat(f);
+push(files, {
+name,
+mtime:  fi ? ('' + fi.mtime) : null,
+size:   fi ? (int(fi.size / 1024) + ' KB') : null,
+active: name == active_name
+});
+}
+for (let f in (glob(dir + '/*.yml') || [])) {
+let name = replace(f, dir + '/', '');
+let fi   = stat(f);
+push(files, {
+name,
+mtime:  fi ? ('' + fi.mtime) : null,
+size:   fi ? (int(fi.size / 1024) + ' KB') : null,
+active: name == active_name
+});
+}
+return { files, active: active_name };
+}
+},
+
+delete_config: {
+args: { name: 'name', type: 'type' },
+call: function(req) {
+let name = req.args?.name || '';
+let type = req.args?.type || '1';
+if (!name) return { error: 'missing name' };
+if (index(name, '..') >= 0 || index(name, '/') >= 0) return { error: 'invalid name' };
+let type_map = { '1': SUB_DIR, '2': '/usr/share/clashoo/config/upload', '3': '/usr/share/clashoo/config/custom' };
+let dir = type_map[type] || SUB_DIR;
+let target = dir + '/' + name;
+let file_exists = !!access(target, 'r');
+let alt_name = name;
+let alt_target = target;
+
+if (type == '1' && match(name, /_new\.(yaml|yml)$/)) {
+alt_name = replace(name, /_new\.(yaml|yml)$/, '.yaml');
+alt_target = dir + '/' + alt_name;
+}
+
+if (file_exists) {
+if (unlink(target) === null) return { success: false, error: 'delete failed' };
+}
+else if (type != '1') {
+return { error: 'not found' };
+}
+
+if (type == '1' && alt_target != target && access(alt_target, 'r')) {
+unlink(alt_target);
+}
+
+let c = cursor();
+c.load('clashoo');
+let active = c.get('clashoo', 'config', 'use_config') || '';
+if (active == target || (type == '1' && active == alt_target)) {
+let fallback = first_available_config(target);
+if (fallback) {
+c.set('clashoo', 'config', 'use_config', fallback.path);
+c.set('clashoo', 'config', 'config_type', fallback.type);
+}
+else {
+c.delete('clashoo', 'config', 'use_config');
+c.delete('clashoo', 'config', 'config_type');
+}
+c.commit('clashoo');
+if (is_running()) system('service ' + get_service_name() + ' restart >/dev/null 2>&1');
+}
+
+if (type == '1' && access(LIST_FILE, 'r')) {
+let content = readfile(LIST_FILE) || '';
+let lines = [];
+for (let l in split(content, '\n')) {
+if (index(l, name + '#') == 0)
+continue;
+if (alt_name != name && index(l, alt_name + '#') == 0)
+continue;
+push(lines, l);
+}
+writefile(LIST_FILE, join('\n', lines));
+}
+return { success: true };
+}
+},
+
+update_china_ip: {
+call: function() {
+/* Surface CN whitelist update progress in update log panel. */
+	return { success: system('sh /usr/share/clashoo/rpc/rpc_async.sh update_china_ip >/dev/null 2>&1') == 0 };
+}
+},
+
+download_subs: {
+call: function() {
+let rc = system('sh /usr/share/clashoo/runtime/clash.sh >/dev/null 2>&1');
+let msg = rc == 0 ? '订阅下载完成' : '订阅下载失败';
+return { success: rc == 0, code: rc, message: msg };
+}
+},
+
+update_sub: {
+args: { name: 'name' },
+call: function(req) {
+let name = req.args?.name || '';
+if (!name) return { error: 'missing name' };
+let c = cursor(); c.load('clashoo');
+c.set('clashoo', 'config', 'config_update_name', name);
+c.commit('clashoo');
+let rc = system('sh /usr/share/clashoo/update/update.sh >/dev/null 2>&1');
+if (rc != 0) {
+return { success: false, code: rc, message: '更新失败: ' + name };
+}
+
+let msg = '更新完成: ' + name;
+let b = find_template_binding(name);
+if (b && b.enabled == '1' && access(TEMPLATE_DIR + '/' + b.template_name, 'r')) {
+let sub_path = SUB_DIR + '/' + name;
+let output_name = template_output_name(name, b.template_name);
+let out_path = TEMPLATE_DIR + '/' + output_name;
+let merge_cmd = 'sh /usr/share/clashoo/update/template_merge.sh '
+  + shell_quote(sub_path) + ' '
+  + shell_quote(TEMPLATE_DIR + '/' + b.template_name) + ' '
+  + shell_quote(out_path)
+  + ' >/dev/null 2>&1';
+if (system(merge_cmd) == 0) {
+let current = c.get('clashoo', 'config', 'use_config') || '';
+if (replace(current, /^.*\//, '') == name) {
+c.set('clashoo', 'config', 'use_config', out_path);
+c.set('clashoo', 'config', 'config_type', '3');
+c.commit('clashoo');
+if (is_running())
+system('service clash restart >/dev/null 2>&1');
+}
+msg = msg + '，模板已生成';
+}
+else {
+msg = msg + '，模板生成失败';
+}
+}
+
+return { success: true, code: rc, message: msg };
+}
+},
+
+apply_rewrite: {
+args: {
+base_type: 'base_type',
+base_name: 'base_name',
+rewrite_type: 'rewrite_type',
+rewrite_name: 'rewrite_name',
+output_name: 'output_name',
+set_active: 'set_active'
+},
+call: function(req) {
+let base_type = req.args?.base_type || '';
+let base_name = safe_name(req.args?.base_name || '');
+let rewrite_type = req.args?.rewrite_type || '';
+let rewrite_name = safe_name(req.args?.rewrite_name || '');
+let output_name = ensure_yaml_name(req.args?.output_name || '');
+let set_active = (req.args?.set_active || '') == '1';
+
+let base_dir = config_dir_by_type(base_type);
+let rewrite_dir = config_dir_by_type(rewrite_type);
+
+if (!base_dir || !base_name)
+return { success: false, error: 'invalid_base', message: '主配置无效' };
+if (!rewrite_dir || !rewrite_name)
+return { success: false, error: 'invalid_rewrite', message: '复写配置无效' };
+
+let base_path = base_dir + '/' + base_name;
+let rewrite_path = rewrite_dir + '/' + rewrite_name;
+
+if (!access(base_path, 'r'))
+return { success: false, error: 'base_not_found', message: '主配置文件不存在' };
+if (!access(rewrite_path, 'r'))
+return { success: false, error: 'rewrite_not_found', message: '复写配置文件不存在' };
+
+if (!output_name) {
+let stem = replace(base_name, /\.(yaml|yml)$/, '');
+output_name = stem + '_rewrite.yaml';
+}
+
+let out_dir = '/usr/share/clashoo/config/custom';
+let out_path = out_dir + '/' + output_name;
+let tmp_path = '/tmp/clash_rewrite_merged.yaml';
+
+system('mkdir -p ' + shell_quote(out_dir));
+
+/* Template mode: when rewrite file comes from custom dir, always prefer template merge workflow. */
+if (rewrite_type == '3' || rewrite_type == 'custom' || rewrite_dir == '/usr/share/clashoo/config/custom') {
+let tcmd = 'sh /usr/share/clashoo/update/template_merge.sh '
+  + shell_quote(base_path) + ' '
+  + shell_quote(rewrite_path) + ' '
+  + shell_quote(out_path)
+  + ' >/dev/null 2>&1';
+if (system(tcmd) != 0)
+return { success: false, error: 'merge_failed', message: '模板复写失败，请检查模板内容与订阅格式' };
+}
+else {
+if (system('command -v yq >/dev/null 2>&1') != 0)
+return { success: false, error: 'missing_yq', message: '缺少 yq，无法执行复写' };
+
+let cmd = "yq eval-all '(select(fileIndex == 0) | explode(.)) * (select(fileIndex == 1) | explode(.))' "
++ shell_quote(base_path) + ' ' + shell_quote(rewrite_path)
++ ' > ' + shell_quote(tmp_path);
+
+if (system(cmd) != 0 || !access(tmp_path, 'r'))
+return { success: false, error: 'merge_failed', message: '复写合并失败，请检查 YAML 格式' };
+
+if (system('yq e \'.\' ' + shell_quote(tmp_path) + ' >/dev/null 2>&1') != 0) {
+system('rm -f ' + shell_quote(tmp_path));
+return { success: false, error: 'invalid_yaml', message: '复写结果 YAML 无效，请检查锚点/别名配置' };
+}
+
+let binary = find_binary();
+if (binary && system(shell_quote(binary) + ' -t -f ' + shell_quote(tmp_path) + ' >/dev/null 2>&1') != 0) {
+system('rm -f ' + shell_quote(tmp_path));
+return { success: false, error: 'invalid_runtime_yaml', message: '复写结果与内核不兼容，请检查复写内容' };
+}
+
+if (system('mv -f ' + shell_quote(tmp_path) + ' ' + shell_quote(out_path)) != 0)
+return { success: false, error: 'write_failed', message: '写入复写文件失败' };
+}
+
+if (set_active) {
+let c = cursor();
+c.load('clashoo');
+c.set('clashoo', 'config', 'use_config', out_path);
+c.set('clashoo', 'config', 'config_type', '3');
+c.commit('clashoo');
+if (is_running())
+system('service clash restart >/dev/null 2>&1');
+}
+
+return {
+success: true,
+output_name,
+output_path: out_path,
+message: '复写成功: ' + output_name
+};
+}
+},
+
+fetch_rewrite_url: {
+args: { url: 'url', name: 'name' },
+call: function(req) {
+let url = trim(req.args?.url || '');
+let name = ensure_yaml_name(req.args?.name || '');
+
+if (!url || !match(url, /^https?:\/\//))
+return { success: false, error: 'invalid_url', message: '无效的 URL' };
+
+if (!name)
+name = file_name_from_url(url);
+if (!name)
+name = 'rewrite-remote.yaml';
+
+let out_dir = '/usr/share/clashoo/config/custom';
+let out_path = out_dir + '/' + name;
+let tmp_path = '/tmp/rewrite_remote.yaml';
+
+system('mkdir -p ' + shell_quote(out_dir));
+
+let dl_cmd = '(curl -fL --connect-timeout 15 --max-time 90 ' + shell_quote(url) + ' -o ' + shell_quote(tmp_path)
+  + ' || wget -O ' + shell_quote(tmp_path) + ' ' + shell_quote(url) + ') >/dev/null 2>&1';
+
+if (system(dl_cmd) != 0 || !access(tmp_path, 'r'))
+return { success: false, error: 'download_failed', message: '远程复写文件下载失败' };
+
+if (system('yq e \'.\' ' + shell_quote(tmp_path) + ' >/dev/null 2>&1') != 0) {
+system('rm -f ' + shell_quote(tmp_path));
+return { success: false, error: 'invalid_yaml', message: '远程复写文件 YAML 格式无效' };
+}
+
+if (system('mv -f ' + shell_quote(tmp_path) + ' ' + shell_quote(out_path)) != 0)
+return { success: false, error: 'write_failed', message: '保存远程复写文件失败' };
+
+return {
+success: true,
+name,
+path: out_path,
+message: '远程复写文件已保存: ' + name
+};
+}
+},
+
+read_config_file: {
+args: { path: 'path' },
+call: function(req) {
+let path = req.args?.path || '';
+if (!path || !match(path, /^\/usr\/share\/clash\/config\//)) return { error: 'invalid path' };
+if (!access(path, 'r')) return { error: 'not found' };
+return { content: readfile(path) || '' };
+}
+},
+
+write_config_file: {
+args: { path: 'path', content: 'content' },
+call: function(req) {
+let path    = req.args?.path    || '';
+let content = req.args?.content || '';
+if (!path || !match(path, /^\/usr\/share\/clash\/config\//)) return { error: 'invalid path' };
+writefile(path, content);
+return { success: true };
+}
+},
+
+upload_config: {
+args: { name: 'name', content: 'content', type: 'type' },
+call: function(req) {
+let name    = safe_name(ensure_yaml_name(req.args?.name    || ''));
+let content = req.args?.content || '';
+let type    = req.args?.type    || '2';
+if (!name)    return { success: false, error: 'invalid_name',    message: '文件名无效' };
+if (!content) return { success: false, error: 'empty_content',   message: '文件内容为空' };
+let dir = config_dir_by_type(type);
+if (!dir) dir = '/usr/share/clashoo/config/upload';
+system('mkdir -p ' + shell_quote(dir));
+let path = dir + '/' + name;
+if (writefile(path, content) === null)
+return { success: false, error: 'write_failed', message: '写入文件失败' };
+return { success: true, name, path };
+}
+},
+
+smart_flush_cache: {
+call: function() {
+let code = mihomo_api_post('/cache/smart/flush');
+return { success: (code == '204' || code == '200'), code };
+}
+},
+
+smart_upgrade_lgbm: {
+call: function() {
+system('sh /usr/share/clashoo/update/lgbm_update.sh >/tmp/lgbm_update.log 2>&1 &');
+return { success: true };
+}
+},
+
+smart_model_status: {
+call: function() {
+let model_path = '/etc/clashoo/Model.bin';
+let s = stat(model_path);
+if (!s) return { has_model: false, version: '' };
+let p = popen('date -d @' + s.mtime + ' "+%Y-%m-%d %H:%M:%S" 2>/dev/null || date -r ' + shell_quote(model_path) + ' "+%Y-%m-%d %H:%M:%S" 2>/dev/null');
+let ts = '';
+if (p) { ts = trim(p.read('all')); p.close(); }
+return { has_model: true, version: ts || ('' + s.mtime), size_kb: int(s.size / 1024) };
+}
+},
+
+/* ── sing-box profile management ── */
+
+list_singbox_profiles: {
+call: function() {
+let dir = '/usr/share/clashoo/config/singbox';
+system('mkdir -p ' + shell_quote(dir) + ' >/dev/null 2>&1');
+let active = uci_get('clashoo', 'config', 'singbox_active') || '';
+let files = [];
+for (let f in (glob(dir + '/*.json') || [])) {
+  let name = replace(f, dir + '/', '');
+  let fi = stat(f);
+  push(files, {
+    name,
+    mtime: fi ? ('' + fi.mtime) : null,
+    size:  fi ? (int(fi.size / 1024) + ' KB') : null,
+    active: name == active
+  });
+}
+return { profiles: files, active };
+}
+},
+
+get_singbox_profile: {
+args: { name: 'name' },
+call: function(req) {
+let name = req.args?.name || '';
+if (!name || index(name, '/') >= 0 || index(name, '..') >= 0)
+  return { error: 'invalid name' };
+let path = '/usr/share/clashoo/config/singbox/' + name;
+if (!access(path, 'r')) return { error: 'not found' };
+let s = stat(path);
+if (s && s.size > 524288) return { error: 'too large' };
+return { content: readfile(path) || '', name };
+}
+},
+
+save_singbox_profile: {
+args: { name: 'name', content: 'content' },
+call: function(req) {
+let name    = req.args?.name    || '';
+let content = req.args?.content || '';
+if (!name || index(name, '/') >= 0 || index(name, '..') >= 0)
+  return { success: false, error: 'invalid name' };
+if (!content) return { success: false, error: 'empty content' };
+if (!match(name, /\.json$/)) name = name + '.json';
+let dir = '/usr/share/clashoo/config/singbox';
+system('mkdir -p ' + shell_quote(dir) + ' >/dev/null 2>&1');
+let tmp = '/tmp/clashoo_sb_validate.json';
+writefile(tmp, content);
+let binary = find_binary();
+if (binary && match(binary, /sing-box/)) {
+  if (system(shell_quote(binary) + ' check -c ' + shell_quote(tmp) + ' >/dev/null 2>&1') != 0) {
+    system('rm -f ' + shell_quote(tmp));
+    return { success: false, error: 'invalid_config', message: 'sing-box 配置验证失败，请检查 JSON 格式' };
+  }
+}
+system('rm -f ' + shell_quote(tmp));
+if (writefile(dir + '/' + name, content) === null)
+  return { success: false, error: 'write_failed', message: '写入文件失败' };
+return { success: true, name };
+}
+},
+
+set_singbox_profile: {
+args: { name: 'name' },
+call: function(req) {
+let name = req.args?.name || '';
+if (!name || index(name, '/') >= 0 || index(name, '..') >= 0)
+  return { success: false, error: 'invalid name' };
+let src = '/usr/share/clashoo/config/singbox/' + name;
+if (!access(src, 'r')) return { success: false, error: 'not found' };
+system('mkdir -p /etc/sing-box >/dev/null 2>&1');
+if (system('cp -f ' + shell_quote(src) + ' /etc/sing-box/config.json >/dev/null 2>&1') != 0)
+  return { success: false, error: 'copy_failed', message: '无法写入 /etc/sing-box/config.json' };
+let c = cursor(); c.load('clashoo');
+c.set('clashoo', 'config', 'singbox_active', name);
+c.commit('clashoo');
+if (is_running()) system('service sing-box restart >/dev/null 2>&1');
+return { success: true };
+}
+},
+
+delete_singbox_profile: {
+args: { name: 'name' },
+call: function(req) {
+let name = req.args?.name || '';
+if (!name || index(name, '/') >= 0 || index(name, '..') >= 0)
+  return { success: false, error: 'invalid name' };
+let path = '/usr/share/clashoo/config/singbox/' + name;
+if (!access(path, 'r')) return { success: false, error: 'not found' };
+if (unlink(path) === null) return { success: false, error: 'delete_failed' };
+let c = cursor(); c.load('clashoo');
+if (c.get('clashoo', 'config', 'singbox_active') == name) {
+  c.delete('clashoo', 'config', 'singbox_active');
+  c.commit('clashoo');
+}
+return { success: true };
+}
+},
+
+create_singbox_config: {
+args: { sub_url: 'sub_url', name: 'name', secret: 'secret' },
+call: function(req) {
+let sub_url  = trim(req.args?.sub_url || '');
+let name     = trim(req.args?.name    || '');
+let secret   = req.args?.secret || uci_get('clashoo', 'config', 'dash_pass') || '';
+let ext_port = uci_get('clashoo', 'config', 'dash_port') || '9090';
+
+if (!sub_url || !match(sub_url, /^https?:\/\//))
+  return { success: false, error: 'invalid_url', message: '请输入有效的订阅链接' };
+
+if (!name) name = 'singbox';
+name = replace(name, /\.json$/, '');
+name = replace(name, /[^A-Za-z0-9_.\u4e00-\u9fa5-]/g, '-');
+name = replace(name, /-+/g, '-');
+name = replace(name, /^[-.]|[-.]$/g, '') || 'singbox';
+
+let dir = '/usr/share/clashoo/config/singbox';
+system('mkdir -p ' + shell_quote(dir) + ' >/dev/null 2>&1');
+
+let final_name = name + '.json';
+let i = 2;
+while (access(dir + '/' + final_name, 'r')) {
+  final_name = name + '-' + i + '.json';
+  i++;
+}
+
+// Write sub_url to temp file to avoid shell injection in curl call
+let tmp_url = '/tmp/.clashoo-sb-url';
+writefile(tmp_url, sub_url);
+
+let config_obj = null;
+
+// Step 1: Try URL variants that might return native sing-box JSON
+// Many providers support flag=SingBox / format=singbox even if the URL has flag=Clash
+let try_urls = [sub_url];
+// If URL has a Clash flag, also try the sing-box variant
+if (match(sub_url, /flag=Clash/i))
+  push(try_urls, replace(sub_url, /flag=Clash/i, 'flag=SingBox'));
+else if (match(sub_url, /format=clash/i))
+  push(try_urls, replace(sub_url, /format=clash/i, 'format=singbox'));
+
+for (let try_url in try_urls) {
+  let p0 = popen('curl -sL --max-time 30 ' + shell_quote(try_url) + ' 2>/dev/null');
+  let raw0 = p0 ? trim(p0.read('all')) : '';
+  if (p0) p0.close();
+  if (length(raw0) > 50 && substr(raw0, 0, 1) === '{') {
+    let obj = json(raw0);
+    if (obj && type(obj) === 'object' && obj.outbounds) {
+      config_obj = obj;
+      break;
+    }
+  }
+}
+
+// Step 2: If not sing-box JSON (e.g. Clash YAML), try subconverter APIs
+if (!config_obj) {
+  // Each converter: [base_url, param_name]
+  // curl -G appends --data-urlencode "param@file" to base_url query string
+  let converters = [
+    // kidsqq: outputs 1.13-native format directly, no migration needed
+    ['https://sub.kidsqq.cn/singbox?selectedRules=%5B%22Location%3ACN%22%2C%22Private%22%2C%22Non-China%22%2C%22Github%22%2C%22Google%22%2C%22Youtube%22%2C%22AI%2BServices%22%2C%22Telegram%22%2C%22Ad%2BBlock%22%2C%22Streaming%22%2C%22Apple%22%2C%22Social%2BMedia%22%5D&customRules=%5B%5D&group_by_country=true', 'config'],
+    // acl4ssr-style converters
+    ['https://sub.xeton.dev/sub?target=singbox', 'url'],
+    ['https://api.v1.mk/sub?target=singbox',     'url'],
+  ];
+  for (let cv in converters) {
+    let base = cv[0], param = cv[1];
+    let p = popen('curl -sL --max-time 30 -G --data-urlencode ' +
+                  shell_quote(param + '@' + tmp_url) + ' ' +
+                  shell_quote(base) + ' 2>/dev/null');
+    let raw = p ? trim(p.read('all')) : '';
+    if (p) p.close();
+    if (length(raw) < 50 || substr(raw, 0, 1) !== '{') continue;
+    let obj = json(raw);
+    if (obj && type(obj) === 'object' && obj.outbounds) {
+      config_obj = obj;
+      break;
+    }
+  }
+}
+
+system('rm -f ' + shell_quote(tmp_url));
+
+// Migrate sing-box config from pre-1.12 deprecated formats to 1.12+ format
+function migrate_singbox(cfg) {
+  // --- Fix DNS servers: address-based → type-based, remove detour ---
+  if (cfg.dns && cfg.dns.servers) {
+    cfg.dns.servers = map(cfg.dns.servers || [], function(srv) {
+      let addr = srv.address || '';
+      let new_srv = {};
+      let skip = { address: 1, detour: 1, address_resolver: 1, address_strategy: 1 };
+      for (let k in srv) if (!skip[k]) new_srv[k] = srv[k];
+
+      if (addr === 'fakeip') {
+        new_srv.type = 'fakeip';
+      } else if (addr === 'local' || addr === '') {
+        new_srv.type = new_srv.type || 'local';
+      } else if (match(addr, /^rcode:\/\//) || addr === 'rcode') {
+        new_srv._rcode = true;  // mark for removal, handled via dns rule action
+      } else if (match(addr, /^h3:\/\//)) {
+        let host = replace(replace(addr, /^h3:\/\//, ''), /\/.*$/, '');
+        new_srv.type = 'h3'; new_srv.server = host;
+      } else if (match(addr, /^https:\/\//)) {
+        let host = replace(replace(addr, /^https:\/\//, ''), /\/.*$/, '');
+        new_srv.type = 'https'; new_srv.server = host;
+      } else if (match(addr, /^tls:\/\//)) {
+        new_srv.type = 'tls'; new_srv.server = replace(addr, /^tls:\/\//, '');
+      } else if (match(addr, /^tcp:\/\//)) {
+        new_srv.type = 'tcp'; new_srv.server = replace(addr, /^tcp:\/\//, '');
+      } else if (addr && !new_srv.type) {
+        new_srv.type = 'udp'; new_srv.server = addr;  // plain IP → UDP
+      } else if (addr) {
+        new_srv.address = addr;  // unknown format, keep as-is
+      }
+      return new_srv;
+    });
+  }
+
+  // --- Remove rcode servers (unsupported in 1.12+ new format), convert referencing rules to reject ---
+  let rcode_tags = {};
+  if (cfg.dns && cfg.dns.servers) {
+    let good = [];
+    for (let srv in cfg.dns.servers) {
+      if (srv._rcode) rcode_tags[srv.tag] = true;
+      else push(good, srv);
+    }
+    cfg.dns.servers = good;
+  }
+  if (cfg.dns && cfg.dns.rules && length(keys(rcode_tags)) > 0) {
+    cfg.dns.rules = map(cfg.dns.rules || [], function(rule) {
+      if (rule.server && rcode_tags[rule.server]) {
+        let r = {};
+        for (let k in rule) if (k !== 'server' && k !== 'action') r[k] = rule[k];
+        r.action = 'reject';
+        return r;
+      }
+      return rule;
+    });
+  }
+
+  // --- Remove legacy dns.fakeip.enabled (1.12+ fakeip is configured via type:"fakeip" server) ---
+  if (cfg.dns && cfg.dns.fakeip) {
+    let fp = cfg.dns.fakeip;
+    let new_fp = {};
+    for (let k in fp) if (k !== 'enabled') new_fp[k] = fp[k];
+    if (length(keys(new_fp)) > 0) cfg.dns.fakeip = new_fp;
+    else delete cfg.dns['fakeip'];
+  }
+
+  // --- Fix DNS rules: add action:"route" when server is set ---
+  if (cfg.dns && cfg.dns.rules) {
+    cfg.dns.rules = map(cfg.dns.rules || [], function(rule) {
+      if (rule.server && !rule.action) {
+        let r = {};
+        for (let k in rule) r[k] = rule[k];
+        r.action = 'route';
+        return r;
+      }
+      return rule;
+    });
+  }
+
+  // --- Fix legacy special outbounds (block / dns types) ---
+  let special = {};
+  if (cfg.outbounds) {
+    let kept = [];
+    for (let ob in cfg.outbounds) {
+      if (ob.type === 'block' || ob.type === 'dns') {
+        special[ob.tag] = ob.type;
+      } else {
+        push(kept, ob);
+      }
+    }
+    cfg.outbounds = kept;
+  }
+
+  // Patch route rules that pointed to removed special outbounds
+  if (cfg.route && cfg.route.rules && length(keys(special)) > 0) {
+    cfg.route.rules = map(cfg.route.rules || [], function(rule) {
+      let sp = rule.outbound && special[rule.outbound];
+      if (!sp) return rule;
+      let r = {};
+      for (let k in rule) if (k !== 'outbound') r[k] = rule[k];
+      r.action = (sp === 'dns') ? 'hijack-dns' : 'reject';
+      return r;
+    });
+  }
+
+  // --- Migrate geoip/geosite database refs to rule_set (removed in sing-box 1.12) ---
+  let needed_rule_sets = {};
+
+  let migrate_geo_rule = function(rule) {
+    let has_geo = rule.geoip || rule.geosite;
+    if (!has_geo) return rule;
+    let r = {};
+    let new_rs = [];
+    for (let k in rule) {
+      if (k === 'geoip') {
+        for (let n in rule[k]) {
+          let tag = 'geoip-' + n;
+          needed_rule_sets[tag] = 'https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-' + n + '.srs';
+          push(new_rs, tag);
+        }
+      } else if (k === 'geosite') {
+        for (let n in rule[k]) {
+          let tag = 'geosite-' + n;
+          needed_rule_sets[tag] = 'https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-' + n + '.srs';
+          push(new_rs, tag);
+        }
+      } else {
+        r[k] = rule[k];
+      }
+    }
+    // Merge new rule_set tags with any existing ones
+    let existing_rs = type(r.rule_set) === 'array' ? r.rule_set :
+                      (r.rule_set ? [r.rule_set] : []);
+    for (let t in new_rs) push(existing_rs, t);
+    r.rule_set = existing_rs;
+    return r;
+  };
+
+  if (cfg.route && cfg.route.rules)
+    cfg.route.rules = map(cfg.route.rules, migrate_geo_rule);
+  if (cfg.dns && cfg.dns.rules)
+    cfg.dns.rules = map(cfg.dns.rules, migrate_geo_rule);
+
+  // Add rule_set download entries for each referenced geo tag
+  if (length(keys(needed_rule_sets)) > 0) {
+    if (!cfg.route) cfg.route = {};
+    if (!cfg.route.rule_set) cfg.route.rule_set = [];
+    let existing_tags = {};
+    for (let rs in cfg.route.rule_set) existing_tags[rs.tag] = true;
+    // Prefer DIRECT outbound tag for downloading rule sets
+    let dl_detour = 'DIRECT';
+    if (cfg.outbounds) {
+      for (let ob in cfg.outbounds) {
+        if (ob.type === 'direct') { dl_detour = ob.tag || 'DIRECT'; break; }
+      }
+    }
+    for (let tag in keys(needed_rule_sets)) {
+      if (!existing_tags[tag]) {
+        push(cfg.route.rule_set, {
+          tag: tag,
+          type: 'remote',
+          format: 'binary',
+          url: needed_rule_sets[tag],
+          download_detour: dl_detour
+        });
+      }
+    }
+  }
+
+  // --- Remove deprecated 'outbound' DNS rule items (fatal in sing-box 1.13) ---
+  // Replacement: set route.default_domain_resolver to the plain IP-based resolver
+  let dns_resolver_tag = '';
+  if (cfg.dns && cfg.dns.servers) {
+    for (let srv in cfg.dns.servers) {
+      if ((srv.type === 'udp' || srv.type === 'local') && srv.server &&
+          match(srv.server, /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/)) {
+        dns_resolver_tag = srv.tag;
+        break;
+      }
+    }
+  }
+  if (cfg.dns && cfg.dns.rules) {
+    let filtered = [];
+    for (let rule in cfg.dns.rules) {
+      if (!rule.outbound) push(filtered, rule);
+    }
+    cfg.dns.rules = filtered;
+  }
+  // Set route.default_domain_resolver (replaces outbound:any DNS routing)
+  if (dns_resolver_tag) {
+    if (!cfg.route) cfg.route = {};
+    if (!cfg.route.default_domain_resolver)
+      cfg.route.default_domain_resolver = dns_resolver_tag;
+  }
+
+  // --- Fix DNS servers with domain-name server field: add domain_resolver ---
+  // sing-box 1.12+ requires domain_resolver when server= is a hostname (not IP)
+  if (cfg.dns && cfg.dns.servers && dns_resolver_tag) {
+    let domain_types = { https: 1, h3: 1, tls: 1, tcp: 1 };
+    cfg.dns.servers = map(cfg.dns.servers, function(srv) {
+      if (!domain_types[srv.type]) return srv;
+      if (!srv.server || match(srv.server, /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/)) return srv;
+      if (srv.domain_resolver) return srv;
+      let r = {};
+      for (let k in srv) r[k] = srv[k];
+      r.domain_resolver = dns_resolver_tag;
+      return r;
+    });
+  }
+
+  // --- Fix DNS rules referencing non-existent server tags → action: reject ---
+  if (cfg.dns && cfg.dns.servers && cfg.dns.rules) {
+    let valid_servers = {};
+    for (let srv in cfg.dns.servers) valid_servers[srv.tag] = true;
+    cfg.dns.rules = map(cfg.dns.rules, function(rule) {
+      if (!rule.server || valid_servers[rule.server]) return rule;
+      let r = {};
+      for (let k in rule) if (k !== 'server' && k !== 'action') r[k] = rule[k];
+      r.action = 'reject';
+      return r;
+    });
+  }
+
+  // --- Migrate TUN inbound inet4_address/inet6_address → address array (1.12+) ---
+  if (cfg.inbounds) {
+    cfg.inbounds = map(cfg.inbounds, function(ib) {
+      if (ib.type !== 'tun') return ib;
+      let r = {};
+      let addrs = [];
+      for (let k in ib) {
+        if (k === 'inet4_address') {
+          if (type(ib[k]) === 'array') { for (let a in ib[k]) push(addrs, a); }
+          else push(addrs, ib[k]);
+        } else if (k === 'inet6_address') {
+          if (type(ib[k]) === 'array') { for (let a in ib[k]) push(addrs, a); }
+          else push(addrs, ib[k]);
+        } else {
+          r[k] = ib[k];
+        }
+      }
+      if (length(addrs) > 0) r.address = addrs;
+      return r;
+    });
+  }
+
+  // --- Remove dangling outbound references from selectors/urltest ---
+  // Converters may reference non-existent tags (e.g. REJECT) in selector outbound lists
+  if (cfg.outbounds) {
+    let defined_tags = {};
+    for (let ob in cfg.outbounds) defined_tags[ob.tag] = true;
+    cfg.outbounds = map(cfg.outbounds, function(ob) {
+      if ((ob.type !== 'selector' && ob.type !== 'urltest' && ob.type !== 'loadbalance') ||
+          !ob.outbounds) return ob;
+      let valid = [];
+      for (let t in ob.outbounds) {
+        if (defined_tags[t]) push(valid, t);
+      }
+      if (length(valid) === length(ob.outbounds)) return ob;
+      let r = {};
+      for (let k in ob) r[k] = ob[k];
+      r.outbounds = valid;
+      return r;
+    });
+  }
+
+  return cfg;
+}
+
+let content;
+let from_converter = false;
+
+if (config_obj) {
+  from_converter = true;
+  // Migrate deprecated fields to sing-box 1.12+ format
+  config_obj = migrate_singbox(config_obj);
+  // Patch experimental.clash_api into the converted config
+  if (!config_obj.experimental) config_obj.experimental = {};
+  config_obj.experimental.clash_api = {
+    external_controller: '0.0.0.0:' + ext_port,
+    external_ui: '/etc/clashoo/dashboard',
+    secret: secret
+  };
+  // cache_file disabled - can cause "timeout" on first run without pre-existing cache
+  // config_obj.experimental.cache_file = { enabled: true };
+  if (!config_obj.log) config_obj.log = { level: 'info', timestamp: true };
+  // Replace TUN inbound with redirect+tproxy (TUN may not be available)
+  // Use ports from clashoo UCI config
+  if (config_obj.inbounds) {
+    let has_tun = false;
+    for (let ib in config_obj.inbounds) { if (ib.type === 'tun') { has_tun = true; break; } }
+    if (has_tun) {
+      let non_tun = [];
+      for (let ib in config_obj.inbounds) {
+        if (ib.type !== 'tun') push(non_tun, ib);
+      }
+      let redir_port = uci_get('clashoo', 'config', 'redir_port') || '7891';
+      let tproxy_port = uci_get('clashoo', 'config', 'tproxy_port') || '7982';
+      push(non_tun, {
+        type: 'redirect', tag: 'redirect-in',
+        listen: '0.0.0.0', listen_port: int(redir_port)
+      });
+      push(non_tun, {
+        type: 'tproxy', tag: 'tproxy-in',
+        listen: '0.0.0.0', listen_port: int(tproxy_port),
+        network: 'udp'
+      });
+      config_obj.inbounds = non_tun;
+      // Ensure auto_detect_interface is set for redirect mode
+      if (config_obj.route) config_obj.route.auto_detect_interface = true;
+    }
+  }
+
+  // Fix rule_set URLs: rewrite to jsDelivr CDN (accessible from China)
+  // Pattern: https://[gh-proxy.com/]https://github.com/{owner}/{repo}/raw/refs/heads/{branch}/{path}
+  //       → https://cdn.jsdelivr.net/gh/{owner}/{repo}@{branch}/{path}
+  if (config_obj.route && config_obj.route.rule_set) {
+    config_obj.route.rule_set = map(config_obj.route.rule_set, function(rs) {
+      if (rs.type !== 'remote' || !rs.url) return rs;
+      let url = rs.url;
+      // Strip gh-proxy.com wrapper if present
+      url = replace(url, /^https:\/\/gh-proxy\.com\//, '');
+      // Convert github.com raw URL → jsDelivr
+      let m = match(url, /^https:\/\/github\.com\/([^\/]+)\/([^\/]+)\/raw\/refs\/heads\/([^\/]+)\/(.+)$/);
+      if (m) {
+        url = 'https://cdn.jsdelivr.net/gh/' + m[1] + '/' + m[2] + '@' + m[3] + '/' + m[4];
+      }
+      if (url === rs.url) return rs;
+      let r = {};
+      for (let k in rs) r[k] = rs[k];
+      r.url = url;
+      return r;
+    });
+  }
+  content = sprintf('%J\n', config_obj);
+} else {
+  // Fallback: generate a skeleton sing-box config (no proxies)
+  // User should upload a proper sing-box JSON config instead
+  function je(s) {
+    s = replace(s || '', /\\/g, '\\\\');
+    s = replace(s, /"/g, '\\"');
+    return s;
+  }
+  content =
+'{\n' +
+'  "log": { "level": "info", "timestamp": true },\n' +
+'  "_note": "subconverter unavailable - replace outbounds with your proxies",\n' +
+'  "_sub_url": "' + je(sub_url) + '",\n' +
+'  "dns": {\n' +
+'    "servers": [\n' +
+'      { "tag": "remote", "type": "https", "server": "1.1.1.1" },\n' +
+'      { "tag": "local",  "type": "udp",   "server": "223.5.5.5" }\n' +
+'    ],\n' +
+'    "rules": [\n' +
+'      { "outbound": "any",      "action": "route", "server": "local" },\n' +
+'      { "clash_mode": "Global", "action": "route", "server": "remote" },\n' +
+'      { "clash_mode": "Direct", "action": "route", "server": "local" },\n' +
+'      { "rule_set": "geosite-cn","action": "route", "server": "local" }\n' +
+'    ],\n' +
+'    "final": "remote"\n' +
+'  },\n' +
+'  "inbounds": [\n' +
+'    { "type": "tun", "tag": "tun-in",\n' +
+'      "address": ["172.19.0.1/30", "fdfe:dcba:9876::1/126"],\n' +
+'      "auto_route": true, "strict_route": true, "sniff": true }\n' +
+'  ],\n' +
+'  "outbounds": [\n' +
+'    { "type": "direct", "tag": "DIRECT" }\n' +
+'  ],\n' +
+'  "route": {\n' +
+'    "rules": [\n' +
+'      { "protocol": "dns", "action": "hijack-dns" },\n' +
+'      { "clash_mode": "Direct", "outbound": "DIRECT" }\n' +
+'    ],\n' +
+'    "rule_set": [\n' +
+'      { "tag": "geosite-cn", "type": "remote", "format": "binary",\n' +
+'        "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-cn.srs",\n' +
+'        "download_detour": "DIRECT" },\n' +
+'      { "tag": "geoip-cn", "type": "remote", "format": "binary",\n' +
+'        "url": "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-cn.srs",\n' +
+'        "download_detour": "DIRECT" }\n' +
+'    ],\n' +
+'    "final": "DIRECT",\n' +
+'    "auto_detect_interface": true\n' +
+'  },\n' +
+'  "experimental": {\n' +
+'    "clash_api": {\n' +
+'      "external_controller": "0.0.0.0:' + je(ext_port) + '",\n' +
+'      "external_ui": "/etc/clashoo/dashboard",\n' +
+'      "secret": "' + je(secret) + '"\n' +
+'    },\n' +
+'    "cache_file": { "enabled": true }\n' +
+'  }\n' +
+'}\n';
+}
+
+let path = dir + '/' + final_name;
+if (writefile(path, content) === null)
+  return { success: false, error: 'write_failed', message: '写入配置文件失败' };
+
+let msg = from_converter
+  ? '配置已从订阅生成: ' + final_name
+  : '订阅转换失败，已生成基础模板（请手动添加代理）: ' + final_name;
+return { success: true, name: final_name, path, message: msg };
+}
+}
+};
+
+return { 'luci.clashoo': methods };

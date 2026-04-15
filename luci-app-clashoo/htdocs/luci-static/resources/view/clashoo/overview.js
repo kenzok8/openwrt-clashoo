@@ -82,16 +82,20 @@ return view.extend({
   },
 
   _cards: function (st, cfgData) {
-    var running  = !!st.running;
-    var curConf  = (cfgData && cfgData.current) || st.conf_path || '—';
-    var dashPort = st.dash_port || '9090';
-    var panelType= st.panel_type || 'metacubexd';
-    var localIp  = st.local_ip  || location.hostname;
+    var running   = !!st.running;
+    var curConf   = (cfgData && cfgData.current) || st.conf_path || '—';
+    var dashPort  = st.dash_port || '9090';
+    var panelType = st.panel_type || 'metacubexd';
+    var localIp   = st.local_ip  || location.hostname;
+    var coreLabel = st.core_type === 'singbox' ? 'sing-box' : 'Mihomo';
 
     return [
-      this._card('运行状态', running
-        ? E('span', { 'class': 'cl-badge cl-badge-run' }, '运行中')
-        : E('span', { 'class': 'cl-badge cl-badge-stop' }, '已停止')),
+      this._card('运行状态', E('span', {}, [
+        running
+          ? E('span', { 'class': 'cl-badge cl-badge-run' }, '运行中')
+          : E('span', { 'class': 'cl-badge cl-badge-stop' }, '已停止'),
+        E('span', { style: 'font-size:11px;opacity:.5;margin-left:6px' }, coreLabel)
+      ])),
       this._card('代理模式', st.proxy_mode || '—'),
       this._card('当前配置', E('span', { 'class': 'val sm' }, curConf)),
       this._card('连通测试', E('span', { 'class': 'cl-chk' }, '稍候检测...')),

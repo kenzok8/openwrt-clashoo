@@ -1,0 +1,93 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - link "u3" [ref=e5]:
+        - /url: "#"
+      - list [ref=e6]:
+        - listitem [ref=e7] [cursor=pointer]:
+          - link " 状态 " [ref=e8]:
+            - /url: /cgi-bin/luci/admin/status
+        - listitem [ref=e9] [cursor=pointer]:
+          - link " 系统 " [ref=e10]:
+            - /url: /cgi-bin/luci/admin/system
+        - listitem [ref=e11] [cursor=pointer]:
+          - link " 服务 " [ref=e12]:
+            - /url: /cgi-bin/luci/admin/services
+          - list [ref=e13]:
+            - listitem [ref=e14]:
+              - link "HomeProxy" [ref=e15]:
+                - /url: /cgi-bin/luci/admin/services/homeproxy
+            - listitem [ref=e16]:
+              - link "OpenClash" [ref=e17]:
+                - /url: /cgi-bin/luci/admin/services/openclash
+            - listitem [ref=e18]:
+              - link "Clashoo" [ref=e19]:
+                - /url: /cgi-bin/luci/admin/services/clashoo
+            - listitem [ref=e20]:
+              - link "OpenClaw" [ref=e21]:
+                - /url: /cgi-bin/luci/admin/services/openclaw
+            - listitem [ref=e22]:
+              - link "Momo" [ref=e23]:
+                - /url: /cgi-bin/luci/admin/services/momo
+            - listitem [ref=e24]:
+              - link "Nikki" [ref=e25]:
+                - /url: /cgi-bin/luci/admin/services/nikki
+        - listitem [ref=e26] [cursor=pointer]:
+          - link " 网络 " [ref=e27]:
+            - /url: /cgi-bin/luci/admin/network
+        - listitem [ref=e28] [cursor=pointer]:
+          - link " 退出" [ref=e29]:
+            - /url: /cgi-bin/luci/admin/logout
+    - generic [ref=e30]:
+      - banner [ref=e31]
+      - generic [ref=e34]:
+        - generic [ref=e35]:
+          - list [ref=e37]:
+            - listitem [ref=e38]:
+              - link "概览" [ref=e39] [cursor=pointer]:
+                - /url: /cgi-bin/luci/admin/services/clashoo/overview
+            - listitem [ref=e40] [cursor=pointer]:
+              - link "配置" [ref=e41]:
+                - /url: /cgi-bin/luci/admin/services/clashoo/config
+            - listitem [ref=e42]:
+              - link "系统" [ref=e43] [cursor=pointer]:
+                - /url: /cgi-bin/luci/admin/services/clashoo/system
+          - generic [ref=e45]:
+            - generic [ref=e46]:
+              - generic [ref=e47] [cursor=pointer]: 配置文件
+              - generic [ref=e48] [cursor=pointer]: 快速向导
+            - generic [ref=e49]:
+              - generic [ref=e50]:
+                - heading "sing-box 配置文件" [level=4] [ref=e51]
+                - table [ref=e52]:
+                  - rowgroup [ref=e53]:
+                    - row "文件名 大小 操作" [ref=e54]:
+                      - columnheader "文件名" [ref=e55]
+                      - columnheader "大小" [ref=e56]
+                      - columnheader "操作" [ref=e57]
+                  - rowgroup [ref=e58]:
+                    - row "test-singbox.json使用中 2 KB 编辑 重新应用 删除" [ref=e59]:
+                      - cell "test-singbox.json使用中" [ref=e60]
+                      - cell "2 KB" [ref=e61]
+                      - cell "编辑 重新应用 删除" [ref=e62]:
+                        - button "编辑" [ref=e63] [cursor=pointer]
+                        - button "重新应用" [ref=e64] [cursor=pointer]
+                        - button "删除" [ref=e65] [cursor=pointer]
+                - button "上传 JSON 配置" [ref=e67] [cursor=pointer]
+              - generic [ref=e68]:
+                - generic [ref=e69]: 选择上方配置后可在此处编辑
+                - textbox "选择配置文件后内容将显示在这里…" [ref=e70]
+                - generic [ref=e71]:
+                  - button "保存" [disabled]
+                  - generic [ref=e72]: 编辑后点击保存；切换配置后服务将自动重启
+        - contentinfo [ref=e73]:
+          - generic [ref=e74]:
+            - link "Powered by LuCI openwrt-25.12 branch (26.056.21255~8e584af)" [ref=e75] [cursor=pointer]:
+              - /url: https://github.com/openwrt/luci
+            - generic [ref=e76]: "|"
+            - link "ArgonTheme v2.4.3" [ref=e77] [cursor=pointer]:
+              - /url: https://github.com/jerrykuku/luci-theme-argon
+            - generic [ref=e78]: "|"
+            - link "ImmortalWrt 25.12-SNAPSHOT-r0-791c94e" [ref=e79] [cursor=pointer]:
+              - /url: https://immortalwrt.org/
+  - dialog [ref=e81]

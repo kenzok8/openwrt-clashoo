@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>规则链路流向 Demo</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; padding: 20px; }
+.card { background: #fff; border-radius: 12px; padding: 16px 20px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+h3 { font-size: 13px; font-weight: 600; opacity: .6; margin-bottom: 16px; display: flex; align-items: center; gap: 6px; }
+#flow-svg { width: 100%; display: block; }
+
+/* Node styles */
+.node-group rect  { fill: #eef2ff; stroke: #818cf8; stroke-width: 1.5; rx: 8; }
+.node-proxy rect  { fill: #ecfdf5; stroke: #34d399; stroke-width: 1.5; }
+.node-direct rect { fill: #fff7ed; stroke: #fb923c; stroke-width: 1.5; }
+.node-label { font-size: 12px; font-weight: 600; fill: #1e293b; }
+.node-sub   { font-size: 10px; fill: #64748b; }
+.node-badge { font-size: 9px; font-weight: 700; letter-spacing: .04em; }
+.badge-group  { fill: #818cf8; }
+.badge-proxy  { fill: #34d399; }
+.badge-direct { fill: #fb923c; }
+.badge-bg-group  { fill: #eef2ff; }
+.badge-bg-proxy  { fill: #ecfdf5; }
+.badge-bg-direct { fill: #fff7ed; }
+
+/* Edge */
+.edge-proxy  { fill: none; stroke: #34d399; stroke-width: 1.5; opacity: .5; }
+.edge-direct { fill: none; stroke: #fb923c; stroke-width: 1.5; opacity: .5; }
+.edge-proxy:hover, .edge-direct:hover { opacity: 1; }
+
+/* Legend */
+.legend { display: flex; gap: 16px; margin-top: 12px; font-size: 11px; color: #64748b; }
+.legend span { display: flex; align-items: center; gap: 4px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h3>⟳ 规则链路流向 <span style="font-size:10px;opacity:.5;font-weight:400">（8s 自动刷新）</span></h3>
+  <svg id="flow-svg"></svg>
+  <div class="legend">
+    <span><i class="dot" style="background:#818cf8"></i> 代理组</span>
+    <span><i class="dot" style="background:#34d399"></i> 代理节点</span>
+    <span><i class="dot" style="background:#fb923c"></i> 直连</span>
+  </div>
+</div>
+
+<script>
+// ── 模拟数据（真实场景从 mihomo :9090/proxies + /rules 读取）──
+const groups = [
+  { name: '节点选择',  rules: 15, selected: '香港高级 IEPL-1', type: 'proxy' },
+  { name: 'YouTube',   rules: 3,  selected: '节点选择',        type: 'proxy' },
+  { name: 'Google',    rules: 4,  selected: '节点选择',        type: 'proxy' },
+  { name: 'NETFLIX',   rules: 2,  selected: '新加坡直达',      type: 'proxy' },
+  { name: 'Claude',    rules: 1,  selected: '美国直连',        type: 'proxy' },
+  { name: 'GitHub',    rules: 2,  selected: '节点选择',        type: 'proxy' },
+  { name: '大陆直连',  rules: 28, selected: 'DIRECT',          type: 'direct' },
+  { name: 'Match',     rules: 1,  selected: '节点选择',        type: 'proxy' },
+];
+
+// 聚合右列节点（去重）
+const proxyMap = {};
+groups.forEach(g => {
+  if (!proxyMap[g.selected]) proxyMap[g.selected] = { name: g.selected, type: g.type, fromGroups: [] };
+  proxyMap[g.selected].fromGroups.push(g.name);
+});
+const proxies = Object.values(proxyMap);
+
+// ── Layout ──
+const SVG_W  = 800;
+const COL1_X = 20;
+const COL2_X = 480;
+const NODE_W = 200;
+const NODE_H = 52;
+const GAP     = 14;
+
+function totalH(list) { return list.length * NODE_H + (list.length - 1) * GAP; }
+
+const g1H = totalH(groups);
+const g2H = totalH(proxies);
+const SVG_H = Math.max(g1H, g2H) + 40;
+
+const svg = document.getElementById('flow-svg');
+svg.setAttribute('viewBox', `0 0 ${SVG_W} ${SVG_H}`);
+svg.setAttribute('height', SVG_H);
+
+function nodeY(idx, list) {
+  const total = totalH(list);
+  const startY = (SVG_H - total) / 2;
+  return startY + idx * (NODE_H + GAP);
+}
+
+function groupCenterY(idx) { return nodeY(idx, groups) + NODE_H / 2; }
+function proxyCenterY(idx) { return nodeY(idx, proxies) + NODE_H / 2; }
+
+// ── Draw edges (behind nodes) ──
+const edgeLayer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+svg.appendChild(edgeLayer);
+
+groups.forEach((g, gi) => {
+  const pi = proxies.findIndex(p => p.name === g.selected);
+  if (pi < 0) return;
+  const x1 = COL1_X + NODE_W;
+  const y1 = groupCenterY(gi);
+  const x2 = COL2_X;
+  const y2 = proxyCenterY(pi);
+  const cx = (x1 + x2) / 2;
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', `M${x1},${y1} C${cx},${y1} ${cx},${y2} ${x2},${y2}`);
+  path.setAttribute('class', g.type === 'direct' ? 'edge-direct' : 'edge-proxy');
+  edgeLayer.appendChild(path);
+});
+
+// ── Draw node ──
+function drawNode(parent, x, y, w, h, label, sub, badgeText, nodeClass) {
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.setAttribute('class', nodeClass);
+
+  const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  rect.setAttribute('x', x); rect.setAttribute('y', y);
+  rect.setAttribute('width', w); rect.setAttribute('height', h);
+  rect.setAttribute('rx', 8);
+  g.appendChild(rect);
+
+  // Badge
+  const bw = badgeText.length * 6.5 + 10;
+  const bx = x + w - bw - 8;
+  const by = y + 7;
+  const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  bgRect.setAttribute('x', bx); bgRect.setAttribute('y', by);
+  bgRect.setAttribute('width', bw); bgRect.setAttribute('height', 14);
+  bgRect.setAttribute('rx', 7);
+  bgRect.setAttribute('class', nodeClass.replace('node-', 'badge-bg-'));
+  g.appendChild(bgRect);
+  const bt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  bt.setAttribute('x', bx + bw / 2); bt.setAttribute('y', by + 10);
+  bt.setAttribute('text-anchor', 'middle');
+  bt.setAttribute('class', 'node-badge ' + nodeClass.replace('node-', 'badge-'));
+  bt.textContent = badgeText;
+  g.appendChild(bt);
+
+  // Label
+  const lt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  lt.setAttribute('x', x + 12); lt.setAttribute('y', y + 22);
+  lt.setAttribute('class', 'node-label');
+  lt.textContent = label.length > 16 ? label.slice(0, 15) + '…' : label;
+  g.appendChild(lt);
+
+  // Sub
+  if (sub) {
+    const st = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    st.setAttribute('x', x + 12); st.setAttribute('y', y + 38);
+    st.setAttribute('class', 'node-sub');
+    st.textContent = sub;
+    g.appendChild(st);
+  }
+
+  parent.appendChild(g);
+}
+
+const nodeLayer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+svg.appendChild(nodeLayer);
+
+groups.forEach((g, i) => {
+  drawNode(nodeLayer, COL1_X, nodeY(i, groups), NODE_W, NODE_H,
+    g.name, `${g.rules} 条规则`, 'GROUP', 'node-group');
+});
+
+proxies.forEach((p, i) => {
+  const cls = p.type === 'direct' ? 'node-direct' : 'node-proxy';
+  const badge = p.type === 'direct' ? 'DIRECT' : 'PROXY';
+  const sub = p.fromGroups.length > 1 ? `← ${p.fromGroups.slice(0,2).join('、')}${p.fromGroups.length>2?'…':''}` : '';
+  drawNode(nodeLayer, COL2_X, nodeY(i, proxies), NODE_W, NODE_H,
+    p.name, sub, badge, cls);
+});
+
+// Column labels
+function colLabel(x, text) {
+  const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  t.setAttribute('x', x + NODE_W/2); t.setAttribute('y', 14);
+  t.setAttribute('text-anchor', 'middle');
+  t.setAttribute('font-size', '10'); t.setAttribute('fill', '#94a3b8');
+  t.setAttribute('font-weight', '600');
+  t.textContent = text;
+  svg.appendChild(t);
+}
+colLabel(COL1_X, '代理组 / 规则');
+colLabel(COL2_X, '当前节点');
+</script>
+</body>
+</html>

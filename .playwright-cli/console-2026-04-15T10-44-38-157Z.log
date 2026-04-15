@@ -1,0 +1,4 @@
+[     167ms] [ERROR] X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>. @ http://192.168.3.252/cgi-bin/luci/admin/services/clashoo/overview:13
+[   59233ms] [ERROR] X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>. @ http://192.168.3.252/cgi-bin/luci/admin/services/clashoo/system:13
+[   92275ms] [ERROR] X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>. @ http://192.168.3.252/cgi-bin/luci/admin/services/clashoo/config:13
+[  108611ms] [ERROR] X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>. @ http://192.168.3.252/cgi-bin/luci/admin/services/clashoo/config:13

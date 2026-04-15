@@ -45,7 +45,7 @@ define Package/clashoo/description
 endef
 
 define Package/clashoo/conffiles
-/etc/config/clash
+/etc/config/clashoo
 endef
 
 define Package/clashoo/install
@@ -56,42 +56,42 @@ define Package/clashoo/install
 
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_DIR) $(1)/etc/config
-	$(INSTALL_DIR) $(1)/etc/clash
-	$(INSTALL_DIR) $(1)/etc/clash/provider
-	$(INSTALL_DIR) $(1)/etc/clash/proxyprovider
-	$(INSTALL_DIR) $(1)/etc/clash/ruleprovider
-	$(INSTALL_DIR) $(1)/usr/share/clash
-	$(INSTALL_DIR) $(1)/usr/share/clash/runtime
-	$(INSTALL_DIR) $(1)/usr/share/clash/update
-	$(INSTALL_DIR) $(1)/usr/share/clash/net
-	$(INSTALL_DIR) $(1)/usr/share/clash/rpc
-	$(INSTALL_DIR) $(1)/usr/share/clash/lib
+	$(INSTALL_DIR) $(1)/etc/clashoo
+	$(INSTALL_DIR) $(1)/etc/clashoo/provider
+	$(INSTALL_DIR) $(1)/etc/clashoo/proxyprovider
+	$(INSTALL_DIR) $(1)/etc/clashoo/ruleprovider
+	$(INSTALL_DIR) $(1)/usr/share/clashoo
+	$(INSTALL_DIR) $(1)/usr/share/clashoo/runtime
+	$(INSTALL_DIR) $(1)/usr/share/clashoo/update
+	$(INSTALL_DIR) $(1)/usr/share/clashoo/net
+	$(INSTALL_DIR) $(1)/usr/share/clashoo/rpc
+	$(INSTALL_DIR) $(1)/usr/share/clashoo/lib
 	$(INSTALL_DIR) $(1)/usr/share/clashbackup
-	$(INSTALL_DIR) $(1)/usr/share/clash/config
-	$(INSTALL_DIR) $(1)/usr/share/clash/config/sub
-	$(INSTALL_DIR) $(1)/usr/share/clash/config/upload
-	$(INSTALL_DIR) $(1)/usr/share/clash/config/custom
+	$(INSTALL_DIR) $(1)/usr/share/clashoo/config
+	$(INSTALL_DIR) $(1)/usr/share/clashoo/config/sub
+	$(INSTALL_DIR) $(1)/usr/share/clashoo/config/upload
+	$(INSTALL_DIR) $(1)/usr/share/clashoo/config/custom
 
-	$(INSTALL_BIN) $(CURDIR)/files/etc/init.d/clash $(1)/etc/init.d/clash
-	$(INSTALL_CONF) $(CURDIR)/files/etc/config/clash $(1)/etc/config/clash
-	$(CP) $(CURDIR)/files/usr/share/clash/* $(1)/usr/share/clash/
+	$(INSTALL_BIN) $(CURDIR)/files/etc/init.d/clashoo $(1)/etc/init.d/clashoo
+	$(INSTALL_CONF) $(CURDIR)/files/etc/config/clashoo $(1)/etc/config/clashoo
+	$(CP) $(CURDIR)/files/usr/share/clashoo/* $(1)/usr/share/clashoo/
 
-	$(RM) $(1)/usr/share/clash/dashboard
-	$(RM) $(1)/usr/share/clash/yacd
-	$(RM) $(1)/usr/share/clash/update.log
-	$(RM) $(1)/usr/share/clash/geoip.log
-	$(RM) $(1)/usr/share/clash/core_down_complete
+	$(RM) $(1)/usr/share/clashoo/dashboard
+	$(RM) $(1)/usr/share/clashoo/yacd
+	$(RM) $(1)/usr/share/clashoo/update.log
+	$(RM) $(1)/usr/share/clashoo/geoip.log
+	$(RM) $(1)/usr/share/clashoo/core_down_complete
 endef
 
 define Package/clashoo/postinst
 #!/bin/sh
 if [ -z "${IPKG_INSTROOT}" ]; then
 	[ -x /usr/bin/mihomo ] && [ ! -x /usr/bin/clash-meta ] && ln -sf /usr/bin/mihomo /usr/bin/clash-meta
-	rm -f /usr/share/clash/check_luci_version.sh /usr/share/clash/check_clash_meta_version.sh /usr/share/clash/check_mihomo_core_version.sh
-	rm -f /usr/share/clash/cuslist.sh /usr/share/clash/groups.sh /usr/share/clash/load_groups.sh /usr/share/clash/panel_diag.sh
-	rm -f /usr/share/clash/rmlist.sh /usr/share/clash/uplist.sh /usr/share/clash/rpc_restart_async.sh /usr/share/clash/rpc_update_china_ip_async.sh
-	rm -rf /usr/share/clash/create
-	/etc/init.d/clash disable 2>/dev/null
+	rm -f /usr/share/clashoo/check_luci_version.sh /usr/share/clashoo/check_clash_meta_version.sh /usr/share/clashoo/check_mihomo_core_version.sh
+	rm -f /usr/share/clashoo/cuslist.sh /usr/share/clashoo/groups.sh /usr/share/clashoo/load_groups.sh /usr/share/clashoo/panel_diag.sh
+	rm -f /usr/share/clashoo/rmlist.sh /usr/share/clashoo/uplist.sh /usr/share/clashoo/rpc_restart_async.sh /usr/share/clashoo/rpc_update_china_ip_async.sh
+	rm -rf /usr/share/clashoo/create
+	/etc/init.d/clashoo disable 2>/dev/null
 fi
 exit 0
 endef
@@ -99,8 +99,8 @@ endef
 define Package/clashoo/prerm
 #!/bin/sh
 if [ -z "${IPKG_INSTROOT}" ]; then
-	/etc/init.d/clash stop >/dev/null 2>&1
-	/etc/init.d/clash disable 2>/dev/null
+	/etc/init.d/clashoo stop >/dev/null 2>&1
+	/etc/init.d/clashoo disable 2>/dev/null
 fi
 exit 0
 endef
