@@ -18,13 +18,15 @@ var CSS = [
   '.cl-btn-sm{padding:4px 10px;font-size:12px;border-radius:4px;cursor:pointer}',
   '.cl-section{margin-bottom:24px}',
   '.cl-section h4{font-size:13px;font-weight:700;margin-bottom:10px;opacity:.7}',
+  /* constrain form inputs on desktop, table stays full-width */
+  '.cl-form-wrap{max-width:640px}',
   '.cl-rewrite-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}',
   '.cl-actions{display:flex;gap:8px;flex-wrap:wrap}',
   '.cl-save-bar{display:flex;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid rgba(128,128,128,.15)}',
   /* hide auto-generated section IDs in TypedSection */
   '.cbi-section-table-titles .cbi-section-table-cell:first-child{display:none}',
   '.cbi-section-table-row .cbi-section-table-cell:first-child{display:none}',
-  '@media(max-width:600px){.cl-rewrite-grid{grid-template-columns:1fr}}'
+  '@media(max-width:680px){.cl-form-wrap{max-width:100%}.cl-rewrite-grid{grid-template-columns:1fr}}'
 ].join('');
 
 var callListSubs      = rpc.declare({ object: 'luci.clashoo', method: 'list_subscriptions',  expect: {} });
@@ -223,9 +225,7 @@ return view.extend({
     return [
       E('div', { 'class': 'cl-section' }, [
         E('h4', {}, '订阅链接'),
-        urlInput,
-        nameInput,
-        dlBtn
+        E('div', { 'class': 'cl-form-wrap' }, [urlInput, nameInput, dlBtn])
       ]),
       E('div', { 'class': 'cl-section' }, [
         E('h4', {}, '已下载订阅'),
@@ -244,13 +244,15 @@ return view.extend({
       ]),
       E('div', { 'class': 'cl-section' }, [
         E('h4', {}, '模板复写'),
-        E('div', { 'class': 'cl-rewrite-grid' }, [baseSel, tplSel]),
-        tplUrlIn,
-        fetchTplBtn,
-        outNameIn,
-        E('div', { 'class': 'cl-actions', style: 'margin-top:8px' }, [
-          E('button', { 'class': 'btn cbi-button cl-btn-sm', click: function(){ rwApply(false); } }, '生成（不切换）'),
-          E('button', { 'class': 'btn cbi-button-action cl-btn-sm', click: function(){ rwApply(true); } }, '生成并切换')
+        E('div', { 'class': 'cl-form-wrap' }, [
+          E('div', { 'class': 'cl-rewrite-grid' }, [baseSel, tplSel]),
+          tplUrlIn,
+          fetchTplBtn,
+          outNameIn,
+          E('div', { 'class': 'cl-actions', style: 'margin-top:8px' }, [
+            E('button', { 'class': 'btn cbi-button cl-btn-sm', click: function(){ rwApply(false); } }, '生成（不切换）'),
+            E('button', { 'class': 'btn cbi-button-action cl-btn-sm', click: function(){ rwApply(true); } }, '生成并切换')
+          ])
         ])
       ])
     ];
