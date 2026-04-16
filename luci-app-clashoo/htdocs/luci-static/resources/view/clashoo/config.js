@@ -319,8 +319,9 @@ return view.extend({
           m.save().then(function () { ui.addNotification(null, E('p', '代理配置已保存')); });
         }}, '保存配置'),
         E('button', { 'class': 'btn cbi-button-action', click: function () {
-          m.save().then(function () { return uci.apply(); })
-            .then(function () { ui.addNotification(null, E('p', '代理配置已应用配置')); });
+          m.save().then(function () { return clashoo.restart(); })
+            .then(function () { ui.addNotification(null, E('p', '代理配置已保存并重启服务')); })
+            .catch(function (e) { ui.addNotification(null, E('p', '操作失败: ' + (e.message || e))); });
         }}, '应用配置')
       ]));
     });
@@ -366,8 +367,9 @@ return view.extend({
           m.save().then(function () { ui.addNotification(null, E('p', 'DNS 配置已保存')); });
         }}, '保存配置'),
         E('button', { 'class': 'btn cbi-button-action', click: function () {
-          m.save().then(function () { return uci.apply(); })
-            .then(function () { ui.addNotification(null, E('p', 'DNS 配置已应用配置')); });
+          m.save().then(function () { return clashoo.restart(); })
+            .then(function () { ui.addNotification(null, E('p', 'DNS 配置已保存并重启服务')); })
+            .catch(function (e) { ui.addNotification(null, E('p', '操作失败: ' + (e.message || e))); });
         }}, '应用配置')
       ]));
     });

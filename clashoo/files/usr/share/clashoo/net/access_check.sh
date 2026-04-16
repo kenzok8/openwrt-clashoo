@@ -3,8 +3,9 @@
 url="$1"
 [ -n "$url" ] || exit 1
 
-proxy_port="$(uci get clashoo.config.http_port 2>/dev/null)"
-[ -z "$proxy_port" ] && proxy_port=8080
+proxy_port="$(uci get clashoo.config.mixed_port 2>/dev/null)"
+[ -z "$proxy_port" ] && proxy_port="$(uci get clashoo.config.http_port 2>/dev/null)"
+[ -z "$proxy_port" ] && proxy_port=7890
 
 attempts=1
 ok=0

@@ -18,7 +18,13 @@ var CSS = [
   '.cl-log-area{font-family:monospace;font-size:11px;opacity:.75;max-height:300px;overflow-y:auto;border:1px solid rgba(128,128,128,.2);border-radius:8px;padding:10px;white-space:pre-wrap;margin-top:8px}',
   '.cl-log-tabs{display:flex;gap:8px;margin-bottom:8px}',
   '.cl-log-tab{padding:4px 12px;border:1px solid rgba(128,128,128,.2);border-radius:20px;font-size:12px;cursor:pointer;opacity:.6}',
-  '.cl-log-tab.active{opacity:1;font-weight:600;background:rgba(128,128,128,.1)}'
+  '.cl-log-tab.active{opacity:1;font-weight:600;background:rgba(128,128,128,.1)}',
+  /* 统一 form.Map 字体大小与 config 页一致 */
+  '.cl-panel .cbi-section>h3{font-size:13px !important;font-weight:600;margin-bottom:8px}',
+  '.cl-panel .cbi-value-title{font-size:12px !important}',
+  '.cl-panel .cbi-value-field input,.cl-panel .cbi-value-field select,.cl-panel .cbi-value-field textarea{font-size:13px !important}',
+  '.cl-panel .cbi-section-descr,.cl-panel .cbi-value-helptext{font-size:12px !important}',
+  '.cl-panel .cbi-section{margin-bottom:12px}'
 ].join('');
 
 return view.extend({
@@ -172,11 +178,13 @@ return view.extend({
       container.appendChild(node);
       container.appendChild(E('div', { 'class': 'cl-save-bar' }, [
         E('button', { 'class': 'btn cbi-button', click: function () {
-          m.save().then(function () { ui.addNotification(null, E('p', '配置已保存')); });
+          m.save().then(function () { ui.addNotification(null, E('p', '配置已保存')); })
+            .catch(function (e) { ui.addNotification(null, E('p', '保存失败: ' + (e.message || e))); });
         }}, '保存配置'),
         E('button', { 'class': 'btn cbi-button-action', click: function () {
-          m.save().then(function () { return uci.apply(); })
-            .then(function () { ui.addNotification(null, E('p', '配置已保存并应用')); });
+          m.save().then(function () { return clashoo.restart(); })
+            .then(function () { ui.addNotification(null, E('p', '配置已保存并重启服务')); })
+            .catch(function (e) { ui.addNotification(null, E('p', '操作失败: ' + (e.message || e))); });
         }}, '应用配置')
       ]));
     });
@@ -210,11 +218,13 @@ return view.extend({
       container.appendChild(node);
       container.appendChild(E('div', { 'class': 'cl-save-bar' }, [
         E('button', { 'class': 'btn cbi-button', click: function () {
-          m.save().then(function () { ui.addNotification(null, E('p', '配置已保存')); });
+          m.save().then(function () { ui.addNotification(null, E('p', '配置已保存')); })
+            .catch(function (e) { ui.addNotification(null, E('p', '保存失败: ' + (e.message || e))); });
         }}, '保存配置'),
         E('button', { 'class': 'btn cbi-button-action', click: function () {
-          m.save().then(function () { return uci.apply(); })
-            .then(function () { ui.addNotification(null, E('p', '配置已保存并应用')); });
+          m.save().then(function () { return clashoo.restart(); })
+            .then(function () { ui.addNotification(null, E('p', '配置已保存并重启服务')); })
+            .catch(function (e) { ui.addNotification(null, E('p', '操作失败: ' + (e.message || e))); });
         }}, '应用配置')
       ]));
     });

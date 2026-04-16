@@ -1551,13 +1551,13 @@ function migrate_singbox(cfg) {
       if (k === 'geoip') {
         for (let n in rule[k]) {
           let tag = 'geoip-' + n;
-          needed_rule_sets[tag] = 'https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-' + n + '.srs';
+          needed_rule_sets[tag] = 'https://cdn.jsdelivr.net/gh/SagerNet/sing-geoip@rule-set/geoip-' + n + '.srs';
           push(new_rs, tag);
         }
       } else if (k === 'geosite') {
         for (let n in rule[k]) {
           let tag = 'geosite-' + n;
-          needed_rule_sets[tag] = 'https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-' + n + '.srs';
+          needed_rule_sets[tag] = 'https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-' + n + '.srs';
           push(new_rs, tag);
         }
       } else {
@@ -1740,6 +1740,11 @@ if (config_obj) {
         listen: '0.0.0.0', listen_port: int(tproxy_port),
         network: 'udp'
       });
+      let mixed_port = uci_get('clashoo', 'config', 'mixed_port') || '7890';
+      push(non_tun, {
+        type: 'mixed', tag: 'mixed-in',
+        listen: '0.0.0.0', listen_port: int(mixed_port)
+      });
       config_obj.inbounds = non_tun;
       // Ensure auto_detect_interface is set for redirect mode
       if (config_obj.route) config_obj.route.auto_detect_interface = true;
@@ -1755,10 +1760,17 @@ if (config_obj) {
       let url = rs.url;
       // Strip gh-proxy.com wrapper if present
       url = replace(url, /^https:\/\/gh-proxy\.com\//, '');
-      // Convert github.com raw URL → jsDelivr
-      let m = match(url, /^https:\/\/github\.com\/([^\/]+)\/([^\/]+)\/raw\/refs\/heads\/([^\/]+)\/(.+)$/);
+      // Convert raw.githubusercontent.com/{owner}/{repo}/{branch}/{path} → jsDelivr
+      let m = match(url, /^https:\/\/raw\.githubusercontent\.com\/([^\/]+)\/([^\/]+)\/([^\/]+)\/(.+)$/);
       if (m) {
         url = 'https://cdn.jsdelivr.net/gh/' + m[1] + '/' + m[2] + '@' + m[3] + '/' + m[4];
+      }
+      // Convert github.com/{owner}/{repo}/raw/refs/heads/{branch}/{path} → jsDelivr
+      if (!m) {
+        m = match(url, /^https:\/\/github\.com\/([^\/]+)\/([^\/]+)\/raw\/refs\/heads\/([^\/]+)\/(.+)$/);
+        if (m) {
+          url = 'https://cdn.jsdelivr.net/gh/' + m[1] + '/' + m[2] + '@' + m[3] + '/' + m[4];
+        }
       }
       if (url === rs.url) return rs;
       let r = {};

@@ -16,7 +16,8 @@ var CSS = [
   '.cl-badge{display:inline-block;padding:3px 14px;border-radius:20px;font-size:12px;font-weight:600}',
   '.cl-badge-run{background:#e8f5e9;color:#2e7d32}',
   '.cl-badge-stop{background:#ffebee;color:#c62828}',
-  '.cl-actions{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}',
+  '.cl-actions{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;align-items:center}',
+  '.cl-actions-sep{width:1px;height:20px;background:rgba(128,128,128,.2);margin:0 4px}',
   '.cl-controls{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}',
   '.cl-ctrl{border:1px solid rgba(128,128,128,.15);border-radius:8px;padding:10px 12px}',
   '.cl-ctrl label{display:block;font-size:11px;opacity:.55;margin-bottom:6px}',
@@ -56,10 +57,11 @@ return view.extend({
     var root = E('div', { 'class': 'cl-wrap' }, [
       E('div', { 'class': 'cl-cards', id: 'cl-cards' }, this._cards(st, cfgData)),
       E('div', { 'class': 'cl-actions' }, [
-        E('button', { 'class': 'btn cbi-button-action', click: L.bind(this._start, this) }, '▶ 启动'),
-        E('button', { 'class': 'btn cbi-button',        click: L.bind(this._stop,  this) }, '⏹ 停止'),
-        E('button', { 'class': 'btn cbi-button',        click: L.bind(this._restart,this) },'🔄 重启'),
-        E('button', { 'class': 'btn cbi-button',        click: L.bind(this._updSubs,this) },'⬇ 更新订阅')
+        E('button', { 'class': 'btn cbi-button-action', click: L.bind(this._start,   this) }, '启动'),
+        E('button', { 'class': 'btn cbi-button',        click: L.bind(this._stop,    this) }, '停止'),
+        E('button', { 'class': 'btn cbi-button',        click: L.bind(this._restart, this) }, '重启'),
+        E('span',   { 'class': 'cl-actions-sep' }),
+        E('button', { 'class': 'btn cbi-button',        click: L.bind(this._updSubs, this) }, '更新订阅')
       ]),
       E('div', { 'class': 'cl-controls', id: 'cl-controls' }, this._controls(st, cfgData)),
       E('div', { 'class': 'cl-log-box' }, [
@@ -70,7 +72,7 @@ return view.extend({
             var b = document.getElementById('cl-log-body');
             if (b) b.className = 'cl-log-body' + (self._logOpen ? ' open' : '');
           }
-        }, ['📋 实时日志 ', E('span', {}, self._logOpen ? '▴' : '▾')]),
+        }, ['实时日志 ', E('span', {}, self._logOpen ? '▴' : '▾')]),
         E('div', { 'class': 'cl-log-body', id: 'cl-log-body' }, '')
       ])
     ]);
