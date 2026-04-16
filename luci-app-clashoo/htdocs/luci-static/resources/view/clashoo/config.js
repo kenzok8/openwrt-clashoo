@@ -645,9 +645,8 @@ return view.extend({
           ])
         ]),
         E('p', { style: 'margin-top:14px;font-size:12px;opacity:.5;line-height:1.6' },
-          '生成的配置使用 sing-box outbound_providers 直接拉取 Clash 格式订阅（支持 sing-box 1.9+），\n' +
-          '包含 TUN 透明代理、geoip/geosite 大陆直连、自动延迟测速策略组。\n' +
-          '生成后可在「配置文件」Tab 中编辑 JSON 细节。'
+          '生成的配置包含 TUN 透明代理、geoip/geosite 大陆直连、自动延迟测速策略组。\n' +
+          '同名文件会直接覆盖，更新订阅时留空文件名或填相同名称即可，不会重复堆积文件。'
         )
       ])
     ];

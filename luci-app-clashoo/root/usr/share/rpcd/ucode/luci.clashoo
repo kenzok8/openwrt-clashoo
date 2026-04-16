@@ -1672,11 +1672,6 @@ let dir = '/usr/share/clashoo/config/singbox';
 system('mkdir -p ' + shell_quote(dir) + ' >/dev/null 2>&1');
 
 let final_name = name + '.json';
-let i = 2;
-while (access(dir + '/' + final_name, 'r')) {
-  final_name = name + '-' + i + '.json';
-  i++;
-}
 
 // Write sub_url to temp file to avoid shell injection in curl call
 let tmp_url = '/tmp/.clashoo-sb-url';
