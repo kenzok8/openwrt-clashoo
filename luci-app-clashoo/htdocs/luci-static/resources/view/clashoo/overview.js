@@ -8,6 +8,7 @@
 
 var CSS = [
   '.cl-wrap{padding:8px 0}',
+  '.cl-wrap{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif}',
   '.cl-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}',
   '.cl-card{border:1px solid rgba(128,128,128,.2);border-radius:10px;padding:14px 16px;min-height:70px}',
   '.cl-card .lbl{font-size:12px;opacity:.55;margin-bottom:4px}',
@@ -29,6 +30,8 @@ var CSS = [
   '.cl-log-body{margin-top:10px;font-family:monospace;font-size:11px;opacity:.75;max-height:200px;overflow-y:auto;white-space:pre-wrap;display:none}',
   '.cl-log-body.open{display:block}',
   '.cl-chk{font-size:13px}',
+  '.cl-wrap .cbi-input-text,.cl-wrap .cbi-input-select,.cl-wrap select,.cl-wrap input,.cl-wrap textarea,.cl-wrap .btn,.cl-wrap .cbi-button{font-size:13px !important;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif !important}',
+  '.cl-wrap .btn,.cl-wrap .cbi-button{padding:4px 10px;line-height:1.35}',
   '@keyframes cl-fadein{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}',
   '.cl-op-msg{font-size:12px;font-weight:500;opacity:.85;animation:cl-fadein .25s ease}',
   '@media(max-width:900px){.cl-cards{grid-template-columns:repeat(2,1fr)}.cl-controls{grid-template-columns:repeat(2,1fr)}}',
@@ -330,7 +333,7 @@ return view.extend({
           panelSel,
           E('button', {
             'class': 'btn cbi-button',
-            style: 'padding:3px 8px;font-size:12px;white-space:nowrap',
+            style: 'padding:4px 10px;white-space:nowrap',
             click: function () {
               clashoo.updatePanel(panelSel.value).then(function () {
                 ui.addNotification(null, E('p', '面板更新任务已提交，请在「系统 → 日志」页查看进度'));

@@ -7,6 +7,7 @@
 'require tools.clashoo as clashoo';
 
 var CSS = [
+  '.cl-wrap{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif}',
   '.cl-tabs{display:flex;border-bottom:2px solid rgba(128,128,128,.15);margin-bottom:18px}',
   '.cl-tab{padding:10px 20px;cursor:pointer;font-size:13px;opacity:.55;border-bottom:2px solid transparent;margin-bottom:-2px}',
   '.cl-tab.active{opacity:1;border-bottom-color:currentColor;font-weight:600}',
@@ -21,11 +22,30 @@ var CSS = [
   '.cl-log-tab.active{opacity:1;font-weight:600;background:rgba(128,128,128,.1)}',
   /* 统一 form.Map 字体大小与 config 页一致 */
   '.cl-panel .cbi-section>h3{font-size:13px !important;font-weight:600;margin-bottom:8px}',
-  '.cl-panel .cbi-value-title{font-size:12px !important}',
+  '.cl-panel .cbi-value-title{font-size:13px !important}',
   '.cl-panel .cbi-value-field input,.cl-panel .cbi-value-field select,.cl-panel .cbi-value-field textarea{font-size:13px !important}',
   '.cl-panel .cbi-section-descr,.cl-panel .cbi-value-helptext{font-size:12px !important}',
-  '.cl-panel .cbi-section{margin-bottom:12px}'
+  '.cl-panel .cbi-section{margin-bottom:12px}',
+  '.cl-wrap .cbi-section>h3,.cl-wrap .cbi-value-title,.cl-wrap .cbi-section-descr,.cl-wrap .cbi-value-helptext{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif !important}',
+  '.cl-wrap .cbi-input-text,.cl-wrap .cbi-input-select,.cl-wrap select,.cl-wrap input,.cl-wrap textarea,.cl-wrap .btn,.cl-wrap .cbi-button{font-size:13px !important;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif !important}',
+  '.cl-wrap .btn,.cl-wrap .cbi-button{padding:4px 10px;line-height:1.35}'
 ].join('');
+
+function saveCommitApplyAndRestart(m, successMsg) {
+  return m.save()
+    .then(function () { return clashoo.commitConfig(); })
+    .then(function () { return clashoo.restart(); })
+    .then(function () {
+      if (ui.changes && typeof ui.changes.apply === 'function') {
+        ui.changes.apply(false);
+        return;
+      }
+      if (ui.changes && typeof ui.changes.setIndicator === 'function')
+        ui.changes.setIndicator(0);
+      ui.addNotification(null, E('p', successMsg));
+      window.setTimeout(function () { location.reload(); }, 300);
+    });
+}
 
 return view.extend({
   _tab:    'kernel',
@@ -93,7 +113,7 @@ return view.extend({
     this._panelEls = panelEls;
     poll.add(L.bind(this._pollLogs, this), 8);
 
-    return E('div', {}, [tabBar, kernelPanel, rulesPanel, logsPanel]);
+    return E('div', { 'class': 'cl-wrap' }, [tabBar, kernelPanel, rulesPanel, logsPanel]);
   },
 
   _detectMihomoArch: function (raw) {
@@ -204,9 +224,7 @@ return view.extend({
             .catch(function (e) { ui.addNotification(null, E('p', '保存失败: ' + (e.message || e))); });
         }}, '保存配置'),
         E('button', { 'class': 'btn cbi-button-action', click: function () {
-          m.save().then(function () { return clashoo.commitConfig(); })
-            .then(function () { return clashoo.restart(); })
-            .then(function () { ui.addNotification(null, E('p', '配置已保存并重启服务')); })
+          saveCommitApplyAndRestart(m, '配置已保存并重启服务')
             .catch(function (e) { ui.addNotification(null, E('p', '操作失败: ' + (e.message || e))); });
         }}, '应用配置')
       ]));
@@ -246,9 +264,7 @@ return view.extend({
             .catch(function (e) { ui.addNotification(null, E('p', '保存失败: ' + (e.message || e))); });
         }}, '保存配置'),
         E('button', { 'class': 'btn cbi-button-action', click: function () {
-          m.save().then(function () { return clashoo.commitConfig(); })
-            .then(function () { return clashoo.restart(); })
-            .then(function () { ui.addNotification(null, E('p', '配置已保存并重启服务')); })
+          saveCommitApplyAndRestart(m, '配置已保存并重启服务')
             .catch(function (e) { ui.addNotification(null, E('p', '操作失败: ' + (e.message || e))); });
         }}, '应用配置')
       ]));

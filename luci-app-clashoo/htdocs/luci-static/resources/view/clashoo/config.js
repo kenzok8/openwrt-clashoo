@@ -7,6 +7,7 @@
 'require tools.clashoo as clashoo';
 
 var CSS = [
+  '.cl-wrap{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif}',
   '.cl-tabs{display:flex;border-bottom:2px solid rgba(128,128,128,.15);margin-bottom:18px}',
   '.cl-tab{padding:10px 20px;cursor:pointer;font-size:13px;opacity:.55;border-bottom:2px solid transparent;margin-bottom:-2px;transition:opacity .15s}',
   '.cl-tab.active{opacity:1;border-bottom-color:currentColor;font-weight:600}',
@@ -35,10 +36,13 @@ var CSS = [
   '.cl-mode-tabs{display:inline-flex;gap:4px;margin:6px 0}',
   '.cl-mode-tab-active{font-weight:700}',
   '.cl-panel .cbi-section>h3{font-size:13px !important;font-weight:600;margin-bottom:8px}',
-  '.cl-panel .cbi-value-title{font-size:12px !important}',
+  '.cl-panel .cbi-value-title{font-size:13px !important}',
   '.cl-panel .cbi-value-field input,.cl-panel .cbi-value-field select,.cl-panel .cbi-value-field textarea{font-size:13px !important}',
   '.cl-panel .cbi-section-descr,.cl-panel .cbi-value-helptext{font-size:12px !important}',
   '.cl-panel .cbi-section{margin-bottom:12px}',
+  '.cl-wrap .cbi-section>h3,.cl-wrap .cbi-value-title,.cl-wrap .cbi-section-descr,.cl-wrap .cbi-value-helptext{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif !important}',
+  '.cl-wrap .cbi-input-text,.cl-wrap .cbi-input-select,.cl-wrap select,.cl-wrap input,.cl-wrap textarea,.cl-wrap .btn,.cl-wrap .cbi-button{font-size:13px !important;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif !important}',
+  '.cl-wrap .btn,.cl-wrap .cbi-button{padding:4px 10px;line-height:1.35}',
   '@media(max-width:680px){.cl-form-wrap{max-width:100%}}'
 ].join('');
 
@@ -53,6 +57,22 @@ var callApplyRewrite  = rpc.declare({ object: 'luci.clashoo', method: 'apply_rew
 var callFetchUrl      = rpc.declare({ object: 'luci.clashoo', method: 'fetch_rewrite_url',      params: ['url','name'], expect: {} });
 var callApplyTplUrl   = rpc.declare({ object: 'luci.clashoo', method: 'apply_template_with_url', params: ['template_source','sub_url','output_name','set_active'], expect: {} });
 var callMigrateSbProfile = rpc.declare({ object: 'luci.clashoo', method: 'migrate_singbox_profile', params: ['name'], expect: {} });
+
+function saveCommitApplyAndRestart(m, successMsg) {
+  return m.save()
+    .then(function () { return clashoo.commitConfig(); })
+    .then(function () { return clashoo.restart(); })
+    .then(function () {
+      if (ui.changes && typeof ui.changes.apply === 'function') {
+        ui.changes.apply(false);
+        return;
+      }
+      if (ui.changes && typeof ui.changes.setIndicator === 'function')
+        ui.changes.setIndicator(0);
+      ui.addNotification(null, E('p', successMsg));
+      window.setTimeout(function () { location.reload(); }, 300);
+    });
+}
 
 return view.extend({
   _tab: 'subs',
@@ -123,7 +143,7 @@ return view.extend({
     panelEls['dns'] = dnsPanel;
     this._buildDnsForm(dnsPanel);
 
-    return E('div', {}, [tabBar, subPanel, proxyPanel, dnsPanel]);
+    return E('div', { 'class': 'cl-wrap' }, [tabBar, subPanel, proxyPanel, dnsPanel]);
   },
 
   _buildSubsPanel: function (subsData, subFiles, upFiles, tplFiles) {
@@ -405,9 +425,7 @@ return view.extend({
             .catch(function (e) { ui.addNotification(null, E('p', '保存失败: ' + (e.message || e))); });
         }}, '保存配置'),
         E('button', { 'class': 'btn cbi-button-action', click: function () {
-          m.save().then(function () { return clashoo.commitConfig(); })
-            .then(function () { return clashoo.restart(); })
-            .then(function () { ui.addNotification(null, E('p', '代理配置已保存并重启服务')); })
+          saveCommitApplyAndRestart(m, '代理配置已保存并重启服务')
             .catch(function (e) { ui.addNotification(null, E('p', '操作失败: ' + (e.message || e))); });
         }}, '应用配置')
       ]));
@@ -456,9 +474,7 @@ return view.extend({
             .catch(function (e) { ui.addNotification(null, E('p', '保存失败: ' + (e.message || e))); });
         }}, '保存配置'),
         E('button', { 'class': 'btn cbi-button-action', click: function () {
-          m.save().then(function () { return clashoo.commitConfig(); })
-            .then(function () { return clashoo.restart(); })
-            .then(function () { ui.addNotification(null, E('p', 'DNS 配置已保存并重启服务')); })
+          saveCommitApplyAndRestart(m, 'DNS 配置已保存并重启服务')
             .catch(function (e) { ui.addNotification(null, E('p', '操作失败: ' + (e.message || e))); });
         }}, '应用配置')
       ]));
@@ -502,7 +518,7 @@ return view.extend({
       self._buildSbWizardPanel());
     panelEls['wizard'] = wizardPanel;
 
-    return E('div', {}, [tabBar, profilesPanel, wizardPanel]);
+    return E('div', { 'class': 'cl-wrap' }, [tabBar, profilesPanel, wizardPanel]);
   },
 
   _buildSbProfilesPanel: function (profiles, activeProfile) {
