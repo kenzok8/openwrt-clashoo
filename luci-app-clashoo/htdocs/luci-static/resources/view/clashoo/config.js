@@ -378,9 +378,9 @@ return view.extend({
     s = m.section(form.NamedSection, 'config', 'clashoo', '透明代理');
     s.addremove = false;
     o = s.option(form.ListValue, 'tcp_mode', 'TCP 模式');
-    o.value('redirect', '重定向/Redirect 模式'); o.value('tproxy', '透明代理/TPROXY 模式'); o.value('tun', '隧道模式/TUN 模式'); o.value('off', '关闭');
+    o.value('redirect', 'Redirect'); o.value('tproxy', 'TPROXY'); o.value('tun', 'TUN'); o.value('off', '关闭');
     o = s.option(form.ListValue, 'udp_mode', 'UDP 模式');
-    o.value('tun', '隧道模式/TUN 模式'); o.value('tproxy', '透明代理/TPROXY 模式'); o.value('off', '关闭');
+    o.value('tun', 'TUN'); o.value('tproxy', 'TPROXY'); o.value('off', '关闭');
     o = s.option(form.ListValue, 'stack', '网络栈类型');
     o.value('system', 'System'); o.value('gvisor', 'gVisor'); o.value('mixed', 'Mixed');
     o = s.option(form.Flag, 'disable_quic_gso', '禁用 QUIC GSO');
@@ -396,8 +396,8 @@ return view.extend({
     o = s.option(form.Value, 'http_port',   'HTTP 端口');
     o = s.option(form.Value, 'socks_port',  'SOCKS5 端口');
     o = s.option(form.Value, 'mixed_port',  '混合端口');
-    o = s.option(form.Value, 'redir_port',  '重定向/Redirect 端口');
-    o = s.option(form.Value, 'tproxy_port', '透明代理/TPROXY 端口');
+    o = s.option(form.Value, 'redir_port',  'Redirect 端口');
+    o = s.option(form.Value, 'tproxy_port', 'TPROXY 端口');
 
     s = m.section(form.NamedSection, 'config', 'clashoo', '智能策略设置');
     s.addremove = false;

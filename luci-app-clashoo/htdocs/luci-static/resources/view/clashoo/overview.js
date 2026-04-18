@@ -246,8 +246,8 @@ return view.extend({
   _tpModeLabel: function (st) {
     var map = {
       tun: 'TUN 模式',
-      redirect: '重定向/Redirect 模式',
-      tproxy: '透明代理/TPROXY 模式',
+      redirect: 'Redirect 模式',
+      tproxy: 'TPROXY 模式',
       'fake-ip': 'Fake-IP',
       mixed: 'Mixed 模式',
       off: '关闭'
