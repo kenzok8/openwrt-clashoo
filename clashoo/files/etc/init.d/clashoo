@@ -148,7 +148,7 @@ prepare_singbox_runtime() {
 		[ -z "$tproxy_port" ] && tproxy_port=7982
 		[ -z "$mixed_port" ] && mixed_port=7890
 		ucode /usr/share/clashoo/lib/normalize_singbox_config.uc \
-			/etc/sing-box/config.json "$redir_port" "$tproxy_port" "$mixed_port" "$has_tun_device" >/dev/null 2>&1 || {
+			/etc/sing-box/config.json "$redir_port" "$tproxy_port" "$mixed_port" "$has_tun_device" "354" >/dev/null 2>&1 || {
 			_log_runtime_error "sing-box runtime config normalization failed"
 			return 1
 		}

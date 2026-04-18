@@ -171,7 +171,8 @@ if (system('command -v ucode >/dev/null 2>&1') == 0) {
 		shell_quote(redir_port) + ' ' +
 		shell_quote(tproxy_port) + ' ' +
 		shell_quote(mixed_port) + ' ' +
-		shell_quote(has_tun) +
+		shell_quote(has_tun) + ' ' +
+		shell_quote('354') +
 		' >/dev/null 2>&1';
 	if (system(normalize_cmd) != 0)
 		return { success: false, message: 'sing-box 运行配置规范化失败' };

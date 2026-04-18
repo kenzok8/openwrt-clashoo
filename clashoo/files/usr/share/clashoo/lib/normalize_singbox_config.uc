@@ -9,6 +9,7 @@ let redir_port = +(ARGV[1] || '7891');
 let tproxy_port = +(ARGV[2] || '7982');
 let mixed_port = +(ARGV[3] || '7890');
 let has_tun_device = (ARGV[4] || '1') == '1';
+let routing_mark = +(ARGV[5] || '354');
 
 if (!path) {
 	print("missing path\n");
@@ -118,6 +119,19 @@ if (!has_tproxy) {
 }
 
 cfg.inbounds = normalized;
+
+for (let ob in (cfg.outbounds || [])) {
+	if (!ob || type(ob) != 'object')
+		continue;
+
+	let t = ob.type || '';
+	if (t == 'selector' || t == 'urltest' || t == 'fallback' || t == 'load_balance' || t == 'dns' || t == 'block')
+		continue;
+
+	if (ob.routing_mark == null)
+		ob.routing_mark = routing_mark;
+}
+
 cfg.route = cfg.route || {};
 cfg.route.auto_detect_interface = true;
 
