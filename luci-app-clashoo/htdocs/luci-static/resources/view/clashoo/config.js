@@ -378,11 +378,11 @@ return view.extend({
     s = m.section(form.NamedSection, 'config', 'clashoo', '透明代理');
     s.addremove = false;
     o = s.option(form.ListValue, 'tcp_mode', 'TCP 模式');
-    o.value('redirect', '重定向'); o.value('tproxy', '透明代理'); o.value('tun', '隧道模式（TUN）'); o.value('off', '关闭');
+    o.value('redirect', '重定向/Redirect 模式'); o.value('tproxy', '透明代理/TPROXY 模式'); o.value('tun', '隧道模式/TUN 模式'); o.value('off', '关闭');
     o = s.option(form.ListValue, 'udp_mode', 'UDP 模式');
-    o.value('tun', '隧道模式（TUN）'); o.value('tproxy', '透明代理'); o.value('off', '关闭');
+    o.value('tun', '隧道模式/TUN 模式'); o.value('tproxy', '透明代理/TPROXY 模式'); o.value('off', '关闭');
     o = s.option(form.ListValue, 'stack', '网络栈类型');
-    o.value('system', '系统栈'); o.value('gvisor', 'gVisor'); o.value('mixed', '混合栈'); o.value('lwip', 'LWIP');
+    o.value('system', 'System'); o.value('gvisor', 'gVisor'); o.value('mixed', 'Mixed');
     o = s.option(form.Flag, 'disable_quic_gso', '禁用 QUIC GSO');
     o = s.option(form.Flag, 'ipv4_dns_hijack', 'IPv4 DNS 劫持');
     o = s.option(form.Flag, 'ipv6_dns_hijack', 'IPv6 DNS 劫持');
@@ -396,8 +396,8 @@ return view.extend({
     o = s.option(form.Value, 'http_port',   'HTTP 端口');
     o = s.option(form.Value, 'socks_port',  'SOCKS5 端口');
     o = s.option(form.Value, 'mixed_port',  '混合端口');
-    o = s.option(form.Value, 'redir_port',  '重定向端口');
-    o = s.option(form.Value, 'tproxy_port', '透明代理端口');
+    o = s.option(form.Value, 'redir_port',  '重定向/Redirect 端口');
+    o = s.option(form.Value, 'tproxy_port', '透明代理/TPROXY 端口');
 
     s = m.section(form.NamedSection, 'config', 'clashoo', '智能策略设置');
     s.addremove = false;
@@ -441,7 +441,7 @@ return view.extend({
     o = s.option(form.Flag,        'enable_dns',        '启用 DNS 模块');
     o = s.option(form.Value,       'listen_port',       'DNS 监听端口');
     o = s.option(form.ListValue,   'enhanced_mode',     '增强模式');
-    o.value('fake-ip', '虚拟 IP'); o.value('redir-host', '域名直连');
+    o.value('fake-ip', 'Fake-IP'); o.value('redir-host', '域名直连');
     o = s.option(form.Value,       'fake_ip_range',     '虚拟 IP 网段');
     o = s.option(form.Value,       'default_nameserver','默认 DNS 服务器');
     o = s.option(form.Flag,        'dnsforwader',       '强制转发 DNS');

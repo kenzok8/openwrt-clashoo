@@ -1,6 +1,104 @@
 'use strict';
 'require baseclass';
 'require rpc';
+'require ui';
+
+(function () {
+    if (document.getElementById('clashoo-toast-style')) return;
+    var css = [
+        '#clashoo-toast-stack{position:fixed;top:20px;right:20px;z-index:99999;display:flex;flex-direction:column;gap:8px;max-width:380px;pointer-events:none;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif}',
+        '.clashoo-toast{background:rgba(33,37,41,.92);color:#fff;font-size:13px;line-height:1.5;padding:10px 14px;border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.18);opacity:0;transform:translateX(24px);transition:opacity .25s ease,transform .25s ease;pointer-events:auto;cursor:pointer;word-break:break-word}',
+        '.clashoo-toast.show{opacity:1;transform:translateX(0)}',
+        '.clashoo-toast.err{background:rgba(198,40,40,.94)}',
+        '.clashoo-toast.ok{background:rgba(46,125,50,.94)}',
+        '.clashoo-toast a{color:#8ec5ff;text-decoration:underline}',
+        '.clashoo-toast a:hover{color:#b3d7ff}'
+    ].join('');
+    var s = document.createElement('style');
+    s.id = 'clashoo-toast-style';
+    s.textContent = css;
+    document.head.appendChild(s);
+})();
+
+function _clashooToastStack() {
+    var el = document.getElementById('clashoo-toast-stack');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'clashoo-toast-stack';
+        document.body.appendChild(el);
+    }
+    return el;
+}
+
+function _clashooLinkify(safeText) {
+    var logUrl = L.url('admin/services/clashoo/system');
+    return safeText.replace(/(进度|日志)/g,
+        '<a href="' + logUrl + '">$1</a>');
+}
+
+function _clashooToast(msg, opts) {
+    opts = opts || {};
+    var stack = _clashooToastStack();
+    var el = document.createElement('div');
+    el.className = 'clashoo-toast' + (opts.kind ? ' ' + opts.kind : '');
+    var text;
+    if (msg && msg.nodeType === 1) text = msg.textContent || '';
+    else if (typeof msg === 'string') text = msg;
+    else text = String(msg || '');
+    var safe = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    el.innerHTML = _clashooLinkify(safe);
+    stack.appendChild(el);
+    requestAnimationFrame(function () { el.classList.add('show'); });
+
+    var dur = opts.duration || 3500;
+    var timer = null, remain = dur, start = 0;
+    function close() {
+        if (timer) { clearTimeout(timer); timer = null; }
+        el.classList.remove('show');
+        setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 280);
+    }
+    function arm() { start = Date.now(); timer = setTimeout(close, remain); }
+    el.addEventListener('mouseenter', function () {
+        if (timer) { clearTimeout(timer); timer = null; remain = Math.max(800, remain - (Date.now() - start)); }
+    });
+    el.addEventListener('mouseleave', arm);
+    el.addEventListener('click', function (ev) {
+        if (ev.target && ev.target.tagName === 'A') return;
+        close();
+    });
+    arm();
+    return { close: close };
+}
+
+(function () {
+    if (!ui || ui._clashooPatched) return;
+    ui._clashooPatched = true;
+    var orig = ui.addNotification.bind(ui);
+    ui.addNotification = function (title, children, classes) {
+        try {
+            var text = '';
+            var collect = function (c) {
+                if (c == null) return;
+                if (Array.isArray(c)) { c.forEach(collect); return; }
+                if (c.nodeType === 1) { text += (c.textContent || '') + ' '; return; }
+                text += String(c) + ' ';
+            };
+            if (title) text += title + ' ';
+            collect(children);
+            text = text.trim();
+
+            var kind = '';
+            var cls = classes ? String(classes) : '';
+            if (/error|danger/i.test(cls) || /失败|错误/.test(text)) kind = 'err';
+            else if (/success/i.test(cls) || /成功/.test(text)) kind = 'ok';
+
+            _clashooToast(text, { kind: kind });
+            return null;
+        } catch (e) {
+            return orig(title, children, classes);
+        }
+    };
+})();
 
 const callStatus        = rpc.declare({ object: 'luci.clashoo', method: 'status',           expect: {} });
 const callStart         = rpc.declare({ object: 'luci.clashoo', method: 'start',            expect: {} });
@@ -79,5 +177,7 @@ return baseclass.extend({
     setSingboxProfile:    function (name)        { return L.resolveDefault(callSetSingboxProfile(name),        {}); },
     deleteSingboxProfile: function (name)        { return L.resolveDefault(callDeleteSingboxProfile(name),     {}); },
     createSingboxConfig:  function (url, name, secret) { return L.resolveDefault(callCreateSingboxConfig(url, name, secret), {}); },
-    commitConfig:         function ()               { return L.resolveDefault(callCommitConfig(),               { success: false }); }
+    commitConfig:         function ()               { return L.resolveDefault(callCommitConfig(),               { success: false }); },
+
+    toast: _clashooToast
 });

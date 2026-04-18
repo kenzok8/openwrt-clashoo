@@ -17,7 +17,7 @@ var CSS = [
   '.cl-badge{display:inline-block;padding:3px 14px;border-radius:20px;font-size:12px;font-weight:600}',
   '.cl-badge-run{background:#e8f5e9;color:#2e7d32}',
   '.cl-badge-stop{background:#ffebee;color:#c62828}',
-  '.cl-actions{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;align-items:center}',
+  '.cl-actions{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;align-items:center;justify-content:center}',
   '.cl-actions-sep{width:1px;height:20px;background:rgba(128,128,128,.2);margin:0 4px}',
   '.cl-controls{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}',
   '.cl-ctrl{border:1px solid rgba(128,128,128,.15);border-radius:8px;padding:10px 12px}',
@@ -245,11 +245,11 @@ return view.extend({
 
   _tpModeLabel: function (st) {
     var map = {
-      tun: '隧道模式',
-      redirect: '重定向',
-      tproxy: '透明代理',
-      'fake-ip': '虚拟 IP',
-      mixed: '混合模式',
+      tun: 'TUN 模式',
+      redirect: '重定向/Redirect 模式',
+      tproxy: '透明代理/TPROXY 模式',
+      'fake-ip': 'Fake-IP',
+      mixed: 'Mixed 模式',
       off: '关闭'
     };
     var tcp = st.tcp_mode || uci.get('clashoo', 'config', 'tcp_mode') || '—';
@@ -294,8 +294,14 @@ return view.extend({
     var configs   = (cfgData && cfgData.configs) ? cfgData.configs : [];
     var current   = (cfgData && cfgData.current) || '';
     var proxyMode = st.proxy_mode  || 'rule';
-    var tpMode    = ((st.tcp_mode === 'tun' || st.udp_mode === 'tun' || (uci.get('clashoo', 'config', 'tun_mode') || '0') === '1')
-      ? 'tun' : 'fake-ip');
+    var tunModeOn = (uci.get('clashoo', 'config', 'tun_mode') || '0') === '1';
+    var stackMode = uci.get('clashoo', 'config', 'stack') || '';
+    var tpMode    = 'fake-ip';
+
+    if ((st.tcp_mode === 'tun' || st.udp_mode === 'tun' || tunModeOn) && stackMode === 'mixed')
+      tpMode = 'mixed';
+    else if (st.tcp_mode === 'tun' || st.udp_mode === 'tun' || tunModeOn)
+      tpMode = 'tun';
     var panelType = st.panel_type  || 'metacubexd';
     var panels    = ['metacubexd', 'yacd', 'zashboard', 'razord'];
 
@@ -317,7 +323,7 @@ return view.extend({
       ]),
       E('div', { 'class': 'cl-ctrl' }, [
         E('label', {}, '透明代理'),
-        mkSel([['fake-ip','虚拟 IP'],['tun','隧道模式']], tpMode,
+        mkSel([['fake-ip','Fake-IP'],['tun','TUN 模式'],['mixed','Mixed 模式']], tpMode,
           function (ev) { clashoo.setMode(ev.target.value); })
       ]),
       E('div', { 'class': 'cl-ctrl' }, [
