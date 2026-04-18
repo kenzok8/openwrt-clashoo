@@ -1,0 +1,371 @@
+#!/usr/bin/ucode
+/*
+ * yaml2singbox.uc — 把 mihomo (clash) YAML 订阅的 proxies 数组转换为 sing-box 的 outbounds
+ *
+ * 用法:  ucode yaml2singbox.uc <yaml-in> [template-json] [json-out]
+ *   yaml-in        必填，clash/mihomo 订阅 yaml 文件路径
+ *   template-json  可选，sing-box 模板路径，默认 /usr/share/clashoo/lib/templates/default.json
+ *   json-out       可选，输出 json 路径，默认 stdout
+ *
+ * 设计:
+ *   - 依赖 yq (mikefarah) 读 yaml → json（与 template_merge.sh 一致的技术栈）
+ *   - 支持协议: shadowsocks, vmess, vless, trojan, hysteria2, tuic。其余协议跳过并告警
+ *   - 模板里 "🚀 节点选择".outbounds 若包含字符串 "__NODES__"，会被展开为全部节点 tag
+ *   - 日志走 stderr，JSON 输出走 stdout 或 json-out
+ */
+
+'use strict';
+
+import { readfile, writefile, popen } from 'fs';
+
+const TPL_DEFAULT = '/usr/share/clashoo/lib/templates/default.json';
+const SUPPORTED = {
+	'ss':         'shadowsocks',
+	'shadowsocks':'shadowsocks',
+	'vmess':      'vmess',
+	'vless':      'vless',
+	'trojan':     'trojan',
+	'hysteria2':  'hysteria2',
+	'hy2':        'hysteria2',
+	'tuic':       'tuic'
+};
+
+function logerr(msg) {
+	warn(sprintf("[yaml2singbox] %s\n", msg));
+}
+
+function die(msg, code) {
+	logerr(msg);
+	exit(code || 1);
+}
+
+/* ---------- YAML 读取（通过 yq） ---------- */
+function quote_sh(s) {
+	/* single-quote for shell; escape embedded quotes */
+	return "'" + replace(s, "'", "'\\''") + "'";
+}
+
+function read_yaml_as_json(path) {
+	const cmd = sprintf("yq -o=json eval . %s 2>/dev/null", quote_sh(path));
+	const h = popen(cmd, "r");
+	if (!h)
+		die(sprintf("popen failed: %s", cmd));
+	let buf = "", chunk;
+	while ((chunk = h.read(65536)))
+		buf += chunk;
+	h.close();
+	if (!length(buf))
+		die(sprintf("yq returned empty for %s (yaml loadable?)", path));
+	const data = json(buf);
+	if (data === null)
+		die("json parse of yq output failed");
+	return data;
+}
+
+/* ---------- 小工具 ---------- */
+function pick(obj, ...keys) {
+	for (let k in keys)
+		if (obj[k] != null)
+			return obj[k];
+	return null;
+}
+
+function tobool(v) {
+	if (v === true || v === 'true' || v === 1 || v === '1') return true;
+	if (v === false || v === 'false' || v === 0 || v === '0') return false;
+	return null;
+}
+
+function toint(v) {
+	if (v == null) return null;
+	let n = +v;
+	return (n === n) ? n : null;  /* NaN check */
+}
+
+function strip_null(obj) {
+	if (type(obj) !== 'object') return obj;
+	const out = {};
+	for (let k in obj) {
+		const v = obj[k];
+		if (v == null) continue;
+		if (type(v) === 'object') {
+			const sv = strip_null(v);
+			if (length(sv) > 0) out[k] = sv;
+		} else if (type(v) === 'array') {
+			const arr = map(v, (x) => (type(x) === 'object') ? strip_null(x) : x);
+			if (length(arr) > 0) out[k] = arr;
+		} else {
+			out[k] = v;
+		}
+	}
+	return out;
+}
+
+/* ---------- TLS 块组装（通用） ---------- */
+function build_tls(p) {
+	const enabled = tobool(p.tls) || (p.sni && length(p.sni) > 0) || (p.servername && length(p.servername) > 0);
+	if (!enabled) return null;
+	const tls = {
+		enabled: true,
+		server_name: pick(p, 'sni', 'servername'),
+		insecure: tobool(p['skip-cert-verify']) === true ? true : null,
+		alpn: p.alpn
+	};
+	const reality = p['reality-opts'];
+	if (reality && type(reality) === 'object') {
+		tls.reality = {
+			enabled: true,
+			public_key: reality['public-key'],
+			short_id: reality['short-id']
+		};
+	}
+	const client_fp = p['client-fingerprint'];
+	if (client_fp)
+		tls.utls = { enabled: true, fingerprint: client_fp };
+	return strip_null(tls);
+}
+
+/* ---------- transport 组装（ws / grpc / http） ---------- */
+function build_transport(p) {
+	const net = p.network;
+	if (!net || net === 'tcp') return null;
+	if (net === 'ws') {
+		const opts = p['ws-opts'] || {};
+		return strip_null({
+			type: 'ws',
+			path: opts.path,
+			headers: opts.headers,
+			max_early_data: toint(opts['max-early-data']),
+			early_data_header_name: opts['early-data-header-name']
+		});
+	}
+	if (net === 'grpc') {
+		const opts = p['grpc-opts'] || {};
+		return { type: 'grpc', service_name: opts['grpc-service-name'] };
+	}
+	if (net === 'http' || net === 'h2') {
+		const opts = p['h2-opts'] || p['http-opts'] || {};
+		return strip_null({
+			type: 'http',
+			host: opts.host || opts.Host,
+			path: opts.path
+		});
+	}
+	if (net === 'httpupgrade') {
+		const opts = p['http-upgrade-opts'] || {};
+		return strip_null({ type: 'httpupgrade', path: opts.path, host: opts.host });
+	}
+	logerr(sprintf("unknown transport network '%s' for node '%s', ignored", net, p.name));
+	return null;
+}
+
+/* ---------- 协议各自的转换 ---------- */
+function convert_ss(p) {
+	const plugin = p.plugin, popts = p['plugin-opts'] || {};
+	let plugin_opts = null;
+	if (plugin && type(popts) === 'object') {
+		/* 序列化为 "k=v;k=v" */
+		const parts = [];
+		for (let k in popts) {
+			const v = popts[k];
+			if (type(v) === 'object') continue;  /* 深层对象另说 */
+			push(parts, k + '=' + v);
+		}
+		plugin_opts = join(';', parts);
+	}
+	/* sing-box 的 plugin 名：clash 的 obfs = sing-box 的 obfs-local */
+	let sb_plugin = null;
+	if (plugin === 'obfs') sb_plugin = 'obfs-local';
+	else if (plugin === 'v2ray-plugin') sb_plugin = 'v2ray-plugin';
+	else if (plugin === 'shadow-tls') sb_plugin = 'shadow-tls';
+	else if (plugin) sb_plugin = plugin;
+
+	return strip_null({
+		type: 'shadowsocks',
+		tag: p.name,
+		server: p.server,
+		server_port: toint(p.port),
+		method: p.cipher,
+		password: p.password,
+		plugin: sb_plugin,
+		plugin_opts: plugin_opts
+	});
+}
+
+function convert_vmess(p) {
+	return strip_null({
+		type: 'vmess',
+		tag: p.name,
+		server: p.server,
+		server_port: toint(p.port),
+		uuid: p.uuid,
+		alter_id: toint(p.alterId) || 0,
+		security: p.cipher || 'auto',
+		tls: build_tls(p),
+		transport: build_transport(p)
+	});
+}
+
+function convert_vless(p) {
+	return strip_null({
+		type: 'vless',
+		tag: p.name,
+		server: p.server,
+		server_port: toint(p.port),
+		uuid: p.uuid,
+		flow: p.flow,
+		tls: build_tls(p),
+		transport: build_transport(p)
+	});
+}
+
+function convert_trojan(p) {
+	return strip_null({
+		type: 'trojan',
+		tag: p.name,
+		server: p.server,
+		server_port: toint(p.port),
+		password: p.password,
+		tls: build_tls(p) || { enabled: true, server_name: p.sni || p.server },
+		transport: build_transport(p)
+	});
+}
+
+function convert_hysteria2(p) {
+	const obfs_pass = p['obfs-password'];
+	return strip_null({
+		type: 'hysteria2',
+		tag: p.name,
+		server: p.server,
+		server_port: toint(p.port),
+		password: pick(p, 'password', 'auth'),
+		up_mbps: toint(p.up),
+		down_mbps: toint(p.down),
+		obfs: (p.obfs && obfs_pass) ? { type: p.obfs, password: obfs_pass } : null,
+		tls: build_tls(p) || { enabled: true, server_name: p.sni || p.server }
+	});
+}
+
+function convert_tuic(p) {
+	return strip_null({
+		type: 'tuic',
+		tag: p.name,
+		server: p.server,
+		server_port: toint(p.port),
+		uuid: p.uuid,
+		password: p.password,
+		congestion_control: p['congestion-controller'] || p.congestion,
+		udp_relay_mode: p['udp-relay-mode'],
+		tls: build_tls(p) || { enabled: true, server_name: p.sni || p.server, alpn: p.alpn }
+	});
+}
+
+function convert_proxy(p) {
+	const sb_type = SUPPORTED[p.type];
+	if (!sb_type) {
+		if (p.type && p.type !== 'select')
+			logerr(sprintf("skip unsupported type '%s' for '%s'", p.type, p.name));
+		return null;
+	}
+	if (!p.server || !p.port || !p.name) {
+		logerr(sprintf("skip proxy missing server/port/name (type=%s)", p.type));
+		return null;
+	}
+	switch (p.type) {
+		case 'ss':
+		case 'shadowsocks':     return convert_ss(p);
+		case 'vmess':           return convert_vmess(p);
+		case 'vless':           return convert_vless(p);
+		case 'trojan':          return convert_trojan(p);
+		case 'hysteria2':
+		case 'hy2':             return convert_hysteria2(p);
+		case 'tuic':            return convert_tuic(p);
+	}
+	return null;
+}
+
+/* ---------- 去重：tag 必须唯一 ---------- */
+function dedupe_tags(nodes) {
+	const seen = {};
+	for (let n in nodes) {
+		let base = n.tag, t = base, i = 2;
+		while (seen[t]) {
+			t = base + '_' + i;
+			i++;
+		}
+		n.tag = t;
+		seen[t] = true;
+	}
+	return nodes;
+}
+
+/* ---------- 把 __NODES__ 占位符替换为真实 tag ---------- */
+function expand_node_placeholder(outbounds, node_tags) {
+	for (let ob in outbounds) {
+		if (ob.type !== 'selector' && ob.type !== 'urltest') continue;
+		if (!ob.outbounds || type(ob.outbounds) !== 'array') continue;
+		const expanded = [];
+		for (let item in ob.outbounds) {
+			if (item === '__NODES__') {
+				for (let t in node_tags) push(expanded, t);
+			} else {
+				push(expanded, item);
+			}
+		}
+		ob.outbounds = expanded;
+	}
+	return outbounds;
+}
+
+/* ---------- main ---------- */
+const yaml_path = ARGV[0];
+const tpl_path  = ARGV[1] || TPL_DEFAULT;
+const out_path  = ARGV[2];
+
+if (!yaml_path)
+	die("usage: ucode yaml2singbox.uc <yaml-in> [template-json] [json-out]");
+
+const yaml = read_yaml_as_json(yaml_path);
+if (!yaml || type(yaml.proxies) !== 'array')
+	die(sprintf("no .proxies[] array in %s", yaml_path));
+
+const tpl_raw = readfile(tpl_path);
+if (!tpl_raw)
+	die(sprintf("cannot read template %s", tpl_path));
+const tpl = json(tpl_raw);
+if (!tpl || type(tpl.outbounds) !== 'array')
+	die(sprintf("template %s has no outbounds[]", tpl_path));
+
+/* 转换节点 */
+const nodes = [];
+let skipped = 0;
+for (let p in yaml.proxies) {
+	const o = convert_proxy(p);
+	if (o) push(nodes, o); else skipped++;
+}
+dedupe_tags(nodes);
+
+if (!length(nodes))
+	die(sprintf("no usable nodes converted from %d proxies (skipped=%d)", length(yaml.proxies), skipped));
+
+logerr(sprintf("converted=%d skipped=%d", length(nodes), skipped));
+
+/* 拼装：节点插入到 outbounds 数组前部 */
+const final_outbounds = [];
+for (let n in nodes) push(final_outbounds, n);
+for (let ob in tpl.outbounds) push(final_outbounds, ob);
+
+/* 展开 __NODES__ 占位符 */
+const node_tags = map(nodes, (n) => n.tag);
+expand_node_placeholder(final_outbounds, node_tags);
+
+tpl.outbounds = final_outbounds;
+
+const out = sprintf("%.J\n", tpl);
+if (out_path) {
+	if (!writefile(out_path, out))
+		die(sprintf("writefile failed: %s", out_path));
+	logerr(sprintf("wrote %s (%d bytes, %d nodes)", out_path, length(out), length(nodes)));
+} else {
+	print(out);
+}

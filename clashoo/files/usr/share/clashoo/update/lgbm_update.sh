@@ -15,7 +15,7 @@ DOWNLOAD_URL=$(uci get clashoo.config.smart_lgbm_url 2>/dev/null)
 
 log "Start downloading LightGBM model from: $DOWNLOAD_URL"
 
-mkdir -p /etc/clash
+mkdir -p /etc/clashoo
 
 rm -f "$TMP_PATH" 2>/dev/null
 if command -v curl >/dev/null 2>&1; then

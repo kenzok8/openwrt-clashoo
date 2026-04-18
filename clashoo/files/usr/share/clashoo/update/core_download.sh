@@ -116,6 +116,22 @@ map_mihomo_arch() {
 	esac
 }
 
+map_singbox_arch() {
+	case "$1" in
+		amd64)   echo "amd64" ;;
+		arm64)   echo "arm64" ;;
+		armv7)   echo "armv7" ;;
+		armv6)   echo "armv6" ;;
+		armv5)   echo "armv5" ;;
+		386)     echo "386" ;;
+		mips)    echo "mips" ;;
+		mipsle)  echo "mipsle" ;;
+		mips64)  echo "mips64" ;;
+		mips64le) echo "mips64le" ;;
+		*)       echo "amd64" ;;
+	esac
+}
+
 fetch_latest_tag() {
 	repo="$1"
 	api_url="https://api.github.com/repos/${repo}/releases/latest"
@@ -459,6 +475,50 @@ if [ -n "$CUSTOM_CORE_URL" ]; then
 	printf '%s\n' "${VERSION_VALUE}" > "$VERSION_FILE"
 	touch /usr/share/clashoo/core_down_complete
 	write_log "Core update successful (custom URL)"
+	exit 0
+fi
+
+if [ "$CORETYPE" = "4" ] || [ "$CORETYPE" = "5" ]; then
+	SINGBOX_ARCH="$(map_singbox_arch "$MODELTYPE")"
+	if [ "$CORETYPE" = "4" ]; then
+		write_log "Selected core: sing-box stable"
+		TAG=$(fetch_latest_tag "SagerNet/sing-box")
+		[ -z "$TAG" ] && write_log "sing-box stable tag lookup failed" && exit 1
+	else
+		write_log "Selected core: sing-box alpha/prerelease"
+		TAG=$(fetch_prerelease_tag "SagerNet/sing-box")
+		[ -z "$TAG" ] && TAG=$(fetch_latest_tag "SagerNet/sing-box")
+		[ -z "$TAG" ] && write_log "sing-box beta tag lookup failed" && exit 1
+	fi
+	VER="${TAG#v}"
+	ASSET="sing-box-${VER}-linux-${SINGBOX_ARCH}.tar.gz"
+	URL="https://github.com/SagerNet/sing-box/releases/download/${TAG}/${ASSET}"
+	write_log "Starting sing-box download: $ASSET"
+	if ! download_with_mirrors "$URL" /tmp/singbox.tar.gz; then
+		write_log "sing-box download failed"
+		exit 1
+	fi
+	rm -rf /tmp/singbox-extract 2>/dev/null
+	mkdir -p /tmp/singbox-extract
+	if ! tar -xzf /tmp/singbox.tar.gz -C /tmp/singbox-extract; then
+		write_log "sing-box extract failed"
+		rm -f /tmp/singbox.tar.gz
+		exit 1
+	fi
+	SINGBOX_BIN="$(find /tmp/singbox-extract -name 'sing-box' -type f 2>/dev/null | head -n 1)"
+	if [ -z "$SINGBOX_BIN" ]; then
+		write_log "sing-box binary not found in archive"
+		rm -f /tmp/singbox.tar.gz; rm -rf /tmp/singbox-extract
+		exit 1
+	fi
+	if ! install_with_rollback "$SINGBOX_BIN" "/usr/bin/sing-box"; then
+		rm -f /tmp/singbox.tar.gz; rm -rf /tmp/singbox-extract
+		exit 1
+	fi
+	printf '%s\n' "$TAG" > "/usr/share/clashoo/singbox_version"
+	rm -f /tmp/singbox.tar.gz; rm -rf /tmp/singbox-extract
+	touch /usr/share/clashoo/core_down_complete
+	write_log "sing-box core update successful: $TAG"
 	exit 0
 fi
 

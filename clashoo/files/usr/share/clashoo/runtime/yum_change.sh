@@ -24,6 +24,12 @@
 		enhanced_mode=$(uci get clashoo.config.enhanced_mode 2>/dev/null)
 		mixed_port=$(uci get clashoo.config.mixed_port 2>/dev/null)
 		enable_ipv6=$(uci get clashoo.config.enable_ipv6 2>/dev/null)
+		bypass_fwmark=$(uci get clashoo.config.bypass_fwmark 2>/dev/null)
+		[ -z "$bypass_fwmark" ] && bypass_fwmark="0x233"
+		case "$bypass_fwmark" in
+			0x*|0X*) routing_mark_dec=$((bypass_fwmark));;
+			*) routing_mark_dec="$bypass_fwmark";;
+		esac
 		
 		core=$(uci get clashoo.config.core 2>/dev/null)
 		interf_name=$(uci get clashoo.config.interf_name 2>/dev/null)
@@ -380,6 +386,13 @@ rm -rf /tmp/tun.yaml /tmp/enable_dns.yaml /tmp/fallback.yaml /tmp/nameservers.ya
 			sed -i 's@^external-ui:.*@external-ui: "./dashboard"@g' "$CONFIG_YAML" 2>/dev/null
 		else
 			sed -i '/^secret:/a\external-ui: "./dashboard"' "$CONFIG_YAML" 2>/dev/null
+		fi
+
+		# Keep core outbound exempt from local redirect/tproxy loops.
+		if grep -Eq '^routing-mark:' "$CONFIG_YAML"; then
+			sed -i "s@^routing-mark:.*@routing-mark: ${routing_mark_dec}@g" "$CONFIG_YAML" 2>/dev/null
+		else
+			sed -i "/^mode:/a\routing-mark: ${routing_mark_dec}" "$CONFIG_YAML" 2>/dev/null
 		fi
 
 		rm -rf  $TEMP_FILE 2>/dev/null

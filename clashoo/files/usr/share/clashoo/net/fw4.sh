@@ -26,12 +26,12 @@ bool_enabled() {
 }
 
 config_redir_port() {
-	uci_get clash.config.redir_port
+	uci_get clashoo.config.redir_port
 }
 
 config_tproxy_port() {
 	local port
-	port="$(uci_get clash.config.tproxy_port)"
+	port="$(uci_get clashoo.config.tproxy_port)"
 	if [ -n "$port" ]; then
 		printf '%s\n' "$port"
 	else
@@ -40,40 +40,40 @@ config_tproxy_port() {
 }
 
 config_tcp_mode() {
-	uci_get clash.config.tcp_mode
+	uci_get clashoo.config.tcp_mode
 }
 
 config_udp_mode() {
-	uci_get clash.config.udp_mode
+	uci_get clashoo.config.udp_mode
 }
 
 config_access_control() {
-	uci_get clash.config.access_control
+	uci_get clashoo.config.access_control
 }
 
 config_bypass_china() {
-	uci_get clash.config.bypass_china
+	uci_get clashoo.config.bypass_china
 }
 
 config_proxy_tcp_dport() {
-	uci_get clash.config.proxy_tcp_dport
+	uci_get clashoo.config.proxy_tcp_dport
 }
 
 config_proxy_udp_dport() {
-	uci_get clash.config.proxy_udp_dport
+	uci_get clashoo.config.proxy_udp_dport
 }
 
 config_bypass_dscp() {
-	uci_list clash.config.bypass_dscp
+	uci_list clashoo.config.bypass_dscp
 }
 
 config_bypass_fwmark() {
-	uci_list clash.config.bypass_fwmark
+	uci_list clashoo.config.bypass_fwmark
 }
 
 config_fake_ip_range() {
 	local value
-	value="$(uci_get clash.config.fake_ip_range)"
+	value="$(uci_get clashoo.config.fake_ip_range)"
 	[ -n "$value" ] && {
 		printf '%s\n' "$value"
 		return
@@ -141,6 +141,21 @@ render_token_elements() {
 		}'
 }
 
+merge_fwmark_tokens() {
+	printf '%s %s\n' "$1" "$PROXY_FWMARK" | tr ',\t' '  ' | awk '
+		BEGIN { first = 1 }
+		{
+			for (i = 1; i <= NF; i++) {
+				if ($i == "" || seen[$i]++)
+					continue
+				if (!first)
+					printf ", "
+				printf "%s", $i
+				first = 0
+			}
+		}'
+}
+
 render_port_match() {
 	local proto="$1"
 	local ports="$2"
@@ -155,16 +170,50 @@ render_port_match() {
 }
 
 apply_local_output_rule() {
-	local redir_port fake_ip_range
+	local redir_port fake_ip_range tcp_mode bypass_fwmark bypass_china
+	local fwmark_elements fwmark_rule china_set china_rule
 	redir_port="$(config_redir_port)"
 	fake_ip_range="$(config_fake_ip_range)"
+	tcp_mode="$(config_tcp_mode)"
+	bypass_fwmark="$(config_bypass_fwmark)"
+	bypass_china="$(config_bypass_china)"
 
 	nft delete table ip ${LOCAL_OUTPUT_TABLE} >/dev/null 2>&1 || true
+
+	# Only apply local output redirect when tcp_mode is redirect
+	[ "$tcp_mode" != "redirect" ] && return 0
+
+	# mihomo 自身流量 mark 放行（防本机出站被自己劫持形成死循环）
+	fwmark_rule=""
+	fwmark_elements="$(merge_fwmark_tokens "$bypass_fwmark")"
+	[ -n "$fwmark_elements" ] && fwmark_rule="meta mark { ${fwmark_elements} } return"
+
+	# 国内 IP 旁路（复用 /usr/share/clashoo/nftables/geoip_cn.nft 的 clash_china set）
+	china_set=""
+	china_rule=""
+	if bool_enabled "$bypass_china" && [ -s "$GEOIP_CN_NFT" ]; then
+		china_set="$(cat "$GEOIP_CN_NFT")"
+		china_rule="ip daddr @clash_china return"
+	fi
+
 	nft -f - <<EOF
 table ip ${LOCAL_OUTPUT_TABLE} {
+	set clash_localnetwork {
+		type ipv4_addr
+		flags interval
+		auto-merge
+		elements = { 0.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8,
+		             169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16,
+		             224.0.0.0/4, 240.0.0.0/4 }
+	}
+	${china_set}
 	chain output {
 		type nat hook output priority dstnat; policy accept;
+		${fwmark_rule}
+		ip daddr @clash_localnetwork return
+		${china_rule}
 		ip daddr ${fake_ip_range} tcp dport != 53 redirect to :${redir_port}
+		meta l4proto tcp redirect to :${redir_port}
 	}
 }
 EOF
@@ -208,8 +257,8 @@ generate_rules() {
 	bypass_dscp="$(config_bypass_dscp)"
 	bypass_fwmark="$(config_bypass_fwmark)"
 	fake_ip_range="$(config_fake_ip_range)"
-	proxy_lan_ips="$(uci_list clash.config.proxy_lan_ips)"
-	reject_lan_ips="$(uci_list clash.config.reject_lan_ips)"
+	proxy_lan_ips="$(uci_list clashoo.config.proxy_lan_ips)"
+	reject_lan_ips="$(uci_list clashoo.config.reject_lan_ips)"
 
 	mkdir -p "$NFT_DIR"
 
@@ -218,7 +267,7 @@ generate_rules() {
 	proxy_elements="$(render_ip_elements "$proxy_lan_ips")"
 	reject_elements="$(render_ip_elements "$reject_lan_ips")"
 	dscp_elements="$(render_token_elements "$bypass_dscp")"
-	fwmark_elements="$(render_token_elements "$bypass_fwmark")"
+	fwmark_elements="$(merge_fwmark_tokens "$bypass_fwmark")"
 
 	{
 		printf 'set clash_localnetwork {\n\ttype ipv4_addr;\n\tflags interval;\n\tauto-merge;\n'
@@ -274,15 +323,29 @@ EOF
 		udp_match="$(render_port_match udp "$proxy_udp_dport")"
 		{
 			printf 'ip daddr @clash_localnetwork return\n'
-			bool_enabled "$bypass_china" && printf 'meta nfproto ipv6 ip6 daddr @clash_china6 return\n'
-			bool_enabled "$bypass_china" && printf 'ip daddr @clash_china return\n'
-			[ "$access_control" = "1" ] && printf 'ip saddr != @clash_proxy_lan return\n'
-			[ "$access_control" = "2" ] && printf 'ip saddr @clash_reject_lan return\n'
-			[ -n "$dscp_elements" ] && printf 'ip dscp { %s } return\n' "$dscp_elements"
-			[ -n "$dscp_elements" ] && printf 'ip6 dscp { %s } return\n' "$dscp_elements"
-			[ -n "$fwmark_elements" ] && printf 'meta mark { %s } return\n' "$fwmark_elements"
-			[ "$tcp_mode" = "tproxy" ] && printf '%s tproxy to :%s meta mark set %s accept\n' "$tcp_match" "$tproxy_port" "$PROXY_FWMARK"
-			[ "$udp_mode" = "tproxy" ] && printf '%s tproxy to :%s meta mark set %s accept\n' "$udp_match" "$tproxy_port" "$PROXY_FWMARK"
+			if bool_enabled "$bypass_china"; then
+				printf 'meta nfproto ipv6 ip6 daddr @clash_china6 return\n'
+				printf 'ip daddr @clash_china return\n'
+			fi
+			if [ "$access_control" = "1" ]; then
+				printf 'ip saddr != @clash_proxy_lan return\n'
+			fi
+			if [ "$access_control" = "2" ]; then
+				printf 'ip saddr @clash_reject_lan return\n'
+			fi
+			if [ -n "$dscp_elements" ]; then
+				printf 'ip dscp { %s } return\n' "$dscp_elements"
+				printf 'ip6 dscp { %s } return\n' "$dscp_elements"
+			fi
+			if [ -n "$fwmark_elements" ]; then
+				printf 'meta mark { %s } return\n' "$fwmark_elements"
+			fi
+			if [ "$tcp_mode" = "tproxy" ]; then
+				printf '%s tproxy to :%s meta mark set %s accept\n' "$tcp_match" "$tproxy_port" "$PROXY_FWMARK"
+			fi
+			if [ "$udp_mode" = "tproxy" ]; then
+				printf '%s tproxy to :%s meta mark set %s accept\n' "$udp_match" "$tproxy_port" "$PROXY_FWMARK"
+			fi
 		} > "$MANGLE_RULES"
 	else
 		: > "$MANGLE_RULES"

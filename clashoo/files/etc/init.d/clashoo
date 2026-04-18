@@ -75,7 +75,7 @@ core_supports_advanced_features() {
 }
 
 _core_names() {
-	echo "mihomo clash-meta clash"
+	echo "mihomo clash-meta clash sing-box"
 }
 
 _core_running() {
@@ -100,6 +100,79 @@ _kill_core() {
 			kill -9 "$_pid" >/dev/null 2>&1
 		done
 	done
+}
+
+selected_core_family() {
+	local core_type
+	core_type="$(uci -q get clashoo.config.core_type 2>/dev/null)"
+	[ "$core_type" = "singbox" ] && echo "singbox" || echo "mihomo"
+}
+
+is_singbox_selected() {
+	[ "$(selected_core_family)" = "singbox" ]
+}
+
+sync_legacy_core_field() {
+	local dcore legacy
+	dcore="$(uci -q get clashoo.config.dcore 2>/dev/null)"
+	if is_singbox_selected; then
+		[ "$dcore" = "5" ] && legacy="5" || legacy="4"
+	else
+		[ "$dcore" = "3" ] && legacy="3" || legacy="2"
+	fi
+	uci -q set clashoo.config.core="$legacy"
+	uci -q commit clashoo >/dev/null 2>&1
+}
+
+prepare_singbox_runtime() {
+	local active src redir_port tproxy_port mixed_port
+	active="$(uci -q get clashoo.config.singbox_active 2>/dev/null)"
+	src="/usr/share/clashoo/config/singbox/${active}"
+
+	mkdir -p /etc/sing-box /usr/share/sing-box >/dev/null 2>&1
+	if [ -n "$active" ] && [ -r "$src" ]; then
+		cp -f "$src" /etc/sing-box/config.json >/dev/null 2>&1 || return 1
+	elif [ ! -r /etc/sing-box/config.json ]; then
+		_log_runtime_error "sing-box config.json is missing; please generate or select a sing-box profile first"
+		return 1
+	fi
+
+	if command -v ucode >/dev/null 2>&1; then
+		local has_tun_device
+		has_tun_device=1
+		[ -e /dev/net/tun ] || has_tun_device=0
+		redir_port="$(uci -q get clashoo.config.redir_port 2>/dev/null)"
+		tproxy_port="$(uci -q get clashoo.config.tproxy_port 2>/dev/null)"
+		mixed_port="$(uci -q get clashoo.config.mixed_port 2>/dev/null)"
+		[ -z "$redir_port" ] && redir_port=7891
+		[ -z "$tproxy_port" ] && tproxy_port=7982
+		[ -z "$mixed_port" ] && mixed_port=7890
+		ucode /usr/share/clashoo/lib/normalize_singbox_config.uc \
+			/etc/sing-box/config.json "$redir_port" "$tproxy_port" "$mixed_port" "$has_tun_device" >/dev/null 2>&1 || {
+			_log_runtime_error "sing-box runtime config normalization failed"
+			return 1
+		}
+	fi
+
+	uci -q set sing-box.main.enabled='1'
+	uci -q set sing-box.main.user='root'
+	uci -q set sing-box.main.conffile='/etc/sing-box/config.json'
+	uci -q set sing-box.main.workdir='/usr/share/sing-box'
+	uci -q commit sing-box >/dev/null 2>&1
+	return 0
+}
+
+start_singbox_service() {
+	if [ ! -x /usr/bin/sing-box ]; then
+		_log_runtime_error "sing-box core not found, please install the local sing-box binary first"
+		return 1
+	fi
+	prepare_singbox_runtime || return 1
+	/etc/init.d/sing-box start >/dev/null 2>&1
+}
+
+stop_singbox_service() {
+	/etc/init.d/sing-box stop >/dev/null 2>&1 || true
 }
 
 _log_runtime_error() {
@@ -153,7 +226,7 @@ _detect_core() {
 	echo "/etc/clashoo/clash"
 }
 CLASH="$(_detect_selected_core)"
-CLASH_CONFIG="/etc/clash"
+CLASH_CONFIG="/etc/clashoo"
 CRON_FILE="/etc/crontabs/root"
 CONFIG_YAML="/etc/clashoo/config.yaml"
 CONFIG_YAML_PATH=$(uci get clashoo.config.use_config 2>/dev/null)  
@@ -177,6 +250,31 @@ cleanup_legacy_startup_backups() {
 	      /etc/init.d/._* \
 	      /etc/init.d/*bak* >/dev/null 2>&1 || true
 #===========================================================================================================================
+}
+
+migrate_legacy_clash_dir() {
+	local legacy_dir target_dir legacy_path target_path legacy_name
+	legacy_dir="/etc/clash"
+	target_dir="/etc/clashoo"
+
+	[ -d "$legacy_dir" ] || return 0
+	mkdir -p "$target_dir" >/dev/null 2>&1
+
+	for legacy_name in config.yaml Country.mmdb geoip.metadb geosite.dat geoip.dat GeoLite2-ASN.mmdb; do
+		legacy_path="${legacy_dir}/${legacy_name}"
+		target_path="${target_dir}/${legacy_name}"
+		[ -e "$legacy_path" ] || continue
+		[ -e "$target_path" ] || mv -f "$legacy_path" "$target_path" >/dev/null 2>&1
+	done
+
+	for legacy_name in rules ruleset rule-set profiles; do
+		legacy_path="${legacy_dir}/${legacy_name}"
+		target_path="${target_dir}/${legacy_name}"
+		[ -e "$legacy_path" ] || continue
+		[ -e "$target_path" ] || mv -f "$legacy_path" "$target_path" >/dev/null 2>&1
+	done
+
+	rmdir "$legacy_dir" >/dev/null 2>&1 || true
 }
 
 backup_dnsmasq_state() {
@@ -237,7 +335,7 @@ restore_dnsmasq_state() {
 
 ensure_dns_when_core_stopped() {
 #===========================================================================================================================
-	# Safety net: when core is stopped, never leave dnsmasq forwarding only to local Clash DNS.
+	# Safety net: when core is stopped, never leave dnsmasq forwarding only to local Clashoo DNS.
 	if _core_running; then
 		return 0
 	fi
@@ -386,6 +484,9 @@ yml_change() {
 		[ -z "$redir_port" ] && redir_port=7891
 		[ -z "$mixed_port" ] && mixed_port=7890
 		[ -z "$allow_lan" ] && allow_lan=true
+		# Normalize uci integer to YAML boolean
+		[ "$allow_lan" = "1" ] && allow_lan=true
+		[ "$allow_lan" = "0" ] && allow_lan=false
 		[ -z "$bind_addr" ] && bind_addr="*"
 		[ -z "$p_mode" ] && p_mode="rule"
 		[ "$p_mode" = "script" ] && p_mode="rule"
@@ -891,6 +992,20 @@ _prepare_geo_bootstrap_mode() {
 
 
 _start_validate_core() {
+	if is_singbox_selected; then
+		if [ ! -x /usr/bin/sing-box ]; then
+			if [ "${lang}" = "en" ] || [ "${lang}" = "auto" ]; then
+				echo "  $(date "+%Y-%m-%d %H:%M:%S") - sing-box core not found, please install the local sing-box binary first" >> /usr/share/clashoo/clashoo.txt
+			elif [ "${lang}" = "zh_cn" ]; then
+				echo "  $(date "+%Y-%m-%d %H:%M:%S")  - 找不到本地 sing-box 内核，请先安装 sing-box 二进制" >> /usr/share/clashoo/clashoo.txt
+			fi
+			log_msg "sing-box core not found, please install the local sing-box binary first" "找不到本地 sing-box 内核，请先安装 sing-box 二进制"
+			echo "Clashoo" > "$REAL_LOG"
+			return 1
+		fi
+		return 0
+	fi
+
 	if [ "${core:-0}" -eq 1 ] && [ ! -x "$CLASH" ]; then
 		if [ "${lang}" = "en" ] || [ "${lang}" = "auto" ]; then
 			echo "  $(date "+%Y-%m-%d %H:%M:%S") - mihomo core not found, detected binary is unavailable: $CLASH" >> /usr/share/clashoo/clashoo.txt
@@ -995,6 +1110,9 @@ _start_prepare_config() {
 
 	yml_dns_change >/dev/null 2>&1
 
+	# Sync processed config (with DNS listen injected) to mihomo working directory
+	cp -f "$CONFIG_YAML" "${CLASH_CONFIG}/config.yaml" 2>/dev/null
+
 	ip_rules >/dev/null 2>&1
 }
 
@@ -1040,7 +1158,7 @@ _start_launch_core() {
 	done
 
 	if ! _core_running; then
-		echo "  $(date "+%Y-%m-%d %H:%M:%S") - clash core failed to stay running after start" >> /usr/share/clashoo/clashoo.txt
+		echo "  $(date "+%Y-%m-%d %H:%M:%S") - clashoo runtime failed to stay running after start" >> /usr/share/clashoo/clashoo.txt
 		backend_remove_rules >/dev/null 2>&1
 		revert_dns >/dev/null 2>&1
 		_kill_core
@@ -1051,25 +1169,50 @@ _start_launch_core() {
 
 start(){
 #=========================================================================================================================== 
-lang=$(uci get luci.main.lang 2>/dev/null)
-enable=$(uci get clashoo.config.enable 2>/dev/null)
-core=$(uci get clashoo.config.core 2>/dev/null)
-mode=$(uci get clashoo.config.mode 2>/dev/null)
-tun_mode=$(uci get clashoo.config.tun_mode 2>/dev/null)
+	lang=$(uci get luci.main.lang 2>/dev/null)
+	enable=$(uci get clashoo.config.enable 2>/dev/null)
+	mode=$(uci get clashoo.config.mode 2>/dev/null)
+	tun_mode=$(uci get clashoo.config.tun_mode 2>/dev/null)
 
-cleanup_legacy_startup_backups
+	sync_legacy_core_field
 
-if _openclash_conflict; then
-	_log_runtime_error "OpenClash is enabled; skip Clashoo start to avoid firewall/DNS conflicts"
+	cleanup_legacy_startup_backups
+	migrate_legacy_clash_dir
+
+	if _openclash_conflict; then
+		_log_runtime_error "OpenClash is enabled; skip Clashoo start to avoid firewall/DNS conflicts"
 	return 0
 fi
-if [ "${enable:-0}" -eq 1 ]; then
- 	log_msg "Starting Client" "启动客户端"
-	sleep 1
-	if ! select_config >/dev/null 2>&1; then
-		_log_runtime_error "Config file is missing or empty; please import a subscription/config first"
-		return 1
-	fi
+	if [ "${enable:-0}" -eq 1 ]; then
+		log_msg "Starting Client" "启动客户端"
+		sleep 1
+		if is_singbox_selected; then
+			stop >/dev/null 2>&1
+			if ! _require_runtime_network_stack; then
+				echo "Clashoo" > "$REAL_LOG"
+				return 1
+			fi
+			if ! _start_validate_core; then
+				return 1
+			fi
+			if ! start_singbox_service; then
+				echo "Clashoo" > "$REAL_LOG"
+				return 1
+			fi
+			log_msg "Starting clashoo sing-box runtime" "启动 clashoo sing-box 运行时"
+			sleep 1
+			log_msg "Setting up sing-box $(backend_name) rules" "设置 sing-box 网络规则"
+			backend_apply_rules >/dev/null 2>&1
+			add_cron >/dev/null 2>&1
+			log_msg "sing-box Started Successfully " "sing-box 启动成功，请等待服务器上线！"
+			sleep 1
+			echo "Clashoo" > "$REAL_LOG"
+			return 0
+		fi
+		if ! select_config >/dev/null 2>&1; then
+			_log_runtime_error "Config file is missing or empty; please import a subscription/config first"
+			return 1
+		fi
 	sleep 1
 	
 	if ! _require_runtime_network_stack; then
@@ -1121,15 +1264,13 @@ remove_mark(){
 stop(){
 #=========================================================================================================================== 
 		
-		lang=$(uci get luci.main.lang 2>/dev/null)
-		tun_mode=$(uci get clashoo.config.tun_mode 2>/dev/null)
-		#ipv6=$(uci get clashoo.config.enable_ipv6 2>/dev/null)
-		core=$(uci get clashoo.config.core 2>/dev/null)
-		LIST="/usr/share/clashoo/server.list"
+			lang=$(uci get luci.main.lang 2>/dev/null)
+			tun_mode=$(uci get clashoo.config.tun_mode 2>/dev/null)
+			LIST="/usr/share/clashoo/server.list"
 
-		sed -i '/#START/,/#END/d' "$LIST" 2>/dev/null
+			sed -i '/#START/,/#END/d' "$LIST" 2>/dev/null
 
-		log_msg "Stopping Client..." "正在停止客户端..."
+			log_msg "Stopping Client..." "正在停止客户端..."
 		sleep 1
 		backend_remove_rules >/dev/null 2>&1
 		revert_dns >/dev/null 2>&1
@@ -1137,12 +1278,13 @@ stop(){
 		log_msg "Removing mihomo $(backend_name) rules" "清理 mihomo 网络规则"
 		sleep 1
 		
-		sh /usr/share/clashoo/runtime/backup.sh >/dev/null 2>&1
-		
-		_kill_core
+			sh /usr/share/clashoo/runtime/backup.sh >/dev/null 2>&1
 
-		log_msg "mihomo Core Stopped Successfully " "mihomo 停止进程守护程序"
-		sleep 1
+			_kill_core
+			stop_singbox_service
+
+			log_msg "clashoo runtime stopped" "clashoo 运行核心已停止"
+			sleep 1
 		
 		rm -rf /www/luci-static/yacd 2>/dev/null
 		
@@ -1176,23 +1318,30 @@ stop(){
 
 restart(){
 #=========================================================================================================================== 
-		if _core_running; then
-			stop  >/dev/null 2>&1
-			start >/dev/null 2>&1
-			echo "Clash Successfully Restarted"			
-		else
-		    start >/dev/null 2>&1
-			echo "Clash Successfully Started"
-		fi
+			if _core_running; then
+				stop  >/dev/null 2>&1
+				start >/dev/null 2>&1
+				echo "Clashoo Successfully Restarted"
+			else
+			    start >/dev/null 2>&1
+				echo "Clashoo Successfully Started"
+			fi
 #=========================================================================================================================== 
 }
 
 reload()
 {
-if _core_running; then
-      backend_remove_rules 2>/dev/null
-	  yml_dns_change 2>/dev/null
-      backend_apply_rules 2>/dev/null	 
-	  echo "Clash Reload Completed"	
-fi	  
+if is_singbox_selected; then
+	  if _core_running; then
+		prepare_singbox_runtime >/dev/null 2>&1
+		/etc/init.d/sing-box restart >/dev/null 2>&1
+		echo "Clashoo Reload Completed"
+	  fi
+elif _core_running; then
+	      backend_remove_rules 2>/dev/null
+		  yml_dns_change 2>/dev/null
+		  cp -f "$CONFIG_YAML" "${CLASH_CONFIG}/config.yaml" 2>/dev/null
+	      backend_apply_rules 2>/dev/null
+		  echo "Clashoo Reload Completed"
+fi
 }

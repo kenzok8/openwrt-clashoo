@@ -118,15 +118,16 @@ return view.extend({
     s = m.section(form.NamedSection, 'config', 'clashoo', '后端核心');
     s.addremove = false;
     o = s.option(form.ListValue, 'core_type', '核心类型');
-    o.value('mihomo', 'Mihomo / Clash Meta');
-    o.value('singbox', 'sing-box（需已安装并配置 clash_api）');
-    o.description = '切换后需重启服务；sing-box 须在 experimental.clash_api 中开启 Clash 兼容 API';
+    o.value('mihomo', 'mihomo（Clash Meta 内核）');
+    o.value('singbox', 'sing-box（需已安装并启用 clash_api）');
+    o.description = '切换后需重启服务；sing-box 需在 experimental.clash_api 中开启 Clash 兼容 API';
 
     s = m.section(form.NamedSection, 'config', 'clashoo', '内核下载');
     s.addremove = false;
-    o = s.option(form.ListValue, 'core', '版本类型');
-    o.value('mihomo', 'Mihomo（正式版）'); o.value('mihomo-alpha', 'Mihomo Alpha（预发布）');
-    o = s.option(form.ListValue, 'core_arch', 'CPU 架构');
+    o = s.option(form.ListValue, 'dcore', '版本类型');
+    o.value('2', 'mihomo（稳定版）'); o.value('3', 'mihomo（预发布版）');
+    o.value('4', 'sing-box（稳定版）'); o.value('5', 'sing-box（预发布版）');
+    o = s.option(form.ListValue, 'download_core', 'CPU 架构');
     ['amd64','arm64','armv7','armv6','armv5','386','mips','mipsle','mips64','mips64le'].forEach(function(a){ o.value(a,a); });
     if (detectedArch) o.default = detectedArch;
     o.description = cpuArch
@@ -147,11 +148,11 @@ return view.extend({
     };
     o.write = function () {};
 
-    s = m.section(form.NamedSection, 'config', 'clashoo', 'GeoIP / GeoSite');
+    s = m.section(form.NamedSection, 'config', 'clashoo', 'GeoIP 与 GeoSite');
     s.addremove = false;
     o = s.option(form.Flag,  'auto_update_geoip',  '自动更新');
-    o = s.option(form.Value, 'geoip_update_time',  '更新时间（HH:MM）');
-    o = s.option(form.Value, 'geoip_update_day',   '每周几（0=每天）');
+    o = s.option(form.Value, 'auto_update_geoip_time',  '更新小时（0-23）');
+    o = s.option(form.Value, 'geoip_update_interval',   '更新间隔（天）');
     o = s.option(form.ListValue, 'geodata_source', '数据源');
     o.value('github', 'GitHub'); o.value('custom', '自定义');
     o = s.option(form.DummyValue, '_geo_btn', '');
@@ -169,20 +170,24 @@ return view.extend({
 
     s = m.section(form.NamedSection, 'config', 'clashoo', '管理面板配置');
     s.addremove = false;
-    o = s.option(form.Value, 'dashboard_port', '面板端口');
-    o = s.option(form.Value, 'dashboard_pass', '访问密钥');
-    o = s.option(form.ListValue, 'panel_ui', '面板 UI');
+    o = s.option(form.Value, 'dash_port', '面板端口');
+    o.placeholder = '9090';
+    o = s.option(form.Value, 'dash_pass', '访问密钥');
+    o.placeholder = 'clashoo';
+    o = s.option(form.ListValue, 'dashboard_panel', '面板 UI');
     ['metacubexd','yacd','zashboard','razord'].forEach(function(p){ o.value(p,p); });
 
     m.render().then(function (node) {
       container.appendChild(node);
       container.appendChild(E('div', { 'class': 'cl-save-bar' }, [
         E('button', { 'class': 'btn cbi-button', click: function () {
-          m.save().then(function () { ui.addNotification(null, E('p', '配置已保存')); })
+          m.save().then(function () { return clashoo.commitConfig(); })
+            .then(function () { location.reload(); })
             .catch(function (e) { ui.addNotification(null, E('p', '保存失败: ' + (e.message || e))); });
         }}, '保存配置'),
         E('button', { 'class': 'btn cbi-button-action', click: function () {
-          m.save().then(function () { return clashoo.restart(); })
+          m.save().then(function () { return clashoo.commitConfig(); })
+            .then(function () { return clashoo.restart(); })
             .then(function () { ui.addNotification(null, E('p', '配置已保存并重启服务')); })
             .catch(function (e) { ui.addNotification(null, E('p', '操作失败: ' + (e.message || e))); });
         }}, '应用配置')
@@ -209,20 +214,22 @@ return view.extend({
 
     s = m.section(form.NamedSection, 'config', 'clashoo', '自动化任务');
     s.addremove = false;
-    o = s.option(form.Flag,  'auto_update_sub',   '定时更新订阅');
-    o = s.option(form.Value, 'update_sub_time',   '更新时间（HH:MM）');
+    o = s.option(form.Flag,  'auto_update',   '定时更新 Clashoo 资源');
+    o = s.option(form.Value, 'auto_update_time',   '更新间隔（小时）');
     o = s.option(form.Flag,  'auto_clear_log',    '定时清理日志');
-    o = s.option(form.Value, 'clear_log_interval','清理间隔（天）');
+    o = s.option(form.Value, 'clear_time','清理间隔（小时）');
 
     m.render().then(function (node) {
       container.appendChild(node);
       container.appendChild(E('div', { 'class': 'cl-save-bar' }, [
         E('button', { 'class': 'btn cbi-button', click: function () {
-          m.save().then(function () { ui.addNotification(null, E('p', '配置已保存')); })
+          m.save().then(function () { return clashoo.commitConfig(); })
+            .then(function () { location.reload(); })
             .catch(function (e) { ui.addNotification(null, E('p', '保存失败: ' + (e.message || e))); });
         }}, '保存配置'),
         E('button', { 'class': 'btn cbi-button-action', click: function () {
-          m.save().then(function () { return clashoo.restart(); })
+          m.save().then(function () { return clashoo.commitConfig(); })
+            .then(function () { return clashoo.restart(); })
             .then(function () { ui.addNotification(null, E('p', '配置已保存并重启服务')); })
             .catch(function (e) { ui.addNotification(null, E('p', '操作失败: ' + (e.message || e))); });
         }}, '应用配置')

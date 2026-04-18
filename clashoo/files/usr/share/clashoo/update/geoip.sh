@@ -85,7 +85,7 @@ download_mmdb() {
 }
 
 trap cleanup EXIT INT TERM
-mkdir -p "$TMP_DIR" /etc/clash >/dev/null 2>&1
+mkdir -p "$TMP_DIR" /etc/clashoo >/dev/null 2>&1
 
 rm -f /var/run/geoip_down_complete >/dev/null 2>&1
 : > "$LOG_FILE"

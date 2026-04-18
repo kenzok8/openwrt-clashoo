@@ -14,7 +14,7 @@ last_code=000
 
 i=1
 while [ "$i" -le "$attempts" ]; do
-	out="$(curl -m 2 -s -o /dev/null -w '%{http_code} %{time_total}' -x "http://127.0.0.1:${proxy_port}" "$url" 2>/dev/null || true)"
+	out="$(curl -L -m 4 -s -o /dev/null -w '%{http_code} %{time_total}' -x "http://127.0.0.1:${proxy_port}" "$url" 2>/dev/null || true)"
 	code="$(printf '%s' "$out" | awk '{print $1}')"
 	time_s="$(printf '%s' "$out" | awk '{print $2}')"
 	[ -n "$code" ] || code=000

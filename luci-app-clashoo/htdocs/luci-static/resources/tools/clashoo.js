@@ -37,6 +37,7 @@ const callSaveSingboxProfile    = rpc.declare({ object: 'luci.clashoo', method: 
 const callSetSingboxProfile     = rpc.declare({ object: 'luci.clashoo', method: 'set_singbox_profile',     params: ['name'],                   expect: {} });
 const callDeleteSingboxProfile  = rpc.declare({ object: 'luci.clashoo', method: 'delete_singbox_profile',  params: ['name'],                   expect: {} });
 const callCreateSingboxConfig   = rpc.declare({ object: 'luci.clashoo', method: 'create_singbox_config',   params: ['sub_url', 'name', 'secret'], expect: {} });
+const callCommitConfig          = rpc.declare({ object: 'luci.clashoo', method: 'commit_config',            expect: {} });
 
 return baseclass.extend({
     status: function () { return L.resolveDefault(callStatus(), {}); },
@@ -77,5 +78,6 @@ return baseclass.extend({
     saveSingboxProfile:   function (name, content){ return L.resolveDefault(callSaveSingboxProfile(name, content), {}); },
     setSingboxProfile:    function (name)        { return L.resolveDefault(callSetSingboxProfile(name),        {}); },
     deleteSingboxProfile: function (name)        { return L.resolveDefault(callDeleteSingboxProfile(name),     {}); },
-    createSingboxConfig:  function (url, name, secret) { return L.resolveDefault(callCreateSingboxConfig(url, name, secret), {}); }
+    createSingboxConfig:  function (url, name, secret) { return L.resolveDefault(callCreateSingboxConfig(url, name, secret), {}); },
+    commitConfig:         function ()               { return L.resolveDefault(callCommitConfig(),               { success: false }); }
 });

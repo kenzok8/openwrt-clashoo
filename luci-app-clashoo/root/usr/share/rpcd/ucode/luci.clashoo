@@ -35,8 +35,41 @@ const SUB_DIR   = '/usr/share/clashoo/config/sub';
 const TEMPLATE_DIR = '/usr/share/clashoo/config/custom';
 const TEMPLATE_BIND_FILE = '/usr/share/clashbackup/template_bindings.conf';
 
+function uci_get(pkg, sec, opt) {
+let c = cursor();
+c.load(pkg);
+return c.get(pkg, sec, opt) || '';
+}
+
+function shell_quote(s) {
+return "'" + replace(s || '', /'/g, "'\\''") + "'";
+}
+
 function get_core_type() {
-return uci_get('clashoo', 'config', 'core_type') || 'mihomo';
+let core_type = uci_get('clashoo', 'config', 'core_type');
+if (core_type == 'singbox') return 'singbox';
+return 'mihomo';
+}
+
+function get_core_channel(family) {
+let dcore = uci_get('clashoo', 'config', 'dcore');
+let legacy = uci_get('clashoo', 'config', 'core');
+family = family || get_core_type();
+
+if (family == 'singbox')
+return dcore == '5' ? 'alpha' : 'stable';
+
+if (dcore == '3' || legacy == '3')
+return 'alpha';
+
+return 'stable';
+}
+
+function get_core_label(family, channel) {
+family = family || get_core_type();
+channel = channel || get_core_channel(family);
+let name = family == 'singbox' ? 'sing-box' : 'mihomo';
+return name + ' ' + (channel == 'alpha' ? 'alpha' : 'stable');
 }
 
 function get_mihomo_service_name() {
@@ -50,10 +83,26 @@ function get_service_name() {
 return get_core_type() === 'singbox' ? 'sing-box' : get_mihomo_service_name();
 }
 
-function find_binary() {
-let paths = get_core_type() === 'singbox' ? SINGBOX_BINARY_PATHS : BINARY_PATHS;
+function running_core_family() {
+let p = popen("if pidof sing-box >/dev/null 2>&1; then echo singbox; elif pidof mihomo clash-meta clash >/dev/null 2>&1; then echo mihomo; fi");
+if (!p) return '';
+let family = trim(p.read('all'));
+p.close();
+return family || '';
+}
+
+function find_binary_for_family(family) {
+let paths = family === 'singbox' ? SINGBOX_BINARY_PATHS : BINARY_PATHS;
 for (let path in paths)
 if (access(path, 'x')) return path;
+return '';
+}
+
+function find_binary() {
+let family = running_core_family() || get_core_type();
+let binary = find_binary_for_family(family);
+if (binary) return binary;
+if (family != get_core_type()) return find_binary_for_family(get_core_type());
 return '';
 }
 
@@ -63,20 +112,8 @@ let content = readfile(path);
 return content ? trim(split(content, '\n')[0] || '') : '';
 }
 
-function uci_get(pkg, sec, opt) {
-let c = cursor();
-c.load(pkg);
-return c.get(pkg, sec, opt) || '';
-}
-
 function is_running() {
-let cmd = get_core_type() === 'singbox'
-? "pidof sing-box >/dev/null 2>&1; echo $?"
-: "pidof mihomo clash-meta clash >/dev/null 2>&1; echo $?";
-let p = popen(cmd);
-if (!p) return false;
-let r = trim(p.read('all')); p.close();
-return r === '0';
+return running_core_family() != '';
 }
 
 function get_local_ip() {
@@ -89,11 +126,59 @@ return ip;
 
 function get_core_version(binary) {
 if (!binary) return '';
-let p = popen(binary + ' -v 2>&1 | head -1');
+let cmd = match(binary, /sing-box$/)
+? (shell_quote(binary) + ' version 2>&1 | head -1')
+: (shell_quote(binary) + ' -v 2>&1 | head -1');
+let p = popen(cmd);
 if (!p) return '';
 let v = trim(p.read('all'));
 p.close();
 return v;
+}
+
+function sync_legacy_core_fields(c) {
+let family = c.get('clashoo', 'config', 'core_type') || 'mihomo';
+let dcore = c.get('clashoo', 'config', 'dcore') || '2';
+let legacy = '2';
+
+if (family == 'singbox')
+legacy = dcore == '5' ? '5' : '4';
+else
+legacy = dcore == '3' ? '3' : '2';
+
+c.set('clashoo', 'config', 'core', legacy);
+}
+
+function prepare_singbox_runtime() {
+let active = uci_get('clashoo', 'config', 'singbox_active') || '';
+let src = active ? ('/usr/share/clashoo/config/singbox/' + active) : '/etc/sing-box/config.json';
+
+if (active && access(src, 'r')) {
+system('mkdir -p /etc/sing-box >/dev/null 2>&1');
+if (system('cp -f ' + shell_quote(src) + ' /etc/sing-box/config.json >/dev/null 2>&1') != 0)
+return { success: false, message: '无法同步 sing-box 配置文件' };
+} else if (!access('/etc/sing-box/config.json', 'r')) {
+return { success: false, message: '请先生成或选择 sing-box 配置文件' };
+}
+
+if (system('command -v ucode >/dev/null 2>&1') == 0) {
+	let redir_port = uci_get('clashoo', 'config', 'redir_port') || '7891';
+	let tproxy_port = uci_get('clashoo', 'config', 'tproxy_port') || '7982';
+	let mixed_port = uci_get('clashoo', 'config', 'mixed_port') || '7890';
+	let has_tun = access('/dev/net/tun', 'r') ? '1' : '0';
+	let normalize_cmd = 'ucode /usr/share/clashoo/lib/normalize_singbox_config.uc ' +
+		shell_quote('/etc/sing-box/config.json') + ' ' +
+		shell_quote(redir_port) + ' ' +
+		shell_quote(tproxy_port) + ' ' +
+		shell_quote(mixed_port) + ' ' +
+		shell_quote(has_tun) +
+		' >/dev/null 2>&1';
+	if (system(normalize_cmd) != 0)
+		return { success: false, message: 'sing-box 运行配置规范化失败' };
+}
+
+let rc = system("uci -q set sing-box.main.enabled='1'; uci -q set sing-box.main.user='root'; uci -q set sing-box.main.conffile='/etc/sing-box/config.json'; uci -q set sing-box.main.workdir='/usr/share/sing-box'; uci commit sing-box >/dev/null 2>&1");
+return { success: rc == 0 };
 }
 
 function detect_firewall_backend() {
@@ -112,7 +197,7 @@ return missing;
 
 function get_profiles() {
 let profiles = [];
-let dirs = ['/etc/clashoo/profiles', '/etc/clash'];
+let dirs = ['/etc/clashoo/profiles'];
 
 function has_profile_name(arr, name) {
 for (let i = 0; i < length(arr); i++)
@@ -240,10 +325,6 @@ if (!url) return '';
 url = replace(url, /[?#].*$/, '');
 let name = replace(url, /^.*\//, '');
 return ensure_yaml_name(name);
-}
-
-function shell_quote(s) {
-return "'" + replace(s || '', /'/g, "'\\''") + "'";
 }
 
 function template_output_name(sub_name, tpl_name) {
@@ -598,22 +679,28 @@ function migrate_singbox(cfg) {
 const methods = {
 version: {
 call: function() {
+try {
 let binary = find_binary();
 return {
 app:    read_first_line('/usr/share/clashoo/luci_version'),
 core:   get_core_version(binary),
 binary: binary
 };
+} catch (e) {
+return { success: false, error: 'version_failed', message: '' + e };
+}
 }
 },
 
 status: {
 call: function() {
+try {
 let c = cursor();
 c.load('clashoo');
-let p = popen("pidof mihomo clash-meta clash >/dev/null 2>&1; echo $?");
+let configured_core = get_core_type();
+let p = popen("pidof mihomo clash-meta clash sing-box >/dev/null 2>&1; echo $?");
 let r = p ? trim(p.read('all')) : '1'; if (p) p.close();
-let running    = r === '0';
+let running = r === '0';
 let dash_port  = c.get('clashoo', 'config', 'dash_port')      || '9090';
 let dash_pass  = c.get('clashoo', 'config', 'dash_pass')      || '';
 let proxy_mode = c.get('clashoo', 'config', 'p_mode')         || 'rule';
@@ -621,13 +708,15 @@ let conf_path  = c.get('clashoo', 'config', 'use_config')     || '';
 let panel_type = c.get('clashoo', 'config', 'dashboard_panel')|| 'metacubexd';
 let tcp_mode   = c.get('clashoo', 'config', 'tcp_mode')       || 'tun';
 let udp_mode   = c.get('clashoo', 'config', 'udp_mode')       || tcp_mode;
-let core_type  = c.get('clashoo', 'config', 'core_type')      || 'mihomo';
 let p2 = popen("ip route get 1.1.1.1 2>/dev/null | awk '/src/{print $(NF-2)}'");
 let local_ip = p2 ? trim(p2.read('all')) : ''; if (p2) p2.close();
 let slash = rindex(conf_path, '/');
 let conf_name = slash >= 0 ? substr(conf_path, slash + 1) : conf_path;
 return { running, dash_port, dash_pass, proxy_mode, conf_path: conf_name,
-         panel_type, tcp_mode, udp_mode, core_type, local_ip };
+         panel_type, tcp_mode, udp_mode, core_type: configured_core, local_ip };
+} catch (e) {
+return { success: false, error: 'status_failed', message: '' + e };
+}
 }
 },
 
@@ -640,42 +729,32 @@ return { success: system('service ' + svc + ' reload >/dev/null 2>&1') == 0 };
 
 restart: {
 call: function() {
-let svc = get_service_name();
-if (svc === 'clash')
 return { success: system('sh /usr/share/clashoo/rpc/rpc_async.sh restart >/dev/null 2>&1') == 0 };
-return { success: system('service ' + svc + ' restart >/dev/null 2>&1') == 0 };
 }
 },
 
 start: {
 call: function() {
-let active = uci_get('clashoo', 'config', 'use_config');
-if (!active || !access(active, 'r')) {
-let fallback = first_available_config('');
-if (fallback) {
-let c = cursor();
-c.load('clashoo');
-c.set('clashoo', 'config', 'use_config', fallback.path);
-c.set('clashoo', 'config', 'config_type', fallback.type);
-c.commit('clashoo');
-active = fallback.path;
-}
-}
-
-if (!active || !access(active, 'r'))
-return { success: false, error: 'no_config', message: '请添加配置文件' };
-
-let svc = get_service_name();
-if (svc !== 'sing-box') system("uci set clashoo.config.enabled='1' && uci commit clashoo 2>/dev/null; uci set clash.config.enable='1' && uci commit clash 2>/dev/null; true");
-return { success: system('service ' + svc + ' start >/dev/null 2>&1') == 0 || is_running() };
+system('sh /usr/share/clashoo/rpc/rpc_async.sh start >/dev/null 2>&1');
+return { success: true };
 }
 },
 
 stop: {
 call: function() {
-let svc = get_service_name();
-if (svc !== 'sing-box') system("uci set clashoo.config.enabled='0' && uci commit clashoo 2>/dev/null; uci set clash.config.enable='0' && uci commit clash 2>/dev/null; true");
-return { success: system('service ' + svc + ' stop >/dev/null 2>&1') == 0 || !is_running() };
+system('sh /usr/share/clashoo/rpc/rpc_async.sh stop >/dev/null 2>&1');
+return { success: true };
+}
+},
+
+commit_config: {
+call: function() {
+let c = cursor();
+c.load('clashoo');
+sync_legacy_core_fields(c);
+c.commit('clashoo');
+let rc = system('uci commit clashoo >/dev/null 2>&1');
+return { success: rc === 0 };
 }
 },
 
@@ -737,7 +816,7 @@ update_panel: {
 args: { name: 'name' },
 call: function(req) {
 let name = req.args?.name || 'metacubexd';
-system("sh /usr/share/clashoo/update/panel_download.sh '" + name + "' >/dev/null 2>&1 &");
+system("nohup sh /usr/share/clashoo/update/panel_download.sh " + shell_quote(name) + " >>/tmp/clash_update.txt 2>&1 </dev/null &");
 return { success: true };
 }
 },
@@ -905,8 +984,8 @@ let p = popen("/usr/share/clashoo/net/access_check.sh '" + url + "' 2>/dev/null"
 let raw = '';
 if (p) { raw = trim(p.read('all')); p.close(); }
 let ok = 0;
-let attempts = 3;
-let loss = 3;
+let attempts = 1;
+let loss = 1;
 let avg_ms = 0;
 let last_code = '000';
 
@@ -939,11 +1018,22 @@ avg_ms
 };
 }
 
+let proxy_port = uci_get('clashoo', 'config', 'mixed_port') || uci_get('clashoo', 'config', 'http_port') || '7890';
+let tcp_mode = uci_get('clashoo', 'config', 'tcp_mode') || 'redirect';
+let udp_mode = uci_get('clashoo', 'config', 'udp_mode') || tcp_mode;
+
 return {
-wechat: probe('https://res.wx.qq.com/a/wx_fed/assets/res/NTI4MWU5.ico'),
-youtube: probe('https://www.youtube.com/generate_204'),
+scope: 'core_egress',
+source: 'explicit_proxy',
+proxy_port,
+tcp_mode,
+udp_mode,
+note: tcp_mode == 'tproxy'
+? '当前结果只代表 clashoo 核心出站可用，不代表路由器本机流量已被透明接管'
+: '当前结果基于 clashoo 本地混合端口发起，可用于确认核心出站是否可用',
 baidu: probe('https://www.baidu.com'),
-google: probe('https://www.google.com/generate_204')
+google: probe('https://www.google.com/generate_204'),
+github: probe('https://github.com')
 };
 }
 },
@@ -953,6 +1043,7 @@ call: function() {
 return {
 backend:           detect_firewall_backend(),
 missing_fw4_tools: detect_missing_fw4_tools(),
+has_singbox:       !!find_binary_for_family('singbox'),
 has_mihomo:        !!access('/usr/bin/mihomo', 'x'),
 has_clash_meta:    !!access('/usr/bin/clash-meta', 'x'),
 has_builtin_core:  !!access('/etc/clashoo/clash', 'x')
@@ -1088,7 +1179,7 @@ c.set('clashoo', 'config', 'use_config', out_path);
 c.set('clashoo', 'config', 'config_type', '3');
 c.commit('clashoo');
 if (is_running())
-system('service clash restart >/dev/null 2>&1');
+system('service ' + get_service_name() + ' restart >/dev/null 2>&1');
 }
 
 return {
@@ -1145,7 +1236,7 @@ push(failed, row.sub_name);
 }
 
 if (set_active && is_running())
-system('service clash restart >/dev/null 2>&1');
+system('service ' + get_service_name() + ' restart >/dev/null 2>&1');
 
 return {
 success: length(failed) == 0,
@@ -1298,7 +1389,7 @@ c.set('clashoo', 'config', 'use_config', out_path);
 c.set('clashoo', 'config', 'config_type', '3');
 c.commit('clashoo');
 if (is_running())
-system('service clash restart >/dev/null 2>&1');
+system('service ' + get_service_name() + ' restart >/dev/null 2>&1');
 }
 msg = msg + '，模板已生成';
 }
@@ -1308,6 +1399,84 @@ msg = msg + '，模板生成失败';
 }
 
 return { success: true, code: rc, message: msg };
+}
+},
+
+apply_template_with_url: {
+args: {
+template_source: 'template_source',
+sub_url: 'sub_url',
+output_name: 'output_name',
+set_active: 'set_active'
+},
+call: function(req) {
+let tpl_src  = trim(req.args?.template_source || '');
+let sub_url  = trim(req.args?.sub_url || '');
+let output_name = ensure_yaml_name(req.args?.output_name || '');
+let set_active  = (req.args?.set_active || '') == '1';
+
+if (!tpl_src)
+return { success: false, error: 'invalid_template', message: '模板来源不能为空' };
+if (!sub_url || !match(sub_url, /^https?:\/\//))
+return { success: false, error: 'invalid_sub_url', message: '订阅 URL 无效' };
+
+let tmp_tpl  = '/tmp/clashoo_tpl_in.yaml';
+let tmp_out  = '/tmp/clashoo_tpl_out.yaml';
+let out_dir  = '/usr/share/clashoo/config/custom';
+system('mkdir -p ' + shell_quote(out_dir));
+
+/* 获取模板：远程 URL 或本地文件 */
+if (match(tpl_src, /^https?:\/\//)) {
+let dl_cmd = '(curl -fL --connect-timeout 15 --max-time 60 ' + shell_quote(tpl_src)
++ ' -o ' + shell_quote(tmp_tpl)
++ ' || wget -O ' + shell_quote(tmp_tpl) + ' ' + shell_quote(tpl_src)
++ ') >/dev/null 2>&1';
+if (system(dl_cmd) != 0 || !access(tmp_tpl, 'r'))
+return { success: false, error: 'download_failed', message: '远程模板下载失败' };
+} else {
+let safe = safe_name(tpl_src);
+let local_path = null;
+let search_dirs = ['/usr/share/clashoo/config/custom', '/usr/share/clashoo/config/template'];
+for (let i = 0; i < length(search_dirs); i++) {
+if (access(search_dirs[i] + '/' + safe, 'r')) { local_path = search_dirs[i] + '/' + safe; break; }
+}
+if (!local_path)
+return { success: false, error: 'template_not_found', message: '本地模板文件不存在' };
+if (system('cp -f ' + shell_quote(local_path) + ' ' + shell_quote(tmp_tpl)) != 0)
+return { success: false, error: 'copy_failed', message: '读取本地模板失败' };
+}
+
+/* 用 yq 把所有 proxy-providers 条目的 url 替换为订阅链接 */
+if (system('command -v yq >/dev/null 2>&1') != 0)
+return { success: false, error: 'missing_yq', message: '缺少 yq，无法注入订阅 URL' };
+
+let yq_cmd = 'URL=' + shell_quote(sub_url) + ' yq e \'(."proxy-providers" | .[] | .url) = env(URL)\' '
++ shell_quote(tmp_tpl) + ' > ' + shell_quote(tmp_out);
+
+if (system(yq_cmd) != 0 || !access(tmp_out, 'r'))
+return { success: false, error: 'inject_failed', message: '订阅 URL 注入失败' };
+
+if (!output_name) {
+output_name = 'tpl-rewrite.yaml';
+}
+
+let out_path = out_dir + '/' + output_name;
+if (system('mv -f ' + shell_quote(tmp_out) + ' ' + shell_quote(out_path)) != 0)
+return { success: false, error: 'write_failed', message: '写入结果文件失败' };
+
+system('rm -f ' + shell_quote(tmp_tpl));
+
+if (set_active) {
+let c = cursor();
+c.load('clashoo');
+c.set('clashoo', 'config', 'use_config', out_path);
+c.set('clashoo', 'config', 'config_type', '3');
+c.commit('clashoo');
+if (is_running())
+system('service ' + get_service_name() + ' restart >/dev/null 2>&1');
+}
+
+return { success: true, output_name, output_path: out_path, message: '模板已应用: ' + output_name };
 }
 },
 
@@ -1398,7 +1567,7 @@ c.set('clashoo', 'config', 'use_config', out_path);
 c.set('clashoo', 'config', 'config_type', '3');
 c.commit('clashoo');
 if (is_running())
-system('service clash restart >/dev/null 2>&1');
+system('service ' + get_service_name() + ' restart >/dev/null 2>&1');
 }
 
 return {
@@ -1593,9 +1762,15 @@ system('mkdir -p /etc/sing-box >/dev/null 2>&1');
 if (system('cp -f ' + shell_quote(src) + ' /etc/sing-box/config.json >/dev/null 2>&1') != 0)
   return { success: false, error: 'copy_failed', message: '无法写入 /etc/sing-box/config.json' };
 let c = cursor(); c.load('clashoo');
+c.set('clashoo', 'config', 'core_type', 'singbox');
 c.set('clashoo', 'config', 'singbox_active', name);
+c.set('clashoo', 'config', 'enable', '1');
+sync_legacy_core_fields(c);
 c.commit('clashoo');
-if (is_running()) system('service sing-box restart >/dev/null 2>&1');
+let prepared = prepare_singbox_runtime();
+if (!prepared.success)
+  return { success: false, error: 'prepare_failed', message: prepared.message || '无法准备 sing-box 运行环境' };
+if (is_running()) system('sh /usr/share/clashoo/rpc/rpc_async.sh restart >/dev/null 2>&1');
 return { success: true };
 }
 },
@@ -1678,6 +1853,18 @@ let tmp_url = '/tmp/.clashoo-sb-url';
 writefile(tmp_url, sub_url);
 
 let config_obj = null;
+let downloaded_yaml = '';
+
+function has_proxy_outbounds(obj) {
+  if (!obj || type(obj) !== 'object' || type(obj.outbounds) !== 'array')
+    return false;
+  for (let ob in obj.outbounds) {
+    let t = ob?.type || '';
+    if (t && t != 'selector' && t != 'urltest' && t != 'direct' && t != 'block' && t != 'dns')
+      return true;
+  }
+  return false;
+}
 
 // Step 1: Try URL variants that might return native sing-box JSON
 // Many providers support flag=SingBox / format=singbox even if the URL has flag=Clash
@@ -1694,7 +1881,7 @@ for (let try_url in try_urls) {
   if (p0) p0.close();
   if (length(raw0) > 50 && substr(raw0, 0, 1) === '{') {
     let obj = json(raw0);
-    if (obj && type(obj) === 'object' && obj.outbounds) {
+    if (has_proxy_outbounds(obj)) {
       config_obj = obj;
       break;
     }
@@ -1721,7 +1908,7 @@ if (!config_obj) {
     if (p) p.close();
     if (length(raw) < 50 || substr(raw, 0, 1) !== '{') continue;
     let obj = json(raw);
-    if (obj && type(obj) === 'object' && obj.outbounds) {
+    if (has_proxy_outbounds(obj)) {
       config_obj = obj;
       break;
     }
@@ -1729,6 +1916,41 @@ if (!config_obj) {
 }
 
 system('rm -f ' + shell_quote(tmp_url));
+
+// Step 3: Use local mihomo/clash YAML and convert with yaml2singbox
+if (!config_obj && system('command -v ucode >/dev/null 2>&1') == 0 &&
+    access('/usr/share/clashoo/lib/yaml2singbox.uc', 'r') &&
+    access('/usr/share/clashoo/lib/templates/default.json', 'r')) {
+  let yaml_src = uci_get('clashoo', 'config', 'use_config') || '';
+  if (!(yaml_src && access(yaml_src, 'r') && match(yaml_src, /\.(yaml|yml)$/))) {
+    let tmp_yaml = '/tmp/clashoo_sb_sub.yaml';
+    let dl_cmd = '(curl -fL --connect-timeout 15 --max-time 90 ' + shell_quote(sub_url)
+      + ' -o ' + shell_quote(tmp_yaml)
+      + ' || wget -O ' + shell_quote(tmp_yaml) + ' ' + shell_quote(sub_url) + ') >/dev/null 2>&1';
+    if (system(dl_cmd) == 0 && access(tmp_yaml, 'r')) {
+      yaml_src = tmp_yaml;
+      downloaded_yaml = tmp_yaml;
+    }
+  }
+
+  if (yaml_src && access(yaml_src, 'r')) {
+    let tmp_json = '/tmp/clashoo_sb_from_yaml.json';
+    let cv_cmd = 'ucode /usr/share/clashoo/lib/yaml2singbox.uc '
+      + shell_quote(yaml_src) + ' '
+      + shell_quote('/usr/share/clashoo/lib/templates/default.json') + ' '
+      + shell_quote(tmp_json) + ' >/tmp/clashoo_yaml2sb.log 2>&1';
+    if (system(cv_cmd) == 0 && access(tmp_json, 'r')) {
+      let raw3 = readfile(tmp_json);
+      let obj3 = raw3 ? json(raw3) : null;
+      if (has_proxy_outbounds(obj3))
+        config_obj = obj3;
+    }
+    system('rm -f ' + shell_quote(tmp_json));
+  }
+}
+
+if (downloaded_yaml)
+  system('rm -f ' + shell_quote(downloaded_yaml));
 
 
 
@@ -1749,37 +1971,6 @@ if (config_obj) {
   // cache_file disabled - can cause "timeout" on first run without pre-existing cache
   // config_obj.experimental.cache_file = { enabled: true };
   if (!config_obj.log) config_obj.log = { level: 'info', timestamp: true };
-  // Replace TUN inbound with redirect+tproxy (TUN may not be available)
-  // Use ports from clashoo UCI config
-  if (config_obj.inbounds) {
-    let has_tun = false;
-    for (let ib in config_obj.inbounds) { if (ib.type === 'tun') { has_tun = true; break; } }
-    if (has_tun) {
-      let non_tun = [];
-      for (let ib in config_obj.inbounds) {
-        if (ib.type !== 'tun') push(non_tun, ib);
-      }
-      let redir_port = uci_get('clashoo', 'config', 'redir_port') || '7891';
-      let tproxy_port = uci_get('clashoo', 'config', 'tproxy_port') || '7982';
-      push(non_tun, {
-        type: 'redirect', tag: 'redirect-in',
-        listen: '0.0.0.0', listen_port: int(redir_port)
-      });
-      push(non_tun, {
-        type: 'tproxy', tag: 'tproxy-in',
-        listen: '0.0.0.0', listen_port: int(tproxy_port),
-        network: 'udp'
-      });
-      let mixed_port = uci_get('clashoo', 'config', 'mixed_port') || '7890';
-      push(non_tun, {
-        type: 'mixed', tag: 'mixed-in',
-        listen: '0.0.0.0', listen_port: int(mixed_port)
-      });
-      config_obj.inbounds = non_tun;
-      // Ensure auto_detect_interface is set for redirect mode
-      if (config_obj.route) config_obj.route.auto_detect_interface = true;
-    }
-  }
 
   // Fix rule_set URLs: rewrite to jsDelivr CDN (accessible from China)
   // Pattern: https://[gh-proxy.com/]https://github.com/{owner}/{repo}/raw/refs/heads/{branch}/{path}
