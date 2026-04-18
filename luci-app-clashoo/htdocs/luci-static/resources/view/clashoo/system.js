@@ -89,6 +89,8 @@ return view.extend({
     );
     panelEls['logs'] = logsPanel;
 
+    this._tabEls = tabEls;
+    this._panelEls = panelEls;
     poll.add(L.bind(this._pollLogs, this), 8);
 
     return E('div', {}, [tabBar, kernelPanel, rulesPanel, logsPanel]);
@@ -137,14 +139,30 @@ return view.extend({
     o.value('github', 'GitHub'); o.value('ghproxy', 'GHProxy');
     o = s.option(form.DummyValue, '_dl_btn', '');
     o.cfgvalue = function () {
-      return E('button', {
-        'class': 'btn cbi-button-action',
-        click: function () {
-          clashoo.downloadCore().then(function () {
-            ui.addNotification(null, E('p', '内核下载任务已启动，请查看日志'));
-          });
-        }
-      }, '下载内核');
+      var dlStatus = E('span', { style: 'font-size:12px;opacity:.65' }, '');
+      return E('div', { 'class': 'cl-actions', style: 'margin-top:0' }, [
+        E('button', {
+          'class': 'btn cbi-button-action',
+          click: function () {
+            dlStatus.textContent = '正在启动下载任务…';
+            m.save()
+              .then(function () { return clashoo.commitConfig(); })
+              .then(function () { return clashoo.clearUpdateLog(); })
+              .then(function () { return clashoo.downloadCore(); })
+              .then(function () {
+                dlStatus.textContent = '下载任务已启动，已切换到更新日志';
+                self._switchTab('logs');
+                if (self._activateLogTab)
+                  self._activateLogTab('update');
+              })
+              .catch(function (e) {
+                dlStatus.textContent = '';
+                ui.addNotification(null, E('p', '启动下载失败: ' + (e.message || e)));
+              });
+          }
+        }, '下载内核'),
+        dlStatus
+      ]);
     };
     o.write = function () {};
 
@@ -246,18 +264,26 @@ return view.extend({
     ];
 
     var logTabEls = {};
-    var logArea = E('div', { 'class': 'cl-log-area', id: 'cl-log-area' }, runLog);
+    var logArea = E('div', { 'class': 'cl-log-area', id: 'cl-log-area' }, runLog || '（空）');
+
+    function activateLogTab(id) {
+      var logType = logTypes.find(function (lt) { return lt.id === id; }) || logTypes[0];
+      Object.keys(logTabEls).forEach(function (k) {
+        logTabEls[k].className = 'cl-log-tab' + (k === logType.id ? ' active' : '');
+      });
+      self._logTab = logType.id;
+      return logType.read().then(function (content) {
+        logArea.textContent = (content && content.trim()) ? content : '（空）';
+      });
+    }
+    this._activateLogTab = activateLogTab;
 
     var logTabBar = E('div', { 'class': 'cl-log-tabs' },
       logTypes.map(function (lt) {
         var el = E('span', {
           'class': 'cl-log-tab' + (self._logTab === lt.id ? ' active' : ''),
           click: function () {
-            Object.keys(logTabEls).forEach(function (k) {
-              logTabEls[k].className = 'cl-log-tab' + (k === lt.id ? ' active' : '');
-            });
-            self._logTab = lt.id;
-            lt.read().then(function (content) { logArea.textContent = content || '（空）'; });
+            activateLogTab(lt.id);
           }
         }, lt.label);
         logTabEls[lt.id] = el;
@@ -301,8 +327,18 @@ return view.extend({
     var readFn = logFns[this._logTab] || logFns.run;
     return readFn().then(function (content) {
       var el = document.getElementById('cl-log-area');
-      if (el && content) el.textContent = content;
+      if (el) el.textContent = (content && content.trim()) ? content : '（空）';
     });
+  },
+
+  _switchTab: function (id) {
+    var tabEls = this._tabEls || {};
+    var panelEls = this._panelEls || {};
+    Object.keys(tabEls).forEach(function (k) {
+      tabEls[k].className = 'cl-tab' + (k === id ? ' active' : '');
+      panelEls[k].className = 'cl-panel' + (k === id ? ' active' : '');
+    });
+    this._tab = id;
   },
 
   handleSaveApply: null,

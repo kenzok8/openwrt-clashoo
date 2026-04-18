@@ -291,7 +291,8 @@ return view.extend({
     var configs   = (cfgData && cfgData.configs) ? cfgData.configs : [];
     var current   = (cfgData && cfgData.current) || '';
     var proxyMode = st.proxy_mode  || 'rule';
-    var tpMode    = st.tcp_mode    || uci.get('clashoo', 'config', 'tcp_mode') || 'fake-ip';
+    var tpMode    = ((st.tcp_mode === 'tun' || st.udp_mode === 'tun' || (uci.get('clashoo', 'config', 'tun_mode') || '0') === '1')
+      ? 'tun' : 'fake-ip');
     var panelType = st.panel_type  || 'metacubexd';
     var panels    = ['metacubexd', 'yacd', 'zashboard', 'razord'];
 
@@ -313,7 +314,7 @@ return view.extend({
       ]),
       E('div', { 'class': 'cl-ctrl' }, [
         E('label', {}, '透明代理'),
-        mkSel([['fake-ip','虚拟 IP'],['tun','隧道模式（TUN）'],['mixed','混合模式']], tpMode,
+        mkSel([['fake-ip','虚拟 IP'],['tun','隧道模式']], tpMode,
           function (ev) { clashoo.setMode(ev.target.value); })
       ]),
       E('div', { 'class': 'cl-ctrl' }, [

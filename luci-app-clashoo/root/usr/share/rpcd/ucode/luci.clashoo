@@ -18,10 +18,10 @@ const SINGBOX_BINARY_PATHS = [
 ];
 
 const LOG_PATHS = [
+'/usr/share/clashoo/clashoo.txt',
 '/var/log/clash.log',
 '/var/log/clash/clash.log',
-'/tmp/clash.log',
-'/usr/share/clashoo/clashoo.txt'
+'/tmp/clash.log'
 ];
 
 const CONFIG_DIRS = [
@@ -223,6 +223,14 @@ for (let path in LOG_PATHS) {
 if (!access(path, 'r')) continue;
 let p = popen("tail -300 '" + path + "'");
 if (p) { let c = p.read('all'); p.close(); return c; }
+}
+if (get_core_type() == 'singbox') {
+let p0 = popen("logread -e 'sing-box' 2>/dev/null | tail -300");
+if (p0) {
+let c0 = trim(p0.read('all'));
+p0.close();
+if (c0) return c0;
+}
 }
 return '';
 }
@@ -895,8 +903,10 @@ return { arch: get_cpu_arch() };
 
 download_core: {
 call: function() {
-system('sh /usr/share/clashoo/update/core_download.sh >>/usr/share/clashoo/clashoo.txt 2>&1 &');
-return { success: true };
+if (access('/var/run/core_update', 'r'))
+return { success: true, started: false, running: true };
+system("nohup sh -c 'touch /var/run/core_update; sh /usr/share/clashoo/update/core_download.sh; rc=$?; rm -f /var/run/core_update; exit $rc' >/dev/null 2>&1 </dev/null &");
+return { success: true, started: true };
 }
 },
 

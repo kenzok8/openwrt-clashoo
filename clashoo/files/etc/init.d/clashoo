@@ -183,11 +183,17 @@ _log_runtime_error() {
 
 log_msg() {
 	local en_msg="$1" zh_msg="$2"
+	local out_msg now
+	now="$(date "+%Y-%m-%d %H:%M:%S")"
 	if [ "${lang}" = "en" ] || [ "${lang}" = "auto" ]; then
-		echo "$en_msg" > "$REAL_LOG"
+		out_msg="$en_msg"
 	elif [ "${lang}" = "zh_cn" ]; then
-		echo "$zh_msg" > "$REAL_LOG"
+		out_msg="$zh_msg"
+	else
+		out_msg="$zh_msg"
 	fi
+	echo "$out_msg" > "$REAL_LOG"
+	[ -n "$out_msg" ] && echo "  ${now} - ${out_msg}" >> /usr/share/clashoo/clashoo.txt
 }
 
 _require_runtime_network_stack() {
