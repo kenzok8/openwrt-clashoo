@@ -15,7 +15,7 @@ var CSS = [
   '.cl-sub-list th,.cl-sub-list td{padding:8px 10px;border-bottom:1px solid rgba(128,128,128,.15);text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
   '.cl-sub-list th{font-size:11px;opacity:.55;font-weight:600}',
   '.cl-sub-list th:nth-child(2),.cl-sub-list td:nth-child(2){width:72px}',
-  '.cl-sub-list th:nth-child(3),.cl-sub-list td:nth-child(3){width:180px;text-align:right;white-space:nowrap}',
+  '.cl-sub-list th:nth-child(3),.cl-sub-list td:nth-child(3){width:220px;text-align:right;white-space:nowrap}',
   '.cl-sub-url{border:1px solid rgba(128,128,128,.3);border-radius:6px;padding:8px 10px;width:100%;box-sizing:border-box;font-size:13px;margin-bottom:8px}',
   '.cl-btn-sm{padding:4px 10px;font-size:12px;border-radius:4px;cursor:pointer}',
   '.cl-section{margin-bottom:24px}',
@@ -588,7 +588,7 @@ return view.extend({
                     if (r.success) location.reload();
                   });
                 }
-              }, p.active ? '重新应用' : '切换'),
+              }, '切换'),
               E('button', {
                 'class': 'btn cbi-button-negative cl-btn-sm',
                 click: function () {
