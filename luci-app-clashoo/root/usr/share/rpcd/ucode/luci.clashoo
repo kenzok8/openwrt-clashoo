@@ -219,9 +219,12 @@ return profiles;
 }
 
 function get_log_content() {
+// 统一用 awk 脚本简化 mihomo 原生日志 + log_msg 行格式
+let formatter = "awk -f /usr/share/clashoo/net/log_format.awk 2>/dev/null";
+
 for (let path in LOG_PATHS) {
 if (!access(path, 'r')) continue;
-let p = popen("tail -300 '" + path + "'");
+let p = popen("tail -300 '" + path + "' | " + formatter);
 if (p) { let c = p.read('all'); p.close(); return c; }
 }
 if (get_core_type() == 'singbox') {

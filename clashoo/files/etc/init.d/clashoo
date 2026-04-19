@@ -1323,31 +1323,25 @@ stop(){
 }
 
 restart(){
-#=========================================================================================================================== 
-			if _core_running; then
-				stop  >/dev/null 2>&1
-				start >/dev/null 2>&1
-				echo "Clashoo Successfully Restarted"
-			else
-			    start >/dev/null 2>&1
-				echo "Clashoo Successfully Started"
-			fi
-#=========================================================================================================================== 
+	if _core_running; then
+		stop  >/dev/null 2>&1
+		start >/dev/null 2>&1
+	else
+		start >/dev/null 2>&1
+	fi
 }
 
 reload()
 {
-if is_singbox_selected; then
-	  if _core_running; then
-		prepare_singbox_runtime >/dev/null 2>&1
-		/etc/init.d/sing-box restart >/dev/null 2>&1
-		echo "Clashoo Reload Completed"
-	  fi
-elif _core_running; then
-	      backend_remove_rules 2>/dev/null
-		  yml_dns_change 2>/dev/null
-		  cp -f "$CONFIG_YAML" "${CLASH_CONFIG}/config.yaml" 2>/dev/null
-	      backend_apply_rules 2>/dev/null
-		  echo "Clashoo Reload Completed"
-fi
+	if is_singbox_selected; then
+		if _core_running; then
+			prepare_singbox_runtime >/dev/null 2>&1
+			/etc/init.d/sing-box restart >/dev/null 2>&1
+		fi
+	elif _core_running; then
+		backend_remove_rules 2>/dev/null
+		yml_dns_change 2>/dev/null
+		cp -f "$CONFIG_YAML" "${CLASH_CONFIG}/config.yaml" 2>/dev/null
+		backend_apply_rules 2>/dev/null
+	fi
 }
