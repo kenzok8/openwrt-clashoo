@@ -35,6 +35,9 @@ dist/
 # local test helpers
 test-http/
 _device_snapshot/
+.playwright-cli/
+.superpowers/
+docs/
 
 # runtime generated state files
 clashoo/root/usr/share/clash/new_*
