@@ -584,6 +584,14 @@ yml_change() {
 		if [ "$_tcp_mode" != "tun" ]; then
 			awk '/^tun:/{f=1} f && /enable:/{sub(/enable:.*/, "enable: false"); f=0} {print}' "$CONFIG_YAML" > /tmp/_cfg_tun.yaml && mv /tmp/_cfg_tun.yaml "$CONFIG_YAML"
 		fi
+
+		# routing-mark 必须与 /usr/share/clashoo/net/fw4.sh:PROXY_FWMARK (0x162=354) 一致，
+		# 否则核心出站会被 clash_local.output 链兜底重定向到自己，形成回环
+		if grep -Eq '^routing-mark:' "$CONFIG_YAML"; then
+			sed -i 's@^routing-mark:.*@routing-mark: 354@g' "$CONFIG_YAML" 2>/dev/null
+		else
+			sed -i '/^mode:/a\routing-mark: 354' "$CONFIG_YAML" 2>/dev/null
+		fi
 		return 0
 	fi
 	sh /usr/share/clashoo/runtime/yum_change.sh 2>/dev/null

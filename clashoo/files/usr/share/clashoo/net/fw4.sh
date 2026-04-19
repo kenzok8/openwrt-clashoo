@@ -11,6 +11,8 @@ BUILTIN_NFT_DIR="/usr/share/clashoo/nftables"
 GEOIP_CN_NFT="${BUILTIN_NFT_DIR}/geoip_cn.nft"
 GEOIP6_CN_NFT="${BUILTIN_NFT_DIR}/geoip6_cn.nft"
 LOCAL_OUTPUT_TABLE="clash_local"
+# 修改 PROXY_FWMARK 需同步 /etc/init.d/clashoo 的 yml_change() 与
+# /usr/share/clashoo/runtime/yum_change.sh 的 routing_mark_dec (需保持十进制一致，当前 354)
 PROXY_FWMARK="0x162"
 PROXY_ROUTE_TABLE="0x162"
 

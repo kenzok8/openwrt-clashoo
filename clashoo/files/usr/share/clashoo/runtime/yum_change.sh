@@ -24,13 +24,12 @@
 		enhanced_mode=$(uci get clashoo.config.enhanced_mode 2>/dev/null)
 		mixed_port=$(uci get clashoo.config.mixed_port 2>/dev/null)
 		enable_ipv6=$(uci get clashoo.config.enable_ipv6 2>/dev/null)
-		bypass_fwmark=$(uci get clashoo.config.bypass_fwmark 2>/dev/null)
-		[ -z "$bypass_fwmark" ] && bypass_fwmark="0x233"
-		case "$bypass_fwmark" in
-			0x*|0X*) routing_mark_dec=$((bypass_fwmark));;
-			*) routing_mark_dec="$bypass_fwmark";;
-		esac
-		
+		# routing-mark 必须与 /usr/share/clashoo/net/fw4.sh:PROXY_FWMARK (0x162=354) 一致，
+		# 否则核心出站会被 clash_local.output 链兜底重定向到自己，形成回环。
+		# 用户 uci 的 clashoo.config.bypass_fwmark 只影响 nft 额外 bypass 列表（如 WireGuard），
+		# 与核心自身 routing-mark 是两个独立概念，不在此处耦合。
+		routing_mark_dec=354
+
 		core=$(uci get clashoo.config.core 2>/dev/null)
 		interf_name=$(uci get clashoo.config.interf_name 2>/dev/null)
 		tun_mode=$(uci get clashoo.config.tun_mode 2>/dev/null)
