@@ -585,12 +585,13 @@ yml_change() {
 			awk '/^tun:/{f=1} f && /enable:/{sub(/enable:.*/, "enable: false"); f=0} {print}' "$CONFIG_YAML" > /tmp/_cfg_tun.yaml && mv /tmp/_cfg_tun.yaml "$CONFIG_YAML"
 		fi
 
-		# routing-mark 必须与 /usr/share/clashoo/net/fw4.sh:PROXY_FWMARK (0x162=354) 一致，
-		# 否则核心出站会被 clash_local.output 链兜底重定向到自己，形成回环
+		# routing-mark 必须与 /usr/share/clashoo/net/fw4.sh:CORE_ROUTING_MARK (0x1a0a=6666) 一致。
+		# 不能复用 PROXY_FWMARK(0x162)：那个 mark 会被 ip rule 吸到 lo（TPROXY 入站重定向用途），
+		# 会导致 mihomo 出站 network unreachable。
 		if grep -Eq '^routing-mark:' "$CONFIG_YAML"; then
-			sed -i 's@^routing-mark:.*@routing-mark: 354@g' "$CONFIG_YAML" 2>/dev/null
+			sed -i 's@^routing-mark:.*@routing-mark: 6666@g' "$CONFIG_YAML" 2>/dev/null
 		else
-			sed -i '/^mode:/a\routing-mark: 354' "$CONFIG_YAML" 2>/dev/null
+			sed -i '/^mode:/a\routing-mark: 6666' "$CONFIG_YAML" 2>/dev/null
 		fi
 		return 0
 	fi

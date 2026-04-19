@@ -11,10 +11,15 @@ BUILTIN_NFT_DIR="/usr/share/clashoo/nftables"
 GEOIP_CN_NFT="${BUILTIN_NFT_DIR}/geoip_cn.nft"
 GEOIP6_CN_NFT="${BUILTIN_NFT_DIR}/geoip6_cn.nft"
 LOCAL_OUTPUT_TABLE="clash_local"
-# 修改 PROXY_FWMARK 需同步 /etc/init.d/clashoo 的 yml_change() 与
-# /usr/share/clashoo/runtime/yum_change.sh 的 routing_mark_dec (需保持十进制一致，当前 354)
+# PROXY_FWMARK: 入站 TPROXY 打的 mark，ip rule → table PROXY_ROUTE_TABLE 把包吸回本地给 mihomo 接收
+# CORE_ROUTING_MARK: mihomo 自身出站 SO_MARK（= mihomo config 的 routing-mark）
+# 两者必须不同值：否则 mihomo 出站会被 ip rule 误吸到 lo → network unreachable
+# 参考 openclash 同一设计思路（0x162 + 6666）。
+# 修改 CORE_ROUTING_MARK 需同步 /etc/init.d/clashoo 的 yml_change()
+# 与 /usr/share/clashoo/runtime/yum_change.sh 的 routing_mark_dec。
 PROXY_FWMARK="0x162"
 PROXY_ROUTE_TABLE="0x162"
+CORE_ROUTING_MARK="0x1a0a"  # = 6666
 
 uci_get() {
 	uci -q get "$1" 2>/dev/null || true
@@ -144,7 +149,9 @@ render_token_elements() {
 }
 
 merge_fwmark_tokens() {
-	printf '%s %s\n' "$1" "$PROXY_FWMARK" | tr ',\t' '  ' | awk '
+	# 始终把 PROXY_FWMARK（入站 TPROXY mark）和 CORE_ROUTING_MARK（核心出站 mark）
+	# 合并进用户 bypass_fwmark 列表，保证这两个 mark 始终被 nft return 放行
+	printf '%s %s %s\n' "$1" "$PROXY_FWMARK" "$CORE_ROUTING_MARK" | tr ',\t' '  ' | awk '
 		BEGIN { first = 1 }
 		{
 			for (i = 1; i <= NF; i++) {

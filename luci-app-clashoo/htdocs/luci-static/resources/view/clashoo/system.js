@@ -241,7 +241,7 @@ return view.extend({
     o = s.option(form.DynamicList, 'bypass_port',  '绕过端口');
     o = s.option(form.DynamicList, 'bypass_dscp',  '绕过 DSCP 标记');
     o = s.option(form.DynamicList, 'bypass_fwmark','绕过 FWMark');
-    o.description = '只影响外部已打标流量（如 WireGuard）。Clashoo 核心自身出站固定使用 0x162，与此无关。';
+    o.description = '只影响外部已打标流量（如 WireGuard）。Clashoo 核心自身出站固定使用 0x1a0a，与此无关。';
 
     s = m.section(form.NamedSection, 'config', 'clashoo', '局域网控制');
     s.addremove = false;
