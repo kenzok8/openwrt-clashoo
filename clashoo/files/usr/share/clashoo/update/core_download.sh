@@ -5,7 +5,7 @@ MODELTYPE=$(uci get clashoo.config.download_core 2>/dev/null)
 CORETYPE=$(uci get clashoo.config.dcore 2>/dev/null)
 MIRROR_PREFIX=$(uci get clashoo.config.core_mirror_prefix 2>/dev/null)
 CUSTOM_CORE_URL=$(uci get clashoo.config.core_download_url 2>/dev/null)
-RESTART_CLASH_AFTER_DOWNLOAD=0
+CORE_INSTALLED=0
 CONNECT_TIMEOUT=15
 REQUEST_TIMEOUT=30
 DOWNLOAD_TIMEOUT=150
@@ -18,13 +18,14 @@ write_log() {
 	echo "  $(date "+%Y-%m-%d %H:%M:%S") - $1" >> "$LOG_FILE"
 }
 
-restore_clash_if_needed() {
-	if [ "$RESTART_CLASH_AFTER_DOWNLOAD" = "1" ]; then
-		write_log "内核下载结束，恢复 Clashoo 服务"
-		if ! /etc/init.d/clashoo start >/dev/null 2>&1; then
-			write_log "恢复 Clashoo 服务失败"
+finalize() {
+	if [ "$CORE_INSTALLED" = "1" ]; then
+		write_log "内核已替换，重启 Clashoo"
+		if ! /etc/init.d/clashoo restart >/dev/null 2>&1; then
+			write_log "重启 Clashoo 失败"
 		fi
 	fi
+	rm -f /var/run/core_update >/dev/null 2>&1
 }
 
 timed_out() {
@@ -448,38 +449,38 @@ pick_mihomo_asset() {
 }
 
 install_binary() {
-	tmpfile="$1"
-	target="$2"
-	mkdir -p "$(dirname "$target")"
-	rm -f "$target"
-	mv "$tmpfile" "$target"
-	chmod 755 "$target"
+	src="$1"
+	dst="$2"
+	mkdir -p "$(dirname "$dst")"
+	rm -f "$dst"
+	mv "$src" "$dst"
+	chmod 755 "$dst"
 }
 
 backup_binary() {
-	target="$1"
-	bak="${target}.bak"
-	if [ -x "$target" ]; then
-		cp -f "$target" "$bak" 2>/dev/null || true
+	dst="$1"
+	bak="${dst}.bak"
+	if [ -x "$dst" ]; then
+		cp -f "$dst" "$bak" 2>/dev/null || true
 	fi
 }
 
 restore_binary() {
-	target="$1"
-	bak="${target}.bak"
+	dst="$1"
+	bak="${dst}.bak"
 	if [ -f "$bak" ]; then
-		cp -f "$bak" "$target" 2>/dev/null || return 1
-		chmod 755 "$target" 2>/dev/null || true
+		cp -f "$bak" "$dst" 2>/dev/null || return 1
+		chmod 755 "$dst" 2>/dev/null || true
 		return 0
 	fi
 	return 1
 }
 
 verify_binary() {
-	target="$1"
-	[ -x "$target" ] || return 1
-	"$target" -v >/dev/null 2>&1 && return 0
-	"$target" version >/dev/null 2>&1 && return 0
+	bin="$1"
+	[ -x "$bin" ] || return 1
+	"$bin" -v >/dev/null 2>&1 && return 0
+	"$bin" version >/dev/null 2>&1 && return 0
 	return 1
 }
 
@@ -487,15 +488,16 @@ install_with_rollback() {
 	tmpfile="$1"
 	target="$2"
 
-	backup_binary "$target"
-	if ! install_binary "$tmpfile" "$target"; then
-		write_log "Core install failed, restoring previous binary"
-		restore_binary "$target" >/dev/null 2>&1 || true
+	chmod 755 "$tmpfile" 2>/dev/null
+	if ! verify_binary "$tmpfile"; then
+		write_log "新内核预热校验失败，保留当前内核"
+		rm -f "$tmpfile" 2>/dev/null
 		return 1
 	fi
 
-	if ! verify_binary "$target"; then
-		write_log "Core verify failed, rolling back to previous binary"
+	backup_binary "$target"
+	if ! install_binary "$tmpfile" "$target"; then
+		write_log "内核替换失败，回滚旧版本"
 		restore_binary "$target" >/dev/null 2>&1 || true
 		return 1
 	fi
@@ -506,17 +508,7 @@ install_with_rollback() {
 rm -f /tmp/clash.gz /tmp/clash /usr/share/clashoo/core_down_complete 2>/dev/null
 : > "$LOG_FILE"
 touch /var/run/core_update 2>/dev/null
-trap 'restore_clash_if_needed; rm -f /var/run/core_update >/dev/null 2>&1' EXIT
-
-if pidof mihomo clash-meta clash >/dev/null 2>&1; then
-	write_log "检测到 Clashoo 正在运行，开始下载前先停止服务"
-	if /etc/init.d/clashoo stop >/dev/null 2>&1; then
-		RESTART_CLASH_AFTER_DOWNLOAD=1
-		sleep 2
-	else
-		write_log "停止 Clashoo 失败，继续执行下载"
-	fi
-fi
+trap finalize EXIT
 
 if [ -n "$CUSTOM_CORE_URL" ]; then
 	write_log "使用自定义内核下载链接"
@@ -545,6 +537,7 @@ if [ -n "$CUSTOM_CORE_URL" ]; then
 	if ! install_with_rollback /tmp/clash "$TARGET"; then
 		exit 1
 	fi
+	CORE_INSTALLED=1
 	printf '%s\n' "${VERSION_VALUE}" > "$VERSION_FILE"
 	touch /usr/share/clashoo/core_down_complete
 	write_log "内核更新完成（自定义链接）"
@@ -594,6 +587,7 @@ if [ "$CORETYPE" = "4" ] || [ "$CORETYPE" = "5" ]; then
 		exit 1
 	fi
 
+	CORE_INSTALLED=1
 	printf '%s\n' "$TAG" > "/usr/share/clashoo/singbox_version"
 	rm -f /tmp/singbox.tar.gz /tmp/singbox-openwrt.ipk
 	rm -rf /tmp/singbox-extract /tmp/singbox-openwrt-pkg /tmp/singbox-openwrt-root
@@ -654,6 +648,7 @@ fi
 if ! install_with_rollback /tmp/clash "$TARGET"; then
 	exit 1
 fi
+CORE_INSTALLED=1
 printf '%s\n' "${VERSION_VALUE:-$TAG}" > "$VERSION_FILE"
 touch /usr/share/clashoo/core_down_complete
 write_log "内核更新完成"
