@@ -1,4 +1,0 @@
-[     354ms] TypeError: clashoo.listSingboxProfiles is not a function
-    at ClassConstructor.load (http://192.168.3.252/luci-static/resources/view/clashoo/config.js?v=26.056.21255~8e584af-1775986976:56:15)
-[   17805ms] TypeError: clashoo.listSingboxProfiles is not a function
-    at ClassConstructor.load (http://192.168.3.252/luci-static/resources/view/clashoo/config.js?v=26.056.21255~8e584af-1775986976:56:15)

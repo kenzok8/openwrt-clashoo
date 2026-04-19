@@ -39,6 +39,12 @@ _device_snapshot/
 .superpowers/
 docs/
 
+# root-level debug screenshots / snapshots
+/*.png
+/*.yml
+/*.yaml
+/.tmp_*
+
 # runtime generated state files
 clashoo/root/usr/share/clash/new_*
 clashoo/root/usr/share/clash/*_version
