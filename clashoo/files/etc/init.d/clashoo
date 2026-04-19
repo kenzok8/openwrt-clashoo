@@ -786,7 +786,7 @@ smart_inject() {
 
 yml_dns_change(){
 #=========================================================================================================================== 	
-	dns_port=$(grep "^ \{0,\}listen:" /etc/clashoo/config.yaml |awk -F ':' '{print $3}' 2>/dev/null)
+	dns_port=$(sed -n 's/^[[:space:]]*listen:.*:[[:space:]]*['"'"'"]*\([0-9]\{1,\}\)['"'"'"]*[[:space:]]*$/\1/p' /etc/clashoo/config.yaml 2>/dev/null | head -n1)
 	listen_port=$(uci get clashoo.config.listen_port 2>/dev/null)
 	[ -z "$listen_port" ] && listen_port=5300
 	if [ -z "$dns_port" ]; then
