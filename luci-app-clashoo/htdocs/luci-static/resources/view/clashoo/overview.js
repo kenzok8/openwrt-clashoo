@@ -202,7 +202,7 @@ return view.extend({
       this._card('运行状态', statusEl),
       this._card('代理模式', this._proxyModeLabel(st.proxy_mode)),
       this._card('当前配置', E('span', {}, curConf)),
-      this._card('核心出站', this._renderCheckStatus(st, ac)),
+      this._card('访问检查', this._renderCheckStatus(st, ac)),
       this._card('管理面板',
         dashPort ? E('a', {
           href: 'http://' + localIp + ':' + dashPort + '/ui/',
@@ -267,27 +267,33 @@ return view.extend({
   },
 
   _renderCheckStatus: function (st, ac) {
-    var probes = [
-      ['百度', ac.baidu],
-      ['谷歌', ac.google],
-      ['GitHub', ac.github]
-    ];
-    var wrap = E('span', { 'class': 'cl-chk' }, []);
-
-    if (!ac || (!ac.baidu && !ac.google && !ac.github)) {
-      wrap.appendChild(E('span', { style: 'opacity:.5;font-size:12px' }, '检测中…'));
-      return wrap;
+    if (!ac || !ac.direct || !ac.proxy) {
+      return E('span', { style: 'opacity:.5;font-size:12px' }, '检测中…');
     }
 
-    probes.forEach(function (kv) {
-      var probe = kv[1] || {};
-      var ok = probe.ok === true;
-      var ms = ok && probe.avg_ms ? ' ' + probe.avg_ms + 'ms' : '';
-      wrap.appendChild(E('span', { style: 'margin-right:8px;white-space:nowrap' },
-        kv[0] + (ok ? (' ✓' + ms) : ' ✗')));
-    });
+    var renderRow = function (tag, group) {
+      var probes = [
+        ['百度',   group.baidu],
+        ['谷歌',   group.google],
+        ['GitHub', group.github]
+      ];
+      var wrap = E('span', { 'class': 'cl-chk' }, []);
+      probes.forEach(function (kv) {
+        var probe = kv[1] || {};
+        var ok = probe.ok === true;
+        wrap.appendChild(E('span', { style: 'margin-right:6px;white-space:nowrap' },
+          kv[0] + (ok ? ' ✓' : ' ✗')));
+      });
+      return E('div', { style: 'display:flex;align-items:center;gap:6px;line-height:1.5' }, [
+        E('span', { style: 'opacity:.55;font-size:11px;min-width:32px' }, tag),
+        wrap
+      ]);
+    };
 
-    return wrap;
+    return E('div', {}, [
+      renderRow('直连', ac.direct),
+      renderRow('代理', ac.proxy)
+    ]);
   },
 
   _controls: function (st, cfgData) {
@@ -381,7 +387,7 @@ return view.extend({
       var cards = document.getElementById('cl-cards');
       if (!cards || !cards.children[3]) return;
       var st = self._lastSt || {};
-      var newCard = self._card('核心出站', self._renderCheckStatus(st, self._lastAc));
+      var newCard = self._card('访问检查', self._renderCheckStatus(st, self._lastAc));
       cards.replaceChild(newCard, cards.children[3]);
     });
   },
