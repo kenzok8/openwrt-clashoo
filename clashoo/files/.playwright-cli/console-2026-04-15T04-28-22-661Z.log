@@ -1,5 +1,0 @@
-[     204ms] [ERROR] Failed to load resource: the server responded with a status of 403 (Forbidden) @ http://192.168.3.252/cgi-bin/luci/admin/services/clashoo/config:0
-[     210ms] [ERROR] X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>. @ http://192.168.3.252/cgi-bin/luci/admin/services/clashoo/config:13
-[     256ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ http://192.168.3.252/cgi-bin/luci/admin/services/clashoo/config:0
-[     273ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://api.vvhan.com/api/wallpaper/acg:0
-[   18904ms] [ERROR] X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>. @ http://192.168.3.252/cgi-bin/luci/admin/services/clashoo/config:13

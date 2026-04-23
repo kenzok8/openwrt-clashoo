@@ -1,6 +1,0 @@
-[     931ms] [LOG] [WebSocket] Connecting to: ws://192.168.3.240:3002 @ http://192.168.3.240:3000/_next/static/chunks/687-2b72a929e11f71e5.js:0
-[     934ms] [LOG] [WebSocket] Connecting to: ws://192.168.3.240:3002 @ http://192.168.3.240:3000/_next/static/chunks/687-2b72a929e11f71e5.js:0
-[     945ms] [LOG] [WebSocket] Connected successfully @ http://192.168.3.240:3000/_next/static/chunks/687-2b72a929e11f71e5.js:0
-[     947ms] [LOG] [WebSocket] Subscribing to backend: 1 @ http://192.168.3.240:3000/_next/static/chunks/687-2b72a929e11f71e5.js:0
-[    1376ms] [LOG] [WebSocket] Connected successfully @ http://192.168.3.240:3000/_next/static/chunks/687-2b72a929e11f71e5.js:0
-[    1383ms] [LOG] [WebSocket] Subscribing to backend: 1 @ http://192.168.3.240:3000/_next/static/chunks/687-2b72a929e11f71e5.js:0
