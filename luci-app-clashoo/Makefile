@@ -67,7 +67,7 @@ endef
 
 define Package/luci-i18n-clashoo-zh-cn/install
 	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/i18n
-	$(INSTALL_DATA) ./po/zh-cn/clash.zh-cn.lmo $(1)/usr/lib/lua/luci/i18n
+	$(INSTALL_DATA) ./po/zh-cn/clashoo.zh-cn.lmo $(1)/usr/lib/lua/luci/i18n
 endef
 
 define Package/luci-i18n-clashoo-zh-cn/postinst
