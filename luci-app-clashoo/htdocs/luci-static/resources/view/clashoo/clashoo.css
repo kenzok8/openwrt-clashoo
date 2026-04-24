@@ -215,7 +215,6 @@ html[data-bs-theme="dark"] .cl-wrap .cl-status-kernel {
 .cl-wrap .cl-control-wrap input[type="number"],
 .cl-wrap .cl-control-wrap input[type="password"],
 .cl-wrap .cl-control-wrap textarea {
-  width: 100%;
   max-width: 400px;
   height: 38px;
   box-sizing: border-box;
@@ -527,7 +526,6 @@ html[data-darkmode="true"] .cl-wrap .cl-mode-tag {
 .cl-wrap.cl-system-page .cbi-value-field,
 .cl-wrap.cl-config-page .cl-control-wrap,
 .cl-wrap.cl-system-page .cl-control-wrap {
-  width: min(100%, 600px) !important;
   max-width: 600px !important;
 }
 
@@ -548,8 +546,7 @@ html[data-darkmode="true"] .cl-wrap .cl-mode-tag {
 .cl-wrap.cl-config-page .cl-control-wrap input[type="number"],
 .cl-wrap.cl-config-page .cl-control-wrap input[type="password"],
 .cl-wrap.cl-config-page .cl-control-wrap textarea {
-  width: 100% !important;
-  max-width: 600px !important;
+  max-width: 480px !important;
   box-sizing: border-box;
   padding: 0 10px !important;
   border: 0 !important;
@@ -1523,7 +1520,6 @@ html[data-bs-theme="dark"] .cl-wrap .cl-live-num {
 .cl-wrap.cl-config-page #cl-panel-dns .cbi-value-field,
 .cl-wrap.cl-config-page #cl-panel-proxy .cl-control-wrap,
 .cl-wrap.cl-config-page #cl-panel-dns .cl-control-wrap {
-  width: min(100%, 600px) !important;
   max-width: 600px !important;
 }
 
@@ -1637,7 +1633,6 @@ html[data-bs-theme="dark"] .cl-wrap .cl-live-num {
 .cl-wrap.cl-system-page #cl-panel-rules .cbi-value-field,
 .cl-wrap.cl-system-page #cl-panel-kernel .cl-control-wrap,
 .cl-wrap.cl-system-page #cl-panel-rules .cl-control-wrap {
-  width: min(100%, 600px) !important;
   max-width: 600px !important;
 }
 
@@ -1806,6 +1801,5 @@ html[data-bs-theme="dark"] .cl-wrap .cl-live-num {
 .cl-wrap .cbi-value-field > .cbi-input-text,
 .cl-wrap .cbi-value-field > input.cbi-input-text {
   max-width: 480px;
-  width: 100%;
   box-sizing: border-box;
 }
