@@ -111,6 +111,7 @@ const callListConfigs   = rpc.declare({ object: 'luci.clashoo', method: 'list_co
 const callSetConfig     = rpc.declare({ object: 'luci.clashoo', method: 'set_config',       params: ['name'], expect: {} });
 const callSetMode       = rpc.declare({ object: 'luci.clashoo', method: 'set_mode',         params: ['mode'], expect: {} });
 const callSetProxyMode  = rpc.declare({ object: 'luci.clashoo', method: 'set_proxy_mode',   params: ['mode'], expect: {} });
+const callSetCore       = rpc.declare({ object: 'luci.clashoo', method: 'set_core',         params: ['core', 'dcore'], expect: {} });
 const callSetPanel      = rpc.declare({ object: 'luci.clashoo', method: 'set_panel',        params: ['name'], expect: {} });
 const callUpdatePanel   = rpc.declare({ object: 'luci.clashoo', method: 'update_panel',     params: ['name'], expect: {} });
 const callReadLog       = rpc.declare({ object: 'luci.clashoo', method: 'read_log',         expect: {} });
@@ -126,6 +127,9 @@ const callUpdateGeoip   = rpc.declare({ object: 'luci.clashoo', method: 'update_
 const callUpdateChinaIp = rpc.declare({ object: 'luci.clashoo', method: 'update_china_ip',  expect: {} });
 const callGetLogStatus  = rpc.declare({ object: 'luci.clashoo', method: 'get_log_status',   expect: {} });
 const callAccessCheck       = rpc.declare({ object: 'luci.clashoo', method: 'access_check',       expect: {} });
+const callAccessCheckRefresh= rpc.declare({ object: 'luci.clashoo', method: 'access_check_refresh',expect: {} });
+const callOverviewStats     = rpc.declare({ object: 'luci.clashoo', method: 'overview_stats',     expect: {} });
+const callOverview          = rpc.declare({ object: 'luci.clashoo', method: 'overview',           expect: {} });
 const callSmartFlushCache       = rpc.declare({ object: 'luci.clashoo', method: 'smart_flush_cache',       expect: {} });
 const callSmartUpgradeLgbm      = rpc.declare({ object: 'luci.clashoo', method: 'smart_upgrade_lgbm',      expect: {} });
 const callSmartModelStatus      = rpc.declare({ object: 'luci.clashoo', method: 'smart_model_status',      expect: {} });
@@ -150,6 +154,7 @@ return baseclass.extend({
     setConfig: function (name) { return L.resolveDefault(callSetConfig(name), {}); },
     setMode: function (mode) { return L.resolveDefault(callSetMode(mode), {}); },
     setProxyMode: function (mode) { return L.resolveDefault(callSetProxyMode(mode), {}); },
+    setCore: function (core, dcore) { return L.resolveDefault(callSetCore(core, dcore), {}); },
     setPanel: function (name) { return L.resolveDefault(callSetPanel(name), {}); },
     updatePanel: function (name) { return L.resolveDefault(callUpdatePanel(name || 'metacubexd'), {}); },
 
@@ -167,6 +172,16 @@ return baseclass.extend({
     updateChinaIp: function () { return L.resolveDefault(callUpdateChinaIp(), {}); },
     getLogStatus: function () { return L.resolveDefault(callGetLogStatus(), {}); },
     accessCheck:        function () { return L.resolveDefault(callAccessCheck(),      {}); },
+    accessCheckRefresh: function () { return L.resolveDefault(callAccessCheckRefresh(), { success: false }); },
+    overviewStats:      function () { return L.resolveDefault(callOverviewStats(),    {}); },
+    overview:           function () {
+        return L.resolveDefault(callOverview(), {
+            status: {},
+            stats: {},
+            configs: { configs: [], current: '', core_type: '' },
+            access: {}
+        });
+    },
     smartFlushCache:    function () { return L.resolveDefault(callSmartFlushCache(),  { success: false }); },
     smartUpgradeLgbm:   function () { return L.resolveDefault(callSmartUpgradeLgbm(), { success: false }); },
     smartModelStatus:   function () { return L.resolveDefault(callSmartModelStatus(),  { has_model: false, version: '' }); },

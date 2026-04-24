@@ -1,0 +1,1761 @@
+.cl-wrap {
+  --cl-primary-rgb: 0, 122, 255;
+  --primary-rgb: var(--cl-primary-rgb);
+  --cl-primary: var(--primary-color, rgba(var(--primary-rgb), 0.9));
+  --cl-primary-border: rgba(var(--primary-rgb), 0.3);
+  --cl-primary-soft: rgba(var(--primary-rgb), 0.08);
+  --cl-primary-soft-hover: rgba(var(--primary-rgb), 0.14);
+  --cl-card-bg: rgba(128, 128, 128, 0.04);
+  --cl-card-border: rgba(128, 128, 128, 0.14);
+  --cl-surface-border: rgba(128, 128, 128, 0.14);
+  --cl-card-shadow: var(--card-shadow, 0 4px 20px rgba(0, 0, 0, 0.05));
+  --cl-card-shadow-hover: var(--card-shadow, 0 4px 20px rgba(0, 0, 0, 0.05));
+  --cl-radius: var(--border-radius, 12px);
+  --cl-title-color: var(--title-color, inherit);
+  --cl-field-color: var(--text-color, inherit);
+  --cl-placeholder: rgba(var(--primary-rgb), 0.45);
+  --cl-control-border: rgba(128, 128, 128, 0.18);
+  --cl-control-bg: rgba(128, 128, 128, 0.05);
+  --cl-input-bg: rgba(128, 128, 128, 0.05);
+  --cl-input-border: rgba(128, 128, 128, 0.2);
+  --cl-input-color: var(--text-color, inherit);
+  --cl-label-muted: var(--text-color, inherit);
+  --cl-live-shell-bg: rgba(128, 128, 128, 0.04);
+  --cl-live-card-bg: rgba(128, 128, 128, 0.05);
+  --cl-live-border: rgba(128, 128, 128, 0.14);
+  --cl-live-title: var(--title-color, inherit);
+  --cl-live-main: var(--text-color, inherit);
+  --cl-live-sub: var(--text-color, inherit);
+  --cl-live-foot: var(--text-color, inherit);
+  --cl-live-muted: rgba(var(--primary-rgb), 0.35);
+  --cl-live-zero: rgba(128, 128, 128, 0.5);
+  --cl-live-dot: var(--primary-color, rgba(var(--primary-rgb), 0.9));
+  --cl-warn-color: var(--warning-color, var(--primary-color, rgba(var(--primary-rgb), 0.9)));
+  --cl-danger-color: var(--error-color, rgba(214, 92, 74, 0.95));
+  --cl-chart-up: rgba(var(--primary-rgb), 0.86);
+  --cl-chart-down: rgba(var(--primary-rgb), 0.72);
+  --cl-chart-conn: rgba(var(--primary-rgb), 0.6);
+}
+
+.cl-wrap.cl-theme-dark {
+  --cl-card-bg: rgba(255, 255, 255, 0.04);
+  --cl-card-border: rgba(255, 255, 255, 0.1);
+  --cl-surface-border: rgba(255, 255, 255, 0.14);
+  --cl-control-bg: rgba(255, 255, 255, 0.05);
+  --cl-input-bg: rgba(255, 255, 255, 0.05);
+  --cl-input-border: rgba(255, 255, 255, 0.16);
+  --cl-live-shell-bg: rgba(255, 255, 255, 0.03);
+  --cl-live-card-bg: rgba(255, 255, 255, 0.04);
+  --cl-live-border: rgba(255, 255, 255, 0.12);
+}
+
+.cl-wrap.cl-theme-light {
+  --cl-card-bg: rgba(0, 0, 0, 0.02);
+  --cl-card-border: rgba(0, 0, 0, 0.12);
+  --cl-surface-border: rgba(0, 0, 0, 0.1);
+  --cl-control-bg: rgba(0, 0, 0, 0.02);
+  --cl-input-bg: rgba(0, 0, 0, 0.02);
+  --cl-input-border: rgba(0, 0, 0, 0.12);
+  --cl-live-shell-bg: rgba(0, 0, 0, 0.02);
+  --cl-live-card-bg: rgba(0, 0, 0, 0.03);
+  --cl-live-border: rgba(0, 0, 0, 0.12);
+}
+
+@media (prefers-color-scheme: dark) {
+  .cl-wrap:not(.cl-theme-light) {
+    --cl-card-bg: rgba(255, 255, 255, 0.04);
+    --cl-card-border: rgba(255, 255, 255, 0.1);
+    --cl-surface-border: rgba(255, 255, 255, 0.14);
+    --cl-control-bg: rgba(255, 255, 255, 0.05);
+    --cl-input-bg: rgba(255, 255, 255, 0.05);
+    --cl-input-border: rgba(255, 255, 255, 0.16);
+    --cl-live-shell-bg: rgba(255, 255, 255, 0.03);
+    --cl-live-card-bg: rgba(255, 255, 255, 0.04);
+    --cl-live-border: rgba(255, 255, 255, 0.12);
+  }
+}
+
+.cl-wrap .cl-card {
+  background: var(--cl-card-bg) !important;
+  border: 1px solid var(--cl-surface-border) !important;
+  border-radius: var(--border-radius, var(--cl-radius, 12px)) !important;
+  padding: 20px;
+  box-shadow: var(--card-shadow, var(--cl-card-shadow)) !important;
+  transition: all 0.3s ease;
+}
+
+.cl-wrap .cl-card:hover {
+  box-shadow: var(--cl-card-shadow-hover);
+}
+
+.cl-wrap.cl-overview-page .cl-cards > .cl-card {
+  padding: 14px 16px;
+}
+
+.cl-wrap .cbi-map,
+.cl-wrap .cbi-tabcontainer,
+.cl-wrap .cbi-page-actions {
+  background: transparent;
+}
+
+.cl-wrap .cbi-section > h3,
+.cl-wrap .cl-section > h4 {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.cl-wrap .cl-ctrl,
+.cl-wrap .cl-live-box,
+.cl-wrap .cl-live-card {
+  border: 1px solid var(--cl-surface-border) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+}
+
+.cl-wrap .cl-card-status .cl-card-head {
+  align-items: flex-start;
+}
+
+.cl-wrap .cl-status-kernel {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 26px;
+  padding: 1px;
+  border-radius: 8px;
+  border: 0;
+  background: rgba(0, 0, 0, 0.03);
+  box-shadow: none !important;
+}
+
+.cl-wrap .cl-status-kernel .cl-core-btn {
+  height: 24px;
+  line-height: 24px;
+  min-width: 58px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  box-shadow: none !important;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  opacity: 0.82;
+}
+
+.cl-wrap .cl-status-kernel .cl-core-btn.active {
+  background: rgba(var(--cl-primary-rgb), 0.16);
+  border-color: transparent;
+  color: var(--cl-primary);
+  box-shadow: none !important;
+  font-weight: 700;
+  opacity: 1;
+}
+
+.cl-wrap .cl-status-kernel .cl-core-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+body.dark .cl-wrap .cl-status-kernel,
+html[data-theme="dark"] .cl-wrap .cl-status-kernel,
+html[data-bs-theme="dark"] .cl-wrap .cl-status-kernel {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.cl-wrap .btn.cbi-button-action,
+.cl-wrap .cbi-button-action {
+  background: var(--cl-primary-soft) !important;
+  border-color: var(--cl-primary-border) !important;
+  color: var(--cl-primary) !important;
+}
+
+.cl-wrap .btn.cbi-button-action:hover,
+.cl-wrap .cbi-button-action:hover {
+  background: rgba(var(--cl-primary-rgb), 0.2) !important;
+  border-color: transparent !important;
+  color: var(--cl-primary) !important;
+}
+
+.cl-wrap .cl-live-box {
+  padding: 10px 12px;
+  border-color: var(--cl-live-border);
+  background: var(--cl-live-shell-bg);
+}
+
+.cl-wrap .cbi-value-title,
+.cl-wrap .cl-card .lbl,
+.cl-wrap .cl-section h4 {
+  color: var(--cl-title-color);
+}
+
+.cl-wrap .cbi-value-field input,
+.cl-wrap .cbi-value-field select,
+.cl-wrap .cbi-value-field textarea,
+.cl-wrap input,
+.cl-wrap select,
+.cl-wrap textarea {
+  color: var(--cl-field-color);
+}
+
+.cl-wrap input::placeholder,
+.cl-wrap textarea::placeholder {
+  color: var(--cl-placeholder);
+}
+
+.cl-wrap .cl-control-wrap {
+  width: min(100%, 400px);
+  max-width: 400px;
+}
+
+.cl-wrap .cl-control-wrap .cbi-input-text,
+.cl-wrap .cl-control-wrap .cbi-input-select,
+.cl-wrap .cl-control-wrap select,
+.cl-wrap .cl-control-wrap input[type="text"],
+.cl-wrap .cl-control-wrap input[type="number"],
+.cl-wrap .cl-control-wrap input[type="password"],
+.cl-wrap .cl-control-wrap textarea {
+  width: 100%;
+  max-width: 400px;
+  height: 38px;
+  box-sizing: border-box;
+  border: 1px solid var(--cl-control-border);
+  border-radius: 8px;
+  padding: 0 12px;
+  background: var(--cl-control-bg);
+}
+
+.cl-wrap .cl-control-wrap textarea {
+  min-height: 76px;
+  height: auto;
+  padding: 8px 12px;
+}
+
+.cl-wrap .cl-control-wrap .cbi-input-select,
+.cl-wrap .cl-control-wrap select {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cl-wrap .cl-live-grid {
+  gap: 14px;
+}
+
+.cl-wrap .cl-live-card,
+.cl-wrap .cl-stat-card {
+  height: 120px;
+  min-height: 120px;
+  max-height: 120px;
+  box-sizing: border-box;
+  border-color: var(--cl-live-border);
+  background: var(--cl-live-card-bg);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(2px);
+}
+
+.cl-wrap .cl-live-title {
+  color: var(--cl-live-title);
+}
+
+.cl-wrap .cl-card-mode .val {
+  display: block;
+  min-height: 0;
+  line-height: 1.35;
+}
+
+.cl-wrap.cl-system-page .cbi-section,
+.cl-wrap .cbi-section.cl-form-card {
+  background: var(--cl-card-bg);
+  border: 1px solid var(--cl-card-border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px !important;
+  box-shadow: var(--cl-card-shadow);
+  transition: all 0.3s ease;
+}
+
+.cl-wrap.cl-system-page .cbi-section:hover,
+.cl-wrap .cbi-section.cl-form-card:hover {
+  box-shadow: var(--cl-card-shadow-hover);
+}
+
+.cl-wrap .cl-file-actions {
+  justify-content: flex-end;
+}
+
+.cl-wrap .cl-mode-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  justify-content: flex-start;
+  align-items: flex-start;
+  width: 100%;
+}
+
+.cl-wrap .cl-mode-tag {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0;
+  border-radius: 0;
+  font-size: 11px;
+  line-height: 1.35;
+  background: transparent;
+  color: inherit;
+  opacity: 0.5;
+  width: max-content;
+  max-width: 100%;
+  text-align: left;
+}
+
+.cl-wrap .cl-mode-tag-degraded {
+  color: var(--cl-warn-color);
+}
+
+.cl-wrap .cl-mode-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+  width: 100%;
+  max-width: 250px;
+}
+
+.cl-wrap .cl-mode-proto {
+  font-size: 11px;
+  line-height: 1.35;
+  opacity: 0.78;
+  color: rgba(var(--cl-primary-rgb), 0.84);
+  text-align: left;
+  letter-spacing: 0.2px;
+  min-width: 42px;
+  flex: 0 0 42px;
+}
+
+.cl-wrap .cl-mode-name {
+  font-size: 11px;
+  line-height: 1.35;
+  font-weight: 700;
+  color: var(--cl-title-color);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1 1 auto;
+}
+
+.cl-wrap .cl-mode-suffix {
+  font-size: 11px;
+  line-height: 1.35;
+  text-align: right;
+  opacity: 0.5;
+  min-width: 34px;
+  flex: 0 0 34px;
+}
+
+.cl-wrap .cl-mode-stack-line {
+  font-size: 11px;
+  line-height: 1.35;
+  font-weight: 600;
+  opacity: 0.78;
+}
+
+.cl-wrap .cl-mode-degraded {
+  font-size: 10px;
+  line-height: 1.3;
+  color: var(--cl-warn-color);
+}
+
+.cl-wrap .cl-mode-meta {
+  font-size: 10px;
+  line-height: 1.3;
+  opacity: 0.65;
+}
+
+body.dark .cl-wrap .cl-mode-tag,
+body.dark .cl-wrap .cl-mode-tag,
+body[data-theme="dark"] .cl-wrap .cl-mode-tag,
+body[data-darkmode="1"] .cl-wrap .cl-mode-tag,
+body[data-darkmode="true"] .cl-wrap .cl-mode-tag,
+html.dark .cl-wrap .cl-mode-tag,
+html.dark .cl-wrap .cl-mode-tag,
+html[data-theme="dark"] .cl-wrap .cl-mode-tag,
+html[data-bs-theme="dark"] .cl-wrap .cl-mode-tag,
+html[data-darkmode="1"] .cl-wrap .cl-mode-tag,
+html[data-darkmode="true"] .cl-wrap .cl-mode-tag {
+  background: transparent;
+  color: inherit;
+  opacity: 0.5;
+}
+
+.cl-wrap.cl-config-page .cl-fixed-600 {
+  width: min(100%, 600px);
+  max-width: 600px;
+}
+
+.cl-wrap.cl-config-page .cl-file-list {
+  width: 100%;
+}
+
+.cl-wrap.cl-config-page .cl-panel .cbi-section {
+  background: transparent !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--cl-card-border) !important;
+  border-radius: 0 !important;
+  padding: 14px 0 18px;
+  margin-bottom: 12px !important;
+  box-shadow: none !important;
+}
+
+.cl-wrap.cl-config-page .cl-section.cl-card,
+.cl-wrap.cl-config-page .cl-panel.cl-card {
+  background: transparent !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--cl-card-border) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 14px 0 18px !important;
+}
+
+.cl-wrap.cl-config-page .cl-panel .cbi-section > h3 {
+  font-size: 1.15rem !important;
+  font-weight: 600 !important;
+  color: var(--title-color, var(--cl-title-color));
+  margin-bottom: 12px !important;
+}
+
+/* Title typography normalization: match template on Config(Proxy/DNS) + System pages */
+.cl-wrap.cl-config-page .cl-section h4,
+.cl-wrap.cl-config-page .cl-panel .cbi-section > h3 {
+  font-size: 1.15rem !important;
+  line-height: 1.35 !important;
+  font-weight: 600 !important;
+  color: var(--title-color, var(--cl-title-color)) !important;
+  opacity: 1 !important;
+  letter-spacing: 0.1px !important;
+}
+
+.cl-wrap.cl-system-page .cl-section h4,
+.cl-wrap.cl-system-page .cl-panel .cbi-section > h3 {
+  font-size: 15px !important;
+  line-height: 1.35 !important;
+  font-weight: 700 !important;
+  color: var(--cl-title-color, inherit) !important;
+  opacity: 1 !important;
+  letter-spacing: 0 !important;
+}
+
+.cl-wrap.cl-config-page .cbi-value-title {
+  color: var(--cl-label-muted) !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+}
+
+.cl-wrap.cl-config-page .cbi-section-descr,
+.cl-wrap.cl-config-page .cbi-value-helptext {
+  color: var(--cl-label-muted) !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+}
+
+.cl-wrap.cl-system-page .cl-tab,
+.cl-wrap.cl-config-page .cl-tab {
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  color: var(--title-color, var(--cl-title-color)) !important;
+  opacity: 1 !important;
+}
+
+.cl-wrap.cl-system-page .cl-tab.active,
+.cl-wrap.cl-config-page .cl-tab.active {
+  color: var(--title-color, var(--cl-title-color)) !important;
+  font-weight: 700 !important;
+}
+
+.cl-wrap.cl-config-page .cl-panel .cbi-value-title {
+  color: var(--cl-label-muted);
+}
+
+.cl-wrap.cl-config-page .cl-sub-url,
+.cl-wrap.cl-config-page .cl-ctrl select,
+.cl-wrap.cl-config-page .cl-ctrl .cbi-input-select,
+.cl-wrap.cl-config-page .cl-control-wrap .cbi-input-text,
+.cl-wrap.cl-config-page .cl-control-wrap .cbi-input-select,
+.cl-wrap.cl-config-page .cl-control-wrap select,
+.cl-wrap.cl-config-page .cl-control-wrap input[type="text"],
+.cl-wrap.cl-config-page .cl-control-wrap input[type="number"],
+.cl-wrap.cl-config-page .cl-control-wrap input[type="password"],
+.cl-wrap.cl-config-page .cl-control-wrap textarea,
+.cl-wrap.cl-config-page .cbi-value-field input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="file"]),
+.cl-wrap.cl-config-page .cbi-value-field select,
+.cl-wrap.cl-config-page .cbi-value-field textarea {
+  background: rgba(128, 128, 128, 0.05) !important;
+  border: 0 !important;
+  border-bottom: 1px solid rgba(var(--primary-rgb, var(--cl-primary-rgb)), 0.2) !important;
+  color: var(--cl-input-color) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.cl-wrap.cl-config-page .cl-sub-url,
+.cl-wrap.cl-config-page .cl-ctrl select,
+.cl-wrap.cl-config-page .cl-ctrl .cbi-input-select {
+  padding: 0 12px !important;
+  height: 38px !important;
+}
+
+.cl-wrap.cl-config-page .cl-panel,
+.cl-wrap.cl-system-page .cl-panel,
+.cl-wrap.cl-config-page .cl-panel .cbi-section-node,
+.cl-wrap.cl-system-page .cl-panel .cbi-section-node {
+  background: transparent !important;
+}
+
+.cl-wrap.cl-system-page .cbi-section,
+.cl-wrap.cl-system-page .cl-panel .cbi-section {
+  background: transparent !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--cl-card-border) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 14px 0 18px !important;
+  margin-bottom: 12px !important;
+}
+
+.cl-wrap.cl-config-page .cbi-value-field,
+.cl-wrap.cl-system-page .cbi-value-field,
+.cl-wrap.cl-config-page .cl-control-wrap,
+.cl-wrap.cl-system-page .cl-control-wrap {
+  width: min(100%, 600px) !important;
+  max-width: 600px !important;
+}
+
+.cl-wrap.cl-config-page .cbi-value-title,
+.cl-wrap.cl-system-page .cbi-value-title {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+}
+
+.cl-wrap.cl-config-page .cbi-value-field input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="file"]),
+.cl-wrap.cl-config-page .cbi-value-field select,
+.cl-wrap.cl-config-page .cbi-value-field textarea,
+.cl-wrap.cl-config-page .cl-control-wrap .cbi-input-text,
+.cl-wrap.cl-config-page .cl-control-wrap .cbi-input-select,
+.cl-wrap.cl-config-page .cl-control-wrap select,
+.cl-wrap.cl-config-page .cl-control-wrap input[type="text"],
+.cl-wrap.cl-config-page .cl-control-wrap input[type="number"],
+.cl-wrap.cl-config-page .cl-control-wrap input[type="password"],
+.cl-wrap.cl-config-page .cl-control-wrap textarea {
+  width: 100% !important;
+  max-width: 600px !important;
+  box-sizing: border-box;
+  padding: 0 10px !important;
+  border: 0 !important;
+  border-bottom: 1px solid rgba(var(--primary-rgb, var(--cl-primary-rgb)), 0.2) !important;
+  border-radius: 0 !important;
+  color: var(--cl-field-color) !important;
+  background: rgba(128, 128, 128, 0.05) !important;
+  box-shadow: none !important;
+}
+
+.cl-wrap.cl-config-page .cbi-value-field textarea,
+.cl-wrap.cl-system-page .cbi-value-field textarea {
+  min-height: 84px;
+  height: auto;
+  padding: 8px 10px !important;
+}
+
+.cl-wrap.cl-config-page .cbi-value-field select,
+.cl-wrap.cl-system-page .cbi-value-field select {
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.cl-wrap.cl-config-page .btn,
+.cl-wrap.cl-config-page .cbi-button,
+.cl-wrap.cl-system-page .btn,
+.cl-wrap.cl-system-page .cbi-button {
+  border-radius: 8px !important;
+  box-shadow: none !important;
+}
+
+.cl-wrap.cl-config-page .cbi-button-action,
+.cl-wrap.cl-config-page .btn.cbi-button-action,
+.cl-wrap.cl-system-page .cbi-button-action,
+.cl-wrap.cl-system-page .btn.cbi-button-action {
+  background: var(--cl-primary-soft) !important;
+  border-color: var(--cl-primary-border) !important;
+  color: var(--cl-primary) !important;
+}
+
+.cl-wrap.cl-config-page .cbi-button-add,
+.cl-wrap.cl-config-page .btn.cbi-button-add,
+.cl-wrap.cl-system-page .cbi-button-add,
+.cl-wrap.cl-system-page .btn.cbi-button-add,
+.cl-wrap.cl-config-page .cbi-button-positive,
+.cl-wrap.cl-config-page .btn.cbi-button-positive,
+.cl-wrap.cl-system-page .cbi-button-positive,
+.cl-wrap.cl-system-page .btn.cbi-button-positive {
+  background: rgba(66, 186, 117, 0.12) !important;
+  border-color: rgba(66, 186, 117, 0.38) !important;
+  color: rgba(32, 132, 75, 0.94) !important;
+}
+
+.cl-wrap.cl-config-page .cbi-button-negative,
+.cl-wrap.cl-config-page .btn.cbi-button-negative,
+.cl-wrap.cl-system-page .cbi-button-negative,
+.cl-wrap.cl-system-page .btn.cbi-button-negative {
+  background: rgba(222, 86, 86, 0.08) !important;
+  border-color: rgba(222, 86, 86, 0.46) !important;
+  color: rgba(190, 62, 62, 0.92) !important;
+}
+
+/* Config page de-colorization: keep primary accents only */
+.cl-wrap.cl-config-page .cbi-button-action,
+.cl-wrap.cl-config-page .btn.cbi-button-action,
+.cl-wrap.cl-config-page .cbi-button-add,
+.cl-wrap.cl-config-page .btn.cbi-button-add,
+.cl-wrap.cl-config-page .cbi-button-positive,
+.cl-wrap.cl-config-page .btn.cbi-button-positive,
+.cl-wrap.cl-config-page .cbi-button-negative,
+.cl-wrap.cl-config-page .btn.cbi-button-negative,
+.cl-wrap.cl-config-page .cl-btn-update-sub,
+.cl-wrap.cl-config-page .cl-btn-switch,
+.cl-wrap.cl-config-page .cl-btn-delete,
+.cl-wrap.cl-config-page .cl-btn-template-upload,
+.cl-wrap.cl-config-page .cl-btn-upload-config,
+.cl-wrap.cl-config-page .cl-btn-sb-upload {
+  background: rgba(var(--primary-rgb, var(--cl-primary-rgb)), 0.1) !important;
+  border: 1px solid rgba(var(--primary-rgb, var(--cl-primary-rgb)), 0.28) !important;
+  color: var(--cl-primary) !important;
+  box-shadow: none !important;
+}
+
+.cl-wrap.cl-config-page .cbi-button-action:hover,
+.cl-wrap.cl-config-page .btn.cbi-button-action:hover,
+.cl-wrap.cl-config-page .cbi-button-add:hover,
+.cl-wrap.cl-config-page .btn.cbi-button-add:hover,
+.cl-wrap.cl-config-page .cbi-button-positive:hover,
+.cl-wrap.cl-config-page .btn.cbi-button-positive:hover,
+.cl-wrap.cl-config-page .cbi-button-negative:hover,
+.cl-wrap.cl-config-page .btn.cbi-button-negative:hover,
+.cl-wrap.cl-config-page .cl-btn-update-sub:hover,
+.cl-wrap.cl-config-page .cl-btn-switch:hover,
+.cl-wrap.cl-config-page .cl-btn-delete:hover,
+.cl-wrap.cl-config-page .cl-btn-template-upload:hover,
+.cl-wrap.cl-config-page .cl-btn-upload-config:hover,
+.cl-wrap.cl-config-page .cl-btn-sb-upload:hover {
+  background: rgba(var(--primary-rgb, var(--cl-primary-rgb)), 0.16) !important;
+  border-color: rgba(var(--primary-rgb, var(--cl-primary-rgb)), 0.4) !important;
+  color: var(--cl-primary) !important;
+}
+
+.cl-wrap.cl-config-page .cl-file-item {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(128, 128, 128, 0.04) !important;
+  border: 1px solid rgba(128, 128, 128, 0.16) !important;
+  box-shadow: none !important;
+}
+
+.cl-wrap.cl-config-page .cl-file-item.is-active {
+  background: rgba(var(--primary-rgb, var(--cl-primary-rgb)), 0.08) !important;
+  border-color: rgba(var(--primary-rgb, var(--cl-primary-rgb)), 0.24) !important;
+}
+
+.cl-wrap.cl-config-page .cl-file-meta {
+  justify-content: flex-start;
+}
+
+.cl-wrap.cl-config-page .cl-file-name {
+  flex: 1;
+}
+
+.cl-wrap.cl-config-page .cl-file-name-text {
+  color: var(--cl-label-muted) !important;
+}
+
+.cl-wrap.cl-config-page .cl-file-size {
+  color: rgba(128, 128, 128, 0.62) !important;
+}
+
+.cl-wrap.cl-config-page .cl-file-actions {
+  margin-left: auto;
+}
+
+.cl-wrap.cl-config-page .cl-rewrite-wrap {
+  max-width: 600px;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+.cl-wrap.cl-config-page .cl-rewrite-wrap .cl-sub-url,
+.cl-wrap.cl-config-page .cl-rewrite-wrap .cbi-input-select,
+.cl-wrap.cl-config-page .cl-rewrite-wrap select {
+  width: 100%;
+  max-width: 100%;
+}
+
+.cl-wrap.cl-config-page .cl-template-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.cl-wrap.cl-config-page .cl-template-select-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.cl-wrap.cl-config-page .cl-template-select {
+  width: 100%;
+  max-width: 100%;
+  text-overflow: ellipsis;
+}
+
+.cl-wrap .cl-active-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  flex-shrink: 0;
+  background: rgba(var(--primary-rgb, var(--cl-primary-rgb)), 0.12);
+  color: var(--cl-primary);
+  border: 1px solid rgba(var(--primary-rgb, var(--cl-primary-rgb)), 0.24);
+}
+
+body.dark .cl-wrap .cl-active-badge,
+body.dark .cl-wrap .cl-active-badge,
+body[data-theme="dark"] .cl-wrap .cl-active-badge,
+html.dark .cl-wrap .cl-active-badge,
+html.dark .cl-wrap .cl-active-badge,
+html[data-theme="dark"] .cl-wrap .cl-active-badge,
+html[data-bs-theme="dark"] .cl-wrap .cl-active-badge {
+  background: rgba(var(--primary-rgb, var(--cl-primary-rgb)), 0.18);
+  color: rgba(209, 227, 255, 0.95);
+  border-color: rgba(var(--primary-rgb, var(--cl-primary-rgb)), 0.3);
+}
+
+.cl-wrap .cl-live-num {
+  font-size: 18px;
+  color: rgba(40, 48, 62, 0.88);
+}
+
+.cl-wrap .cl-pass-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: min(100%, 480px);
+}
+
+.cl-wrap .cl-pass-wrap input[type="password"],
+.cl-wrap .cl-pass-wrap input[type="text"] {
+  flex: 1;
+  min-width: 0;
+}
+
+.cl-wrap .cl-pass-btn {
+  flex-shrink: 0;
+  min-width: 48px;
+  padding: 4px 10px !important;
+  border-radius: 8px;
+}
+
+.cl-wrap .cl-arch-badge-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+.cl-wrap .cl-arch-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.cl-wrap .cl-arch-badge-sys {
+  background: rgba(0, 122, 255, 0.1);
+  color: rgba(0, 98, 214, 0.92);
+  border: 1px solid rgba(0, 122, 255, 0.24);
+}
+
+.cl-wrap .cl-arch-badge-rec {
+  background: rgba(46, 170, 92, 0.12);
+  color: rgba(22, 122, 63, 0.92);
+  border: 1px solid rgba(46, 170, 92, 0.26);
+}
+
+.cl-wrap .cl-arch-arrow {
+  font-size: 12px;
+  opacity: 0.62;
+}
+
+.cl-wrap .cl-check-icon-wrap {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.cl-wrap .cl-check-icon-wrap .cl-check-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  display: block;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.cl-wrap .cl-check-item img,
+.cl-wrap .cl-check-main img {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+
+.cl-wrap .cl-check-icon-wrap .cl-check-icon-fallback {
+  background: transparent;
+  border: 1px solid rgba(130, 140, 155, 0.4);
+  color: rgba(130, 140, 155, 0.9);
+}
+
+body.dark .cl-wrap .cl-check-icon-wrap .cl-check-icon,
+body.dark .cl-wrap .cl-check-icon-wrap .cl-check-icon,
+body[data-theme="dark"] .cl-wrap .cl-check-icon-wrap .cl-check-icon,
+html.dark .cl-wrap .cl-check-icon-wrap .cl-check-icon,
+html.dark .cl-wrap .cl-check-icon-wrap .cl-check-icon,
+html[data-theme="dark"] .cl-wrap .cl-check-icon-wrap .cl-check-icon,
+html[data-bs-theme="dark"] .cl-wrap .cl-check-icon-wrap .cl-check-icon {
+  filter: saturate(0.82) brightness(1.08);
+}
+
+body.dark .cl-wrap.cl-system-page .cl-section h4,
+body.dark .cl-wrap.cl-system-page .cl-panel .cbi-section > h3,
+body.dark .cl-wrap.cl-system-page .cl-section h4,
+body.dark .cl-wrap.cl-system-page .cl-panel .cbi-section > h3,
+html[data-theme="dark"] .cl-wrap.cl-system-page .cl-section h4,
+html[data-theme="dark"] .cl-wrap.cl-system-page .cl-panel .cbi-section > h3,
+html[data-bs-theme="dark"] .cl-wrap.cl-system-page .cl-section h4,
+html[data-bs-theme="dark"] .cl-wrap.cl-system-page .cl-panel .cbi-section > h3 {
+  color: rgba(219, 227, 241, 0.92) !important;
+}
+
+body.dark .cl-wrap.cl-system-page .cl-tab,
+body.dark .cl-wrap.cl-config-page .cl-tab,
+body.dark .cl-wrap.cl-system-page .cl-tab,
+body.dark .cl-wrap.cl-config-page .cl-tab,
+html[data-theme="dark"] .cl-wrap.cl-system-page .cl-tab,
+html[data-theme="dark"] .cl-wrap.cl-config-page .cl-tab,
+html[data-bs-theme="dark"] .cl-wrap.cl-system-page .cl-tab,
+html[data-bs-theme="dark"] .cl-wrap.cl-config-page .cl-tab {
+  color: var(--title-color, var(--cl-title-color)) !important;
+  opacity: 0.88;
+}
+
+body.dark .cl-wrap.cl-system-page .cl-tab.active,
+body.dark .cl-wrap.cl-config-page .cl-tab.active,
+body.dark .cl-wrap.cl-system-page .cl-tab.active,
+body.dark .cl-wrap.cl-config-page .cl-tab.active,
+html[data-theme="dark"] .cl-wrap.cl-system-page .cl-tab.active,
+html[data-theme="dark"] .cl-wrap.cl-config-page .cl-tab.active,
+html[data-bs-theme="dark"] .cl-wrap.cl-system-page .cl-tab.active,
+html[data-bs-theme="dark"] .cl-wrap.cl-config-page .cl-tab.active {
+  color: var(--title-color, var(--cl-title-color)) !important;
+  opacity: 1;
+}
+
+body.dark .cl-wrap .cl-arch-badge-sys,
+body.dark .cl-wrap .cl-arch-badge-sys,
+body[data-theme="dark"] .cl-wrap .cl-arch-badge-sys,
+html.dark .cl-wrap .cl-arch-badge-sys,
+html.dark .cl-wrap .cl-arch-badge-sys,
+html[data-theme="dark"] .cl-wrap .cl-arch-badge-sys,
+html[data-bs-theme="dark"] .cl-wrap .cl-arch-badge-sys {
+  background: rgba(122, 180, 255, 0.16);
+  color: rgba(208, 227, 255, 0.95);
+  border-color: rgba(122, 180, 255, 0.3);
+}
+
+body.dark .cl-wrap .cl-arch-badge-rec,
+body.dark .cl-wrap .cl-arch-badge-rec,
+body[data-theme="dark"] .cl-wrap .cl-arch-badge-rec,
+html.dark .cl-wrap .cl-arch-badge-rec,
+html.dark .cl-wrap .cl-arch-badge-rec,
+html[data-theme="dark"] .cl-wrap .cl-arch-badge-rec,
+html[data-bs-theme="dark"] .cl-wrap .cl-arch-badge-rec {
+  background: rgba(104, 199, 135, 0.16);
+  color: rgba(198, 246, 211, 0.95);
+  border-color: rgba(104, 199, 135, 0.3);
+}
+
+.cl-wrap .cl-live-unit {
+  font-size: 11px;
+  margin-left: 3px;
+  color: var(--cl-live-sub);
+}
+
+.cl-wrap .cl-live-foot {
+  color: var(--cl-live-foot);
+}
+
+.cl-wrap .cl-live-line.up {
+  stroke: var(--cl-chart-up);
+}
+
+.cl-wrap .cl-live-area.up {
+  fill: var(--cl-chart-up);
+}
+
+.cl-wrap .cl-live-line.down {
+  stroke: var(--cl-chart-down);
+}
+
+.cl-wrap .cl-live-area.down {
+  fill: var(--cl-chart-down);
+}
+
+.cl-wrap .cl-live-line.conn {
+  stroke: var(--cl-chart-conn);
+}
+
+.cl-wrap .cl-live-area.conn {
+  fill: var(--cl-chart-conn);
+}
+
+.cl-wrap .cl-live-card.is-zero .cl-live-num,
+.cl-wrap .cl-live-card.is-zero .cl-live-unit,
+.cl-wrap .cl-live-card.is-zero .cl-live-foot {
+  opacity: 1;
+  color: var(--cl-live-zero);
+}
+
+.cl-wrap .cl-live-card.is-zero .cl-live-num {
+  font-size: 16px;
+  text-shadow: none;
+}
+
+.cl-wrap .cl-live-card.is-zero .cl-live-bg-chart {
+  opacity: 0.35;
+}
+
+.cl-wrap .cl-live-card.is-active .cl-live-bg-chart {
+  opacity: 0.9;
+}
+
+.cl-wrap .cl-live-card-up.is-active .cl-live-num {
+  text-shadow: 0 0 12px rgba(98, 176, 255, 0.34);
+}
+
+.cl-wrap .cl-live-card-down.is-active .cl-live-num {
+  text-shadow: 0 0 12px rgba(155, 134, 255, 0.34);
+}
+
+.cl-wrap .cl-live-card-conn.is-active .cl-live-num {
+  text-shadow: 0 0 12px rgba(102, 213, 155, 0.34);
+}
+
+.cl-wrap .cl-live-card-up.is-hot .cl-live-num {
+  text-shadow: 0 0 18px rgba(98, 176, 255, 0.54);
+}
+
+.cl-wrap .cl-live-card-down.is-hot .cl-live-num {
+  text-shadow: 0 0 18px rgba(155, 134, 255, 0.54);
+}
+
+.cl-wrap .cl-live-card-conn.is-hot .cl-live-num {
+  text-shadow: 0 0 18px rgba(102, 213, 155, 0.54);
+}
+
+.cl-wrap .cl-live-card.is-hot .cl-live-unit,
+.cl-wrap .cl-live-card.is-hot .cl-live-foot {
+  color: rgba(245, 250, 255, 0.82);
+}
+
+body.dark .cl-wrap .cl-live-num,
+body.dark .cl-wrap .cl-live-num,
+html[data-theme="dark"] .cl-wrap .cl-live-num,
+html[data-bs-theme="dark"] .cl-wrap .cl-live-num {
+  color: rgba(243, 247, 255, 0.85);
+}
+
+.cl-wrap .cl-check-latency {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.cl-wrap .cl-live-card.is-offline .cl-live-title,
+.cl-wrap .cl-live-card.is-offline .cl-live-foot {
+  color: var(--cl-live-foot);
+}
+
+@media (max-width: 640px) {
+  .cl-wrap .cl-live-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px;
+  }
+
+  .cl-wrap .cl-live-card {
+    height: 120px;
+    min-height: 120px;
+    max-height: 120px;
+  }
+}
+
+@media (max-width: 768px) {
+  .cl-wrap {
+    --cl-primary: rgba(88, 166, 255, 0.92);
+    --cl-primary-border: rgba(88, 166, 255, 0.48);
+    --cl-primary-soft: rgba(88, 166, 255, 0.12);
+    --cl-primary-soft-hover: rgba(88, 166, 255, 0.2);
+  }
+
+  .cl-wrap input,
+  .cl-wrap select,
+  .cl-wrap textarea,
+  .cl-wrap .cbi-input-text,
+  .cl-wrap .cbi-input-select {
+    font-size: 13px !important;
+    height: auto !important;
+    line-height: 1.35 !important;
+    padding: 5px 8px !important;
+  }
+
+  .cl-wrap .cbi-value-title,
+  .cl-wrap .cl-card .lbl,
+  .cl-wrap .cl-section h4 {
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    margin-bottom: 5px !important;
+  }
+
+  .cl-wrap.cl-form-page .cbi-value-field {
+    width: 100% !important;
+  }
+
+  .cl-wrap.cl-form-page .cl-control-wrap {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .cl-wrap.cl-form-page .cl-control-wrap .cbi-input-text,
+  .cl-wrap.cl-form-page .cl-control-wrap .cbi-input-select,
+  .cl-wrap.cl-form-page .cl-control-wrap select,
+  .cl-wrap.cl-form-page .cl-control-wrap input[type="text"],
+  .cl-wrap.cl-form-page .cl-control-wrap input[type="number"],
+  .cl-wrap.cl-form-page .cl-control-wrap input[type="password"],
+  .cl-wrap.cl-form-page .cl-control-wrap textarea {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 5px 8px !important;
+  }
+
+  .cl-wrap.cl-form-page .cl-control-wrap .cbi-input-select,
+  .cl-wrap.cl-form-page .cl-control-wrap select {
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .cl-wrap.cl-config-page .cl-fixed-600,
+  .cl-wrap.cl-config-page .cl-rewrite-wrap,
+  .cl-wrap.cl-config-page .cl-template-row,
+  .cl-wrap.cl-config-page .cl-template-select-wrap {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .cl-wrap.cl-config-page .cl-template-row {
+    flex-wrap: wrap;
+  }
+
+  .cl-wrap.cl-config-page .cl-btn-template-upload {
+    flex-shrink: 0;
+  }
+
+  .cl-wrap .cl-active-badge {
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+  }
+
+  .cl-wrap .cl-pass-wrap {
+    width: 100% !important;
+  }
+}
+
+/* ===== Denoise pass (small scope): config + overview ===== */
+.cl-wrap.cl-config-page,
+.cl-wrap.cl-overview-page {
+  color: var(--text-color, inherit);
+}
+
+.cl-wrap.cl-config-page .cl-card,
+.cl-wrap.cl-config-page .cl-file-item,
+.cl-wrap.cl-overview-page .cl-card,
+.cl-wrap.cl-overview-page .cl-live-box,
+.cl-wrap.cl-overview-page .cl-live-card,
+.cl-wrap.cl-overview-page .cl-ctrl {
+  background: var(--cl-card-bg) !important;
+}
+
+.cl-wrap.cl-config-page .cl-section h4,
+.cl-wrap.cl-config-page .cbi-section > h3,
+.cl-wrap.cl-overview-page .cl-card .lbl {
+  color: var(--title-color, var(--cl-title-color)) !important;
+  font-size: 0.95rem !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+}
+
+.cl-wrap.cl-config-page .cl-section h4,
+.cl-wrap.cl-config-page .cbi-section > h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px !important;
+}
+
+.cl-wrap.cl-config-page .cl-section h4::before,
+.cl-wrap.cl-config-page .cbi-section > h3::before {
+  content: '';
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--primary-color, var(--cl-primary));
+  flex: 0 0 3px;
+}
+
+.cl-wrap.cl-config-page input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="file"]),
+.cl-wrap.cl-config-page select,
+.cl-wrap.cl-config-page textarea,
+.cl-wrap.cl-overview-page input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="file"]),
+.cl-wrap.cl-overview-page select,
+.cl-wrap.cl-overview-page textarea {
+  background: var(--cl-input-bg) !important;
+  border: 1px solid var(--cl-input-border) !important;
+  border-radius: var(--border-radius, 8px) !important;
+  box-shadow: none !important;
+  color: var(--text-color, inherit) !important;
+}
+
+.cl-wrap.cl-config-page .cl-file-name-text {
+  color: var(--text-color, inherit) !important;
+  opacity: 0.7;
+}
+
+.cl-wrap.cl-config-page .cl-btn-template-upload,
+.cl-wrap.cl-config-page .cl-btn-upload-config,
+.cl-wrap.cl-config-page .cl-btn-sb-upload,
+.cl-wrap.cl-config-page .cbi-button-action {
+  background: rgba(128, 128, 128, 0.1) !important;
+  color: var(--primary-color, var(--cl-primary)) !important;
+  border: 1px solid rgba(var(--primary-rgb, var(--cl-primary-rgb)), 0.28) !important;
+  box-shadow: none !important;
+}
+
+.cl-wrap.cl-overview-page .cl-cards {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+.cl-wrap.cl-overview-page .cl-card-traffic .val {
+  font-size: inherit;
+  font-weight: 400;
+  word-break: normal;
+}
+
+.cl-wrap.cl-overview-page .cl-card-traffic .cl-live-box {
+  padding: 0 !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+.cl-wrap.cl-overview-page .cl-status-kernel {
+  border: 0 !important;
+  box-shadow: none !important;
+  background: rgba(var(--primary-rgb, var(--cl-primary-rgb)), 0.08) !important;
+}
+
+.cl-wrap.cl-overview-page .cl-status-kernel .cl-core-btn {
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.cl-wrap.cl-overview-page .cl-status-kernel .cl-core-btn.active {
+  border: 0 !important;
+  box-shadow: none !important;
+  background: rgba(var(--primary-rgb, var(--cl-primary-rgb)), 0.24) !important;
+}
+
+.cl-wrap.cl-overview-page .cl-check-item img,
+.cl-wrap.cl-overview-page .cl-check-main img,
+.cl-wrap.cl-overview-page .cl-check-icon-wrap,
+.cl-wrap.cl-overview-page .cl-check-icon {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.cl-wrap.cl-overview-page .cl-access-wrap {
+  margin-bottom: 12px;
+}
+
+.cl-wrap.cl-overview-page .cl-status-note {
+  font-size: 11px;
+  margin-left: 6px;
+  color: var(--text-color, inherit);
+  opacity: 0.72;
+}
+
+.cl-wrap.cl-overview-page .cl-status-note-pass {
+  color: #4aa065;
+  opacity: 0.92;
+}
+
+.cl-wrap.cl-overview-page .cl-status-note-fail,
+.cl-wrap.cl-overview-page .cl-status-note-degraded {
+  color: #b56f00;
+  opacity: 0.92;
+}
+
+@media (max-width: 900px) {
+  .cl-wrap.cl-overview-page .cl-cards {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ===== Overview unified theme-adaptive surfaces ===== */
+.cl-wrap.cl-overview-page {
+  background: transparent !important;
+  color: var(--text-color, inherit) !important;
+}
+
+.cl-wrap.cl-overview-page .cl-card,
+.cl-wrap.cl-overview-page .cl-live-box,
+.cl-wrap.cl-overview-page .cl-live-card,
+.cl-wrap.cl-overview-page .cl-ctrl,
+.cl-wrap.cl-overview-page .cl-access-wrap {
+  background: var(--cl-card-bg) !important;
+  border: 1px solid var(--cl-surface-border) !important;
+  border-radius: var(--border-radius, 12px) !important;
+  box-shadow: var(--card-shadow, none) !important;
+}
+
+.cl-wrap.cl-overview-page input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="file"]),
+.cl-wrap.cl-overview-page select,
+.cl-wrap.cl-overview-page textarea,
+.cl-wrap.cl-overview-page .cbi-input-select {
+  background: var(--cl-input-bg) !important;
+  border: 1px solid var(--cl-input-border) !important;
+  border-radius: var(--border-radius, 8px) !important;
+  color: var(--text-color, inherit) !important;
+}
+
+.cl-wrap.cl-overview-page .cl-ctrl-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cl-wrap.cl-overview-page .cl-ctrl-row select,
+.cl-wrap.cl-overview-page .cl-ctrl-row .cbi-input-select,
+.cl-wrap.cl-overview-page .cl-btn-panel-update,
+.cl-wrap.cl-overview-page .cl-btn-panel-open {
+  height: 32px !important;
+  line-height: 32px !important;
+  min-height: 32px !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+}
+
+.cl-wrap.cl-overview-page .cl-ctrl-row select,
+.cl-wrap.cl-overview-page .cl-ctrl-row .cbi-input-select {
+  padding: 0 10px !important;
+  line-height: 28px !important;
+  font-size: 14px !important;
+  vertical-align: middle !important;
+}
+
+.cl-wrap.cl-overview-page .cl-btn-panel-update,
+.cl-wrap.cl-overview-page .cl-btn-panel-open {
+  padding: 0 12px !important;
+  border: 1px solid var(--cl-input-border) !important;
+  border-radius: 7px !important;
+  background: var(--cl-input-bg) !important;
+  color: var(--text-color, inherit) !important;
+  box-shadow: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-decoration: none !important;
+}
+
+.cl-wrap.cl-overview-page .cl-controls .cl-ctrl select,
+.cl-wrap.cl-overview-page .cl-controls .cl-ctrl .cbi-input-select {
+  background: var(--cl-input-bg) !important;
+  border: 1px solid var(--cl-input-border) !important;
+  color: var(--text-color, inherit) !important;
+  height: 32px !important;
+  line-height: 32px !important;
+  min-height: 32px !important;
+  padding: 0 10px !important;
+  box-sizing: border-box !important;
+}
+
+.cl-wrap.cl-overview-page .cl-card-mode .cl-mode-row {
+  display: grid !important;
+  grid-template-columns: 58px 102px 34px !important;
+  align-items: center !important;
+  column-gap: 4px !important;
+  width: 210px !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+}
+
+.cl-wrap.cl-overview-page .cl-card-mode .cl-mode-proto {
+  text-align: left !important;
+}
+
+.cl-wrap.cl-overview-page .cl-card-mode .cl-mode-name {
+  text-align: left !important;
+  padding-right: 0 !important;
+  border-left: 0 !important;
+}
+
+.cl-wrap.cl-overview-page .cl-card-mode .cl-mode-suffix {
+  text-align: left !important;
+  padding-right: 0 !important;
+  padding-left: 2px !important;
+  opacity: 0.62 !important;
+}
+
+/* Unified title/body colors for overview (light + dark via theme vars) */
+.cl-wrap.cl-overview-page .cl-card .lbl,
+.cl-wrap.cl-overview-page .cl-live-title,
+.cl-wrap.cl-overview-page .cl-status-note,
+.cl-wrap.cl-overview-page .cl-check-updated {
+  color: var(--title-color, var(--text-color, inherit)) !important;
+  opacity: 1 !important;
+}
+
+.cl-wrap.cl-overview-page .cl-card .lbl {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+}
+
+.cl-wrap.cl-overview-page .cl-mode-name,
+.cl-wrap.cl-overview-page .cl-live-num,
+.cl-wrap.cl-overview-page .cl-live-unit,
+.cl-wrap.cl-overview-page .cl-live-foot,
+.cl-wrap.cl-overview-page .cl-check-latency,
+.cl-wrap.cl-overview-page .cl-check-name,
+.cl-wrap.cl-overview-page .cl-badge,
+.cl-wrap.cl-overview-page .cl-ctrl label,
+.cl-wrap.cl-overview-page .cl-ctrl,
+.cl-wrap.cl-overview-page .cl-card .val,
+.cl-wrap.cl-overview-page .cl-controls .cl-ctrl select,
+.cl-wrap.cl-overview-page .cl-controls .cl-ctrl .cbi-input-select,
+.cl-wrap.cl-overview-page .cl-btn-panel-update,
+.cl-wrap.cl-overview-page .cl-btn-panel-open {
+  color: var(--text-color, inherit) !important;
+}
+
+/* ===== Theme-system unification (light + dark) ===== */
+.cl-wrap .cl-card,
+.cl-wrap .cl-live-box,
+.cl-wrap .cl-live-card,
+.cl-wrap .cl-ctrl,
+.cl-wrap .cl-access-wrap {
+  background: var(--cl-card-bg) !important;
+  border: 1px solid var(--cl-surface-border) !important;
+  border-radius: var(--border-radius, var(--cl-radius, 12px)) !important;
+  box-shadow: var(--card-shadow, var(--cl-card-shadow)) !important;
+}
+
+.cl-wrap input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="file"]),
+.cl-wrap select,
+.cl-wrap textarea,
+.cl-wrap .cbi-input-text,
+.cl-wrap .cbi-input-select {
+  background: var(--cl-input-bg) !important;
+  border: 1px solid var(--cl-input-border) !important;
+  color: var(--text-color, inherit) !important;
+}
+
+.cl-wrap .cbi-value-title,
+.cl-wrap .cl-card .lbl,
+.cl-wrap .cl-live-title,
+.cl-wrap .cl-section > h4 {
+  color: var(--title-color, var(--text-color, inherit)) !important;
+}
+
+.cl-wrap .cbi-section-descr,
+.cl-wrap .cl-card .val,
+.cl-wrap .cl-ctrl,
+.cl-wrap .cl-status-note,
+.cl-wrap .cl-check-updated {
+  color: var(--text-color, inherit) !important;
+}
+
+.cl-wrap.cl-overview-page .cl-ctrl-row select,
+.cl-wrap.cl-overview-page .cl-ctrl-row .cbi-input-select,
+.cl-wrap.cl-overview-page .cl-btn-panel-update,
+.cl-wrap.cl-overview-page .cl-btn-panel-open {
+  height: 32px !important;
+  min-height: 32px !important;
+  line-height: 32px !important;
+  vertical-align: middle !important;
+}
+
+.cl-wrap.cl-overview-page .cl-config-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+.cl-wrap.cl-overview-page .cl-config-row select,
+.cl-wrap.cl-overview-page .cl-config-row .cbi-input-select {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+}
+
+.cl-wrap.cl-overview-page .cl-config-row .cl-btn-update-sub {
+  height: 32px !important;
+  min-height: 32px !important;
+  line-height: 32px !important;
+  padding: 0 12px !important;
+  margin: 0 !important;
+  border: 1px solid var(--cl-input-border) !important;
+  border-radius: var(--border-radius, 8px) !important;
+  background: var(--cl-input-bg) !important;
+  color: var(--text-color, inherit) !important;
+  box-shadow: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  white-space: nowrap !important;
+}
+
+/* ===== Config page consistency pass (subs/proxy/dns + sing-box profiles/wizard) ===== */
+.cl-wrap.cl-config-page #cl-panel-subs .cl-section.cl-card,
+.cl-wrap.cl-config-page #cl-panel-profiles .cl-section.cl-card,
+.cl-wrap.cl-config-page #cl-panel-wizard .cl-section.cl-card,
+.cl-wrap.cl-config-page #cl-panel-proxy .cbi-section,
+.cl-wrap.cl-config-page #cl-panel-dns .cbi-section {
+  background: var(--cl-card-bg) !important;
+  border: 1px solid var(--cl-surface-border) !important;
+  border-bottom: 1px solid var(--cl-surface-border) !important;
+  border-radius: var(--border-radius, var(--cl-radius, 12px)) !important;
+  box-shadow: var(--card-shadow, var(--cl-card-shadow)) !important;
+  padding: 16px 18px !important;
+  margin: 0 0 14px !important;
+}
+
+.cl-wrap.cl-config-page #cl-panel-subs .cl-section > h4,
+.cl-wrap.cl-config-page #cl-panel-profiles .cl-section > h4,
+.cl-wrap.cl-config-page #cl-panel-wizard .cl-section > h4,
+.cl-wrap.cl-config-page #cl-panel-proxy .cbi-section > h3,
+.cl-wrap.cl-config-page #cl-panel-dns .cbi-section > h3 {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin: 0 0 12px !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  font-size: 0.95rem !important;
+  font-weight: 600 !important;
+  color: var(--title-color, var(--cl-title-color)) !important;
+  opacity: 1 !important;
+}
+
+.cl-wrap.cl-config-page #cl-panel-subs .cl-section > h4::before,
+.cl-wrap.cl-config-page #cl-panel-profiles .cl-section > h4::before,
+.cl-wrap.cl-config-page #cl-panel-wizard .cl-section > h4::before,
+.cl-wrap.cl-config-page #cl-panel-proxy .cbi-section > h3::before,
+.cl-wrap.cl-config-page #cl-panel-dns .cbi-section > h3::before {
+  content: '' !important;
+  width: 3px !important;
+  height: 14px !important;
+  border-radius: 2px !important;
+  background: var(--primary-color, var(--cl-primary)) !important;
+  flex: 0 0 3px !important;
+}
+
+.cl-wrap.cl-config-page #cl-panel-proxy .cbi-value-title,
+.cl-wrap.cl-config-page #cl-panel-dns .cbi-value-title,
+.cl-wrap.cl-config-page #cl-panel-proxy .cbi-section-descr,
+.cl-wrap.cl-config-page #cl-panel-dns .cbi-section-descr,
+.cl-wrap.cl-config-page #cl-panel-proxy .cbi-value-helptext,
+.cl-wrap.cl-config-page #cl-panel-dns .cbi-value-helptext {
+  color: var(--cl-label-muted) !important;
+}
+
+.cl-wrap.cl-config-page #cl-panel-subs .cl-fixed-600,
+.cl-wrap.cl-config-page #cl-panel-subs .cl-rewrite-wrap,
+.cl-wrap.cl-config-page #cl-panel-profiles .cl-fixed-600,
+.cl-wrap.cl-config-page #cl-panel-profiles .cl-sb-form,
+.cl-wrap.cl-config-page #cl-panel-wizard .cl-fixed-600,
+.cl-wrap.cl-config-page #cl-panel-wizard .cl-sb-form,
+.cl-wrap.cl-config-page #cl-panel-proxy .cbi-value-field,
+.cl-wrap.cl-config-page #cl-panel-dns .cbi-value-field,
+.cl-wrap.cl-config-page #cl-panel-proxy .cl-control-wrap,
+.cl-wrap.cl-config-page #cl-panel-dns .cl-control-wrap {
+  width: min(100%, 600px) !important;
+  max-width: 600px !important;
+}
+
+.cl-wrap.cl-config-page #cl-panel-subs .cl-sub-url,
+.cl-wrap.cl-config-page #cl-panel-subs .cl-rewrite-wrap .cbi-input-select,
+.cl-wrap.cl-config-page #cl-panel-subs .cl-rewrite-wrap select,
+.cl-wrap.cl-config-page #cl-panel-wizard .cl-sub-url,
+.cl-wrap.cl-config-page #cl-panel-profiles .cl-json-editor,
+.cl-wrap.cl-config-page #cl-panel-proxy .cbi-value-field input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="file"]),
+.cl-wrap.cl-config-page #cl-panel-proxy .cbi-value-field select,
+.cl-wrap.cl-config-page #cl-panel-proxy .cbi-value-field textarea,
+.cl-wrap.cl-config-page #cl-panel-dns .cbi-value-field input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="file"]),
+.cl-wrap.cl-config-page #cl-panel-dns .cbi-value-field select,
+.cl-wrap.cl-config-page #cl-panel-dns .cbi-value-field textarea {
+  background: var(--cl-input-bg) !important;
+  border: 1px solid var(--cl-input-border) !important;
+  border-bottom: 1px solid var(--cl-input-border) !important;
+  border-radius: var(--border-radius, 8px) !important;
+  color: var(--cl-input-color) !important;
+  box-shadow: none !important;
+  min-height: 38px !important;
+  padding: 0 12px !important;
+}
+
+.cl-wrap.cl-config-page #cl-panel-subs .cl-rewrite-wrap textarea,
+.cl-wrap.cl-config-page #cl-panel-profiles .cl-json-editor,
+.cl-wrap.cl-config-page #cl-panel-proxy .cbi-value-field textarea,
+.cl-wrap.cl-config-page #cl-panel-dns .cbi-value-field textarea {
+  min-height: 84px !important;
+  height: auto !important;
+  padding: 8px 12px !important;
+}
+
+.cl-wrap.cl-config-page #cl-panel-subs .cl-file-item,
+.cl-wrap.cl-config-page #cl-panel-profiles .cl-sub-list {
+  background: var(--cl-card-bg) !important;
+  border: 1px solid var(--cl-surface-border) !important;
+  border-radius: var(--border-radius, 8px) !important;
+  box-shadow: none !important;
+}
+
+.cl-wrap.cl-config-page #cl-panel-subs .cl-rewrite-wrap,
+.cl-wrap.cl-config-page #cl-panel-subs .cl-rewrite-group {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+.cl-wrap.cl-config-page #cl-panel-subs .cl-rewrite-group-template,
+.cl-wrap.cl-config-page #cl-panel-subs .cl-rewrite-group-input,
+.cl-wrap.cl-config-page #cl-panel-subs .cl-template-row,
+.cl-wrap.cl-config-page #cl-panel-subs .cl-template-select-wrap {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+/* ===== System page consistency pass (kernel/rules/logs) ===== */
+.cl-wrap.cl-system-page #cl-panel-kernel .cbi-section,
+.cl-wrap.cl-system-page #cl-panel-rules .cbi-section,
+.cl-wrap.cl-system-page #cl-panel-logs .cl-section.cl-card {
+  background: var(--cl-card-bg) !important;
+  border: 1px solid var(--cl-surface-border) !important;
+  border-bottom: 1px solid var(--cl-surface-border) !important;
+  border-radius: var(--border-radius, var(--cl-radius, 12px)) !important;
+  box-shadow: var(--card-shadow, var(--cl-card-shadow)) !important;
+  padding: 16px 18px !important;
+  margin: 0 0 14px !important;
+}
+
+.cl-wrap.cl-system-page #cl-panel-kernel .cbi-section > h3,
+.cl-wrap.cl-system-page #cl-panel-rules .cbi-section > h3,
+.cl-wrap.cl-system-page #cl-panel-logs .cl-section > h4 {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin: 0 0 12px !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  font-size: 0.95rem !important;
+  font-weight: 600 !important;
+  color: var(--title-color, var(--cl-title-color)) !important;
+  opacity: 1 !important;
+}
+
+.cl-wrap.cl-system-page #cl-panel-kernel .cbi-section > h3::before,
+.cl-wrap.cl-system-page #cl-panel-rules .cbi-section > h3::before,
+.cl-wrap.cl-system-page #cl-panel-logs .cl-section > h4::before {
+  content: '' !important;
+  width: 3px !important;
+  height: 14px !important;
+  border-radius: 2px !important;
+  background: var(--primary-color, var(--cl-primary)) !important;
+  flex: 0 0 3px !important;
+}
+
+.cl-wrap.cl-system-page #cl-panel-kernel .cbi-value-title,
+.cl-wrap.cl-system-page #cl-panel-rules .cbi-value-title,
+.cl-wrap.cl-system-page #cl-panel-kernel .cbi-section-descr,
+.cl-wrap.cl-system-page #cl-panel-rules .cbi-section-descr,
+.cl-wrap.cl-system-page #cl-panel-kernel .cbi-value-helptext,
+.cl-wrap.cl-system-page #cl-panel-rules .cbi-value-helptext {
+  color: var(--cl-label-muted) !important;
+}
+
+.cl-wrap.cl-system-page #cl-panel-kernel .cbi-value-field,
+.cl-wrap.cl-system-page #cl-panel-rules .cbi-value-field,
+.cl-wrap.cl-system-page #cl-panel-kernel .cl-control-wrap,
+.cl-wrap.cl-system-page #cl-panel-rules .cl-control-wrap {
+  width: min(100%, 600px) !important;
+  max-width: 600px !important;
+}
+
+.cl-wrap.cl-system-page #cl-panel-kernel .cbi-value-field input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="file"]),
+.cl-wrap.cl-system-page #cl-panel-kernel .cbi-value-field select,
+.cl-wrap.cl-system-page #cl-panel-kernel .cbi-value-field textarea,
+.cl-wrap.cl-system-page #cl-panel-rules .cbi-value-field input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="file"]),
+.cl-wrap.cl-system-page #cl-panel-rules .cbi-value-field select,
+.cl-wrap.cl-system-page #cl-panel-rules .cbi-value-field textarea {
+  background: var(--cl-input-bg) !important;
+  border: 1px solid var(--cl-input-border) !important;
+  border-bottom: 1px solid var(--cl-input-border) !important;
+  border-radius: var(--border-radius, 8px) !important;
+  color: var(--cl-input-color) !important;
+  box-shadow: none !important;
+  min-height: 38px !important;
+  padding: 0 12px !important;
+}
+
+.cl-wrap.cl-system-page #cl-panel-kernel .cbi-value-field textarea,
+.cl-wrap.cl-system-page #cl-panel-rules .cbi-value-field textarea {
+  min-height: 84px !important;
+  height: auto !important;
+  padding: 8px 12px !important;
+}
+
+.cl-wrap.cl-system-page #cl-panel-logs .cl-log-area {
+  background: var(--cl-input-bg) !important;
+  border: 1px solid var(--cl-input-border) !important;
+  border-radius: var(--border-radius, 8px) !important;
+  color: var(--cl-field-color) !important;
+  box-shadow: none !important;
+}
+
+.cl-wrap.cl-system-page #cl-panel-logs .cl-log-tab {
+  background: var(--cl-input-bg) !important;
+  border: 1px solid var(--cl-input-border) !important;
+  color: var(--cl-field-color) !important;
+  box-shadow: none !important;
+}
+
+.cl-wrap.cl-system-page #cl-panel-logs .cl-log-tab.active {
+  background: rgba(var(--primary-rgb, var(--cl-primary-rgb)), 0.12) !important;
+  border-color: rgba(var(--primary-rgb, var(--cl-primary-rgb)), 0.24) !important;
+  color: var(--cl-primary) !important;
+}
+
+/* ===== Final polish: remove traffic inner borders + minimalist selects ===== */
+.cl-wrap.cl-overview-page .cl-card-traffic .cl-live-box,
+.cl-wrap.cl-overview-page .cl-card-traffic .cl-live-grid,
+.cl-wrap.cl-overview-page .cl-card-traffic .cl-live-card,
+.cl-wrap.cl-overview-page .cl-card-traffic .cl-stat-card {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.cl-wrap.cl-overview-page .cl-card-traffic .cl-live-card,
+.cl-wrap.cl-overview-page .cl-card-traffic .cl-stat-card {
+  background: var(--cl-live-card-bg) !important;
+}
+
+.cl-wrap select,
+.cl-wrap .cbi-input-select {
+  border-top: none !important;
+  border-left: none !important;
+  border-right: none !important;
+  border-bottom: 1px solid rgba(var(--primary-rgb, var(--cl-primary-rgb)), 0.2) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.cl-wrap.cl-overview-page .cbi-input-select,
+.cl-wrap.cl-overview-page .cl-ctrl-row select,
+.cl-wrap.cl-overview-page .cl-controls .cl-ctrl select,
+.cl-wrap.cl-overview-page .cl-controls .cl-ctrl .cbi-input-select,
+.cl-wrap.cl-config-page #cl-panel-subs .cbi-input-select,
+.cl-wrap.cl-config-page #cl-panel-subs select,
+.cl-wrap.cl-config-page #cl-panel-proxy .cbi-value-field select,
+.cl-wrap.cl-config-page #cl-panel-dns .cbi-value-field select,
+.cl-wrap.cl-system-page #cl-panel-kernel .cbi-value-field select,
+.cl-wrap.cl-system-page #cl-panel-rules .cbi-value-field select {
+  border-top: none !important;
+  border-left: none !important;
+  border-right: none !important;
+  border-bottom: 1px solid rgba(var(--primary-rgb, var(--cl-primary-rgb)), 0.2) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+/* ===== Overview status spacing + semantic run state ===== */
+.cl-wrap.cl-overview-page .cl-card-head {
+  margin-bottom: 10px !important;
+}
+
+.cl-wrap.cl-overview-page .cl-card .val {
+  display: block;
+  line-height: 1.55 !important;
+}
+
+.cl-wrap.cl-overview-page #cl-status-val {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cl-wrap.cl-overview-page #cl-status-val .cl-status-note {
+  margin-left: 0 !important;
+}
+
+.cl-wrap.cl-overview-page .cl-badge-run {
+  color: #24945f !important;
+  border-color: rgba(36, 148, 95, 0.46) !important;
+  background: rgba(36, 148, 95, 0.08) !important;
+}
+
+.cl-wrap.cl-overview-page .cl-badge-stop {
+  color: rgba(128, 128, 128, 0.9) !important;
+  border-color: rgba(128, 128, 128, 0.36) !important;
+  background: rgba(128, 128, 128, 0.08) !important;
+}

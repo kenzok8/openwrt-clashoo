@@ -33,7 +33,14 @@ const CONFIG_DIRS = [
 const LIST_FILE = '/usr/share/clashbackup/confit_list.conf';
 const SUB_DIR   = '/usr/share/clashoo/config/sub';
 const TEMPLATE_DIR = '/usr/share/clashoo/config/custom';
+const TEMPLATE_USER_DIR = '/etc/clashoo/templates';
 const TEMPLATE_BIND_FILE = '/usr/share/clashbackup/template_bindings.conf';
+const SINGBOX_DIR = '/usr/share/clashoo/config/singbox';
+const ACCESS_CACHE_FILE = '/tmp/clashoo_check_cache';
+const ACCESS_UPDATING_FLAG = '/tmp/clashoo/access_check_updating';
+const ACCESS_DAEMON_PID_FILE = '/tmp/clashoo/access_check_daemon.pid';
+const ACCESS_CACHE_TTL = 90;
+const OVERVIEW_STATS_CACHE_FILE = '/tmp/clashoo_overview_stats_cache.json';
 
 function uci_get(pkg, sec, opt) {
 let c = cursor();
@@ -112,6 +119,15 @@ let content = readfile(path);
 return content ? trim(split(content, '\n')[0] || '') : '';
 }
 
+function runtime_state_get(key) {
+let cmd = "awk -F= '$1==\"" + key + "\"{print substr($0, index($0,\"=\")+1); exit}' /tmp/clashoo/runtime_state 2>/dev/null";
+let p = popen(cmd);
+if (!p) return '';
+let value = trim(p.read('all'));
+p.close();
+return value || '';
+}
+
 function is_running() {
 return running_core_family() != '';
 }
@@ -165,6 +181,9 @@ if (system('command -v ucode >/dev/null 2>&1') == 0) {
 	let redir_port = uci_get('clashoo', 'config', 'redir_port') || '7891';
 	let tproxy_port = uci_get('clashoo', 'config', 'tproxy_port') || '7982';
 	let mixed_port = uci_get('clashoo', 'config', 'mixed_port') || '7890';
+	let dns_port = uci_get('clashoo', 'config', 'listen_port') || '1053';
+	let dash_port = uci_get('clashoo', 'config', 'dash_port') || '9090';
+	let dash_pass = uci_get('clashoo', 'config', 'dash_pass') || '';
 	let has_tun = access('/dev/net/tun', 'r') ? '1' : '0';
 	let normalize_cmd = 'ucode /usr/share/clashoo/lib/normalize_singbox_config.uc ' +
 		shell_quote('/etc/sing-box/config.json') + ' ' +
@@ -172,7 +191,10 @@ if (system('command -v ucode >/dev/null 2>&1') == 0) {
 		shell_quote(tproxy_port) + ' ' +
 		shell_quote(mixed_port) + ' ' +
 		shell_quote(has_tun) + ' ' +
-		shell_quote('354') +
+		shell_quote('6666') + ' ' +
+		shell_quote(dns_port) + ' ' +
+		shell_quote(dash_port) + ' ' +
+		shell_quote(dash_pass) +
 		' >/dev/null 2>&1';
 	if (system(normalize_cmd) != 0)
 		return { success: false, message: 'sing-box 运行配置规范化失败' };
@@ -296,9 +318,135 @@ return { path: f, type: dir.type };
 return null;
 }
 
-function get_current_config() {
+function get_current_config(core_family) {
+core_family = core_family || get_core_type();
+
+if (core_family == 'singbox') {
+	let active = uci_get('clashoo', 'config', 'singbox_active') || '';
+	let active_name = replace(active, /^.*\//, '');
+	if (active_name) return active_name;
+	if (access('/etc/sing-box/config.json', 'r')) return 'config.json';
+	return '';
+}
+
 let use_config = uci_get('clashoo', 'config', 'use_config');
 return replace(use_config, /^.*\//, '');
+}
+
+function get_display_config_name(core_family) {
+core_family = core_family || get_core_type();
+
+if (core_family == 'singbox') {
+	let active = uci_get('clashoo', 'config', 'singbox_active') || '';
+	let active_name = replace(active, /^.*\//, '');
+	if (active_name) {
+		if (match(active_name, /\.singbox\.json$/))
+			return replace(active_name, /\.singbox\.json$/, '.json');
+		return active_name;
+	}
+	if (access('/etc/sing-box/config.json', 'r'))
+		return 'config.json';
+	return 'config.json';
+}
+
+return get_current_config('mihomo');
+}
+
+function now_epoch_sec() {
+let p = popen('date +%s 2>/dev/null');
+if (!p) return 0;
+let raw = trim(p.read('all'));
+p.close();
+return raw ? int(raw) : 0;
+}
+
+function default_probe_result() {
+return {
+ok: false,
+state: 'pending',
+code: '000',
+ok_count: 0,
+attempts: 0,
+loss: 0,
+avg_ms: 0
+};
+}
+
+function default_access_payload(proxy_port, tcp_mode, udp_mode) {
+return {
+proxy_port: proxy_port || '7890',
+tcp_mode: tcp_mode || 'redirect',
+udp_mode: udp_mode || (tcp_mode || 'redirect'),
+updated_at: 0,
+stale: true,
+updating: true,
+last_checked_ago: -1,
+direct: {
+bytedance: default_probe_result(),
+youtube: default_probe_result()
+},
+proxy: {
+bytedance: default_probe_result(),
+youtube: default_probe_result()
+}
+};
+}
+
+function read_access_check_cache() {
+if (!access(ACCESS_CACHE_FILE, 'r')) return null;
+let raw = trim(readfile(ACCESS_CACHE_FILE) || '');
+if (!raw) return null;
+let parsed = json(raw);
+return parsed ? parsed : null;
+}
+
+function access_cache_is_stale(cache, now) {
+if (!cache || !cache.updated_at) return true;
+let updated = int(cache.updated_at);
+return updated <= 0 || (updated + ACCESS_CACHE_TTL) < now;
+}
+
+function trigger_access_cache_refresh() {
+system('sh /usr/share/clashoo/net/access_check_cache.sh >/dev/null 2>&1 &');
+}
+
+function access_check_daemon_running() {
+if (!access(ACCESS_DAEMON_PID_FILE, 'r')) return false;
+let pid = trim(readfile(ACCESS_DAEMON_PID_FILE) || '');
+if (!pid) return false;
+return !!access('/proc/' + pid, 'r');
+}
+
+function ensure_access_check_daemon() {
+if (access_check_daemon_running()) return true;
+system('nohup sh /usr/share/clashoo/net/access_check_daemon.sh >/dev/null 2>&1 </dev/null &');
+return true;
+}
+
+function ensure_access_payload_shape(data, proxy_port, tcp_mode, udp_mode, stale, updating) {
+let payload = data || {};
+payload.proxy_port = payload.proxy_port || proxy_port || '7890';
+payload.tcp_mode = payload.tcp_mode || tcp_mode || 'redirect';
+payload.udp_mode = payload.udp_mode || udp_mode || payload.tcp_mode;
+payload.updated_at = int(payload.updated_at || 0);
+
+if (!payload.direct || type(payload.direct) != 'object')
+payload.direct = {};
+if (!payload.proxy || type(payload.proxy) != 'object')
+payload.proxy = {};
+if (!payload.direct.bytedance)
+payload.direct.bytedance = default_probe_result();
+if (!payload.direct.youtube)
+payload.direct.youtube = default_probe_result();
+if (!payload.proxy.bytedance)
+payload.proxy.bytedance = default_probe_result();
+if (!payload.proxy.youtube)
+payload.proxy.youtube = default_probe_result();
+
+payload.stale = stale;
+payload.updating = updating;
+payload.last_checked_ago = payload.updated_at > 0 ? (now_epoch_sec() - payload.updated_at) : -1;
+return payload;
 }
 
 function get_cpu_arch() {
@@ -349,11 +497,127 @@ if (!t) t = 'template';
 return '_merged_' + s + '__' + t + '.yaml';
 }
 
-function mihomo_api_post(path) {
+function template_search_dirs() {
+return [TEMPLATE_USER_DIR, TEMPLATE_DIR, '/usr/share/clashoo/config/template'];
+}
+
+function find_template_path(name) {
+name = ensure_yaml_name(name || '');
+if (!name) return '';
+for (let dir in template_search_dirs()) {
+let p = dir + '/' + name;
+if (access(p, 'r')) return p;
+}
+return '';
+}
+
+function trim_quotes(v) {
+v = trim(v || '');
+v = replace(v, /^["']/, '');
+v = replace(v, /["']$/, '');
+return v;
+}
+
+function parse_controller_port(value, fallback) {
+value = trim(value || '');
+if (!value) return fallback || '9090';
+value = replace(value, /^https?:\/\//, '');
+value = replace(value, /\/.*$/, '');
+let m = match(value, /:([0-9]+)$/);
+if (m && m[1]) return m[1];
+if (match(value, /^[0-9]+$/)) return value;
+return fallback || '9090';
+}
+
+function parse_mihomo_api_auth(path) {
+let info = { has_port: false, port: '', has_secret: false, secret: '' };
+if (!access(path, 'r')) return info;
+let raw = readfile(path) || '';
+if (!raw) return info;
+
+for (let line in split(raw, '\n')) {
+	line = trim(line || '');
+	if (!line) continue;
+
+	let m_controller = match(line, /^external-controller:\s*(.+)$/);
+	if (m_controller && m_controller[1]) {
+		info.has_port = true;
+		info.port = parse_controller_port(trim_quotes(m_controller[1]), '9090');
+	}
+
+	let m_secret = match(line, /^secret:\s*(.*)$/);
+	if (m_secret) {
+		info.has_secret = true;
+		let secret = trim(m_secret[1] || '');
+		info.secret = trim_quotes(secret);
+	}
+}
+
+return info;
+}
+
+function parse_singbox_api_auth(path) {
+let info = { has_port: false, port: '', has_secret: false, secret: '' };
+if (!access(path, 'r')) return info;
+let raw = readfile(path) || '';
+if (!raw) return info;
+
+let cfg = null;
+try {
+	cfg = json(raw);
+} catch (e) {
+	return info;
+}
+
+let api = cfg?.experimental?.clash_api;
+if (!api || type(api) != 'object') return info;
+
+let controller = api.external_controller || '';
+if (controller) {
+	info.has_port = true;
+	info.port = parse_controller_port(controller, '9090');
+}
+
+if (type(api.secret) != 'undefined' && api.secret !== null) {
+	info.has_secret = true;
+	info.secret = '' + api.secret;
+}
+
+return info;
+}
+
+function get_clash_api_auth() {
 let c = cursor();
 c.load('clashoo');
-let dash_port = c.get('clashoo', 'config', 'dash_port') || '9090';
-let dash_pass = c.get('clashoo', 'config', 'dash_pass') || '';
+let auth = {
+	port: c.get('clashoo', 'config', 'dash_port') || '9090',
+	pass: c.get('clashoo', 'config', 'dash_pass') || ''
+};
+
+let family = running_core_family() || get_core_type();
+if (family == 'singbox') {
+	let sb = parse_singbox_api_auth('/etc/sing-box/config.json');
+	if (sb.has_port) auth.port = sb.port || auth.port;
+	if (sb.has_secret) auth.pass = sb.secret || '';
+} else {
+	let mm = parse_mihomo_api_auth('/etc/clashoo/config.yaml');
+	if (mm.has_port) auth.port = mm.port || auth.port;
+	if (mm.has_secret) auth.pass = mm.secret || '';
+}
+
+return auth;
+}
+
+function api_unauthorized_payload(obj) {
+if (!obj || type(obj) != 'object') return false;
+let msg = '' + (obj.message || obj.error || '');
+return !!match(msg, /[Uu]nauthorized|[Ff]orbidden|401/);
+}
+
+function mihomo_api_post(path) {
+let api = get_clash_api_auth();
+let dash_port = api.port;
+let dash_pass = api.pass;
 let auth = dash_pass ? ('-H ' + shell_quote('Authorization: Bearer ' + dash_pass) + ' ') : '';
 let url  = 'http://127.0.0.1:' + dash_port + path;
 let cmd  = 'curl -s -o /dev/null -w "%{http_code}" -m 10 -X POST ' + auth + shell_quote(url) + ' 2>/dev/null';
@@ -362,6 +626,57 @@ if (!p) return '000';
 let code = trim(p.read('all'));
 p.close();
 return code || '000';
+}
+
+function clash_api_get(path, timeout) {
+let api = get_clash_api_auth();
+let dash_port = api.port;
+let dash_pass = api.pass;
+let auth = dash_pass ? ('-H ' + shell_quote('Authorization: Bearer ' + dash_pass) + ' ') : '';
+let t = timeout || 4;
+let url = 'http://127.0.0.1:' + dash_port + path;
+let cmd = 'curl -s -m ' + t + ' ' + auth + shell_quote(url) + ' 2>/dev/null';
+let p = popen(cmd);
+if (!p) return '';
+let raw = trim(p.read('all'));
+p.close();
+return raw;
+}
+
+function clash_api_json(path, timeout) {
+let raw = clash_api_get(path, timeout);
+if (!raw) return null;
+try {
+	let obj = json(raw);
+	return obj ? obj : null;
+} catch (e) {
+	/* Some endpoints can stream multiple JSON frames; parse first valid line */
+	for (let line in split(raw, '\n')) {
+		line = trim(line || '');
+		if (!line) continue;
+		try {
+			let obj2 = json(line);
+			if (obj2) return obj2;
+		} catch (e2) {}
+	}
+	return null;
+}
+}
+
+function read_overview_stats_cache() {
+let raw = trim(readfile(OVERVIEW_STATS_CACHE_FILE) || '');
+if (!raw) return {};
+try {
+	let obj = json(raw);
+	return obj ? obj : {};
+} catch (e) {
+	return {};
+}
+}
+
+function write_overview_stats_cache(payload) {
+if (!payload) return;
+writefile(OVERVIEW_STATS_CACHE_FILE, sprintf('%J', payload));
 }
 
 function read_subscriptions() {
@@ -379,6 +694,75 @@ let typ  = length(parts) > 2 ? trim(parts[2]) : 'clashoo';
 if (name && url) push(rows, { name, url, type: typ });
 }
 return rows;
+}
+
+function build_configs_payload() {
+let configs = [];
+let subs = read_subscriptions();
+let core_type = get_core_type();
+let current = get_current_config(core_type);
+
+function has_cfg(n) {
+for (let i = 0; i < length(configs); i++)
+if (configs[i] == n) return true;
+return false;
+}
+
+for (let row in subs) {
+let n = row.name;
+if (!n) continue;
+if (!access('/usr/share/clashoo/config/sub/' + n, 'r')) continue;
+if (!has_cfg(n)) push(configs, n);
+}
+
+for (let f in (glob('/usr/share/clashoo/config/upload/*.yaml') || [])) {
+let n = replace(f, '/usr/share/clashoo/config/upload/', '');
+if (n && !has_cfg(n)) push(configs, n);
+}
+for (let f in (glob('/usr/share/clashoo/config/upload/*.yml') || [])) {
+let n = replace(f, '/usr/share/clashoo/config/upload/', '');
+if (n && !has_cfg(n)) push(configs, n);
+}
+
+for (let f in (glob('/usr/share/clashoo/config/custom/*.yaml') || [])) {
+let n = replace(f, '/usr/share/clashoo/config/custom/', '');
+if (n && !has_cfg(n)) push(configs, n);
+}
+for (let f in (glob('/usr/share/clashoo/config/custom/*.yml') || [])) {
+let n = replace(f, '/usr/share/clashoo/config/custom/', '');
+if (n && !has_cfg(n)) push(configs, n);
+}
+
+for (let f in (glob(SINGBOX_DIR + '/*.json') || [])) {
+let n = replace(f, SINGBOX_DIR + '/', '');
+if (n && !has_cfg(n)) push(configs, n);
+}
+
+if (current && !has_cfg(current))
+push(configs, current);
+
+return { configs: configs, current: current, core_type: core_type };
+}
+
+function get_access_payload() {
+let proxy_port = uci_get('clashoo', 'config', 'mixed_port') || uci_get('clashoo', 'config', 'http_port') || '7890';
+let tcp_mode = uci_get('clashoo', 'config', 'tcp_mode') || 'redirect';
+let udp_mode = uci_get('clashoo', 'config', 'udp_mode') || tcp_mode;
+ensure_access_check_daemon();
+let now = now_epoch_sec();
+let cache = read_access_check_cache();
+let stale = access_cache_is_stale(cache, now);
+let updating = !!access(ACCESS_UPDATING_FLAG, 'r');
+
+if ((stale || !cache) && !updating) {
+trigger_access_cache_refresh();
+updating = true;
+}
+
+if (!cache)
+return default_access_payload(proxy_port, tcp_mode, udp_mode);
+
+return ensure_access_payload_shape(cache, proxy_port, tcp_mode, udp_mode, stale, updating);
 }
 
 function read_template_bindings() {
@@ -713,19 +1097,35 @@ let configured_core = get_core_type();
 let p = popen("pidof mihomo clash-meta clash sing-box >/dev/null 2>&1; echo $?");
 let r = p ? trim(p.read('all')) : '1'; if (p) p.close();
 let running = r === '0';
-let dash_port  = c.get('clashoo', 'config', 'dash_port')      || '9090';
-let dash_pass  = c.get('clashoo', 'config', 'dash_pass')      || '';
 let proxy_mode = c.get('clashoo', 'config', 'p_mode')         || 'rule';
 let conf_path  = c.get('clashoo', 'config', 'use_config')     || '';
 let panel_type = c.get('clashoo', 'config', 'dashboard_panel')|| 'metacubexd';
 let tcp_mode   = c.get('clashoo', 'config', 'tcp_mode')       || 'tun';
 let udp_mode   = c.get('clashoo', 'config', 'udp_mode')       || tcp_mode;
+let stack      = c.get('clashoo', 'config', 'stack')          || 'system';
+let api = get_clash_api_auth();
+let dash_port  = api.port || (c.get('clashoo', 'config', 'dash_port') || '9090');
+let dash_pass  = api.pass || '';
+let effective_tcp_mode = runtime_state_get('effective_tcp_mode') || tcp_mode;
+let effective_udp_mode = runtime_state_get('effective_udp_mode') || udp_mode;
+let runtime_degraded = runtime_state_get('degraded') == '1';
+let runtime_degrade_reason = runtime_state_get('degrade_reason') || '';
+let health_status = runtime_state_get('health_status') || (running ? 'unknown' : 'stopped');
+let health_detail = runtime_state_get('health_detail') || '';
+let has_tun_device = runtime_state_get('has_tun_device');
 let p2 = popen("ip route get 1.1.1.1 2>/dev/null | awk '/src/{print $(NF-2)}'");
 let local_ip = p2 ? trim(p2.read('all')) : ''; if (p2) p2.close();
+let config = get_display_config_name(configured_core);
 let slash = rindex(conf_path, '/');
 let conf_name = slash >= 0 ? substr(conf_path, slash + 1) : conf_path;
-return { running, dash_port, dash_pass, proxy_mode, conf_path: conf_name,
-         panel_type, tcp_mode, udp_mode, core_type: configured_core, local_ip };
+if (configured_core == 'singbox' && config)
+	conf_name = config;
+return { running, dash_port, dash_pass, proxy_mode, conf_path: conf_name, config,
+         panel_type, tcp_mode, udp_mode, stack,
+         effective_tcp_mode, effective_udp_mode,
+         runtime_degraded, runtime_degrade_reason,
+         health_status, health_detail, has_tun_device,
+         core_type: configured_core, local_ip };
 } catch (e) {
 return { success: false, error: 'status_failed', message: '' + e };
 }
@@ -792,6 +1192,7 @@ c.set('clashoo', 'config', 'stack', 'gvisor');
 c.set('clashoo', 'config', 'enhanced_mode', 'fake-ip');
 }
 c.commit('clashoo');
+system('uci commit clashoo >/dev/null 2>&1');
 if (is_running()) system('service ' + get_service_name() + ' restart >/dev/null 2>&1');
 return { success: true };
 }
@@ -811,6 +1212,29 @@ return { success: true };
 }
 },
 
+set_core: {
+args: { core: 'core', dcore: 'dcore' },
+call: function(req) {
+let core = req.args?.core || 'mihomo';
+let dcore = req.args?.dcore || '';
+if (core != 'mihomo' && core != 'singbox')
+return { success: false, error: 'invalid core', message: '无效内核类型' };
+
+let c = cursor(); c.load('clashoo');
+c.set('clashoo', 'config', 'core_type', core);
+if (dcore)
+c.set('clashoo', 'config', 'dcore', dcore);
+sync_legacy_core_fields(c);
+c.commit('clashoo');
+system('uci commit clashoo >/dev/null 2>&1');
+
+if (is_running())
+system('sh /usr/share/clashoo/rpc/rpc_async.sh stop >/dev/null 2>&1');
+
+return { success: true, core_type: core, stopped: true };
+}
+},
+
 set_panel: {
 args: { name: 'name' },
 call: function(req) {
@@ -820,6 +1244,7 @@ name = 'metacubexd';
 let c = cursor(); c.load('clashoo');
 c.set('clashoo', 'config', 'dashboard_panel', name);
 c.commit('clashoo');
+system('uci commit clashoo >/dev/null 2>&1');
 return { success: true };
 }
 },
@@ -828,6 +1253,12 @@ update_panel: {
 args: { name: 'name' },
 call: function(req) {
 let name = req.args?.name || 'metacubexd';
+let pretty = name;
+if (name == 'metacubexd') pretty = 'MetaCubeXD';
+else if (name == 'yacd') pretty = 'YACD';
+else if (name == 'zashboard') pretty = 'Zashboard';
+else if (name == 'razord') pretty = 'Razord';
+system("printf '%s - 面板更新任务已提交: " + shell_quote(pretty) + "\\n' \"$(date '+%Y-%m-%d %H:%M:%S')\" >>/tmp/clash_update.txt");
 system("nohup sh /usr/share/clashoo/update/panel_download.sh " + shell_quote(name) + " >>/tmp/clash_update.txt 2>&1 </dev/null &");
 return { success: true };
 }
@@ -835,53 +1266,31 @@ return { success: true };
 
 list_configs: {
 call: function() {
-let configs = [];
-let subs = read_subscriptions();
-let current = get_current_config();
-
-function has_cfg(n) {
-for (let i = 0; i < length(configs); i++)
-if (configs[i] == n) return true;
-return false;
-}
-
-for (let row in subs) {
-let n = row.name;
-if (!n) continue;
-if (!access('/usr/share/clashoo/config/sub/' + n, 'r')) continue;
-if (!has_cfg(n)) push(configs, n);
-}
-
-for (let f in (glob('/usr/share/clashoo/config/upload/*.yaml') || [])) {
-let n = replace(f, '/usr/share/clashoo/config/upload/', '');
-if (n && !has_cfg(n)) push(configs, n);
-}
-for (let f in (glob('/usr/share/clashoo/config/upload/*.yml') || [])) {
-let n = replace(f, '/usr/share/clashoo/config/upload/', '');
-if (n && !has_cfg(n)) push(configs, n);
-}
-
-for (let f in (glob('/usr/share/clashoo/config/custom/*.yaml') || [])) {
-let n = replace(f, '/usr/share/clashoo/config/custom/', '');
-if (n && !has_cfg(n)) push(configs, n);
-}
-for (let f in (glob('/usr/share/clashoo/config/custom/*.yml') || [])) {
-let n = replace(f, '/usr/share/clashoo/config/custom/', '');
-if (n && !has_cfg(n)) push(configs, n);
-}
-
-if (current && !has_cfg(current))
-push(configs, current);
-
-return { configs: configs, current: current };
+return build_configs_payload();
 }
 },
 
 set_config: {
 args: { name: 'name' },
 call: function(req) {
-let name = req.args?.name || '';
+let name = safe_name(req.args?.name || '');
 if (!name) return { error: 'missing name' };
+
+if (match(name, /\.json$/)) {
+let profile = SINGBOX_DIR + '/' + name;
+if (!access(profile, 'r')) return { error: 'not found' };
+
+let c = cursor();
+c.load('clashoo');
+c.set('clashoo', 'config', 'singbox_active', name);
+c.commit('clashoo');
+
+if (is_running() && (running_core_family() == 'singbox' || get_core_type() == 'singbox'))
+system('sh /usr/share/clashoo/rpc/rpc_async.sh restart >/dev/null 2>&1');
+
+return { success: true, family: 'singbox', current: name };
+}
+
 let found_path = '';
 let found_type = '';
 for (let dir in CONFIG_DIRS) {
@@ -894,7 +1303,7 @@ c.set('clashoo', 'config', 'use_config', found_path);
 c.set('clashoo', 'config', 'config_type', found_type);
 c.commit('clashoo');
 if (is_running()) system('service ' + get_service_name() + ' restart >/dev/null 2>&1');
-return { success: true };
+return { success: true, family: 'mihomo', current: name };
 }
 },
 
@@ -993,64 +1402,195 @@ return { success: writefile('/tmp/geoip_update.txt', '') !== null };
 
 access_check: {
 call: function() {
-function probe(url, mode) {
-let p = popen("/usr/share/clashoo/net/access_check.sh '" + url + "' '" + mode + "' 2>/dev/null");
-let raw = '';
-if (p) { raw = trim(p.read('all')); p.close(); }
-let ok = 0;
-let attempts = 1;
-let loss = 1;
-let avg_ms = 0;
-let last_code = '000';
-
-for (let token in split(raw, ' ')) {
-let kv = split(token, '=');
-if (length(kv) < 2) continue;
-if (kv[0] == 'ok') ok = int(kv[1]);
-else if (kv[0] == 'attempts') attempts = int(kv[1]);
-else if (kv[0] == 'loss') loss = int(kv[1]);
-else if (kv[0] == 'avg_ms') avg_ms = int(kv[1]);
-else if (kv[0] == 'code') last_code = kv[1];
+return get_access_payload();
 }
-
-let state = 'down';
- if (ok == attempts) {
- state = avg_ms >= 2500 ? 'high_latency' : 'ok';
-}
-else if (ok > 0) {
-state = 'loss';
-}
-
-return {
-ok: ok > 0,
-state,
-code: last_code,
-ok_count: ok,
-attempts,
-loss,
-avg_ms
-};
-}
-
-let proxy_port = uci_get('clashoo', 'config', 'mixed_port') || uci_get('clashoo', 'config', 'http_port') || '7890';
-let tcp_mode = uci_get('clashoo', 'config', 'tcp_mode') || 'redirect';
-let udp_mode = uci_get('clashoo', 'config', 'udp_mode') || tcp_mode;
-
-return {
-proxy_port,
-tcp_mode,
-udp_mode,
-direct: {
-baidu:  probe('https://www.baidu.com',              'direct'),
-google: probe('https://www.google.com/generate_204','direct'),
-github: probe('https://github.com',                  'direct')
 },
-proxy: {
-baidu:  probe('https://www.baidu.com',              'proxy'),
-google: probe('https://www.google.com/generate_204','proxy'),
-github: probe('https://github.com',                  'proxy')
+
+access_check_refresh: {
+call: function() {
+ensure_access_check_daemon();
+let updating = !!access(ACCESS_UPDATING_FLAG, 'r');
+if (!updating)
+trigger_access_cache_refresh();
+return { success: true, started: !updating };
 }
-};
+},
+
+overview_stats: {
+call: function() {
+try {
+	let p = popen("pidof mihomo clash-meta clash sing-box >/dev/null 2>&1; echo $?");
+	let running = p ? (trim(p.read('all')) === '0') : false;
+	if (p) p.close();
+	if (!running)
+		return { ok: false, running: false };
+
+		/* Fast path: /connections already contains totals + memory on current kernels */
+		let conns0 = clash_api_json('/connections', 2);
+		if (api_unauthorized_payload(conns0)) conns0 = null;
+
+		let conns = conns0 || {};
+		let up_total = int(conns.uploadTotal || conns.upload_total || 0);
+		let down_total = int(conns.downloadTotal || conns.download_total || 0);
+		let up = int(conns.up || conns.upload || conns.upSpeed || conns.uploadSpeed || 0);
+		let down = int(conns.down || conns.download || conns.downSpeed || conns.downloadSpeed || 0);
+		let mem_inuse = int(conns.memory || conns.memory_inuse || conns.inuse || 0);
+
+	let conn_count = 0;
+	if (conns && conns.connections) {
+		let n = int(conns.connections || 0);
+		if (n > 0)
+			conn_count = n;
+		else
+			for (let _ in conns.connections)
+				conn_count++;
+	}
+	if (conn_count <= 0)
+		conn_count = int(conns.connection || conns.connections_count || 0);
+
+	/* Fallback: derive instantaneous rates from total deltas */
+	if ((up <= 0 && down <= 0) && (up_total > 0 || down_total > 0)) {
+		let now = now_epoch_sec();
+		let prev = read_overview_stats_cache();
+		let prev_ts = int(prev.ts || 0);
+		let dt = now - prev_ts;
+		if (dt > 0 && dt < 120) {
+			let prev_up_total = int(prev.up_total || 0);
+			let prev_down_total = int(prev.down_total || 0);
+			if (up_total >= prev_up_total)
+				up = int((up_total - prev_up_total) / dt);
+			if (down_total >= prev_down_total)
+				down = int((down_total - prev_down_total) / dt);
+		}
+		write_overview_stats_cache({
+			ts: now,
+			up_total: up_total,
+			down_total: down_total
+		});
+	}
+
+		let ok = !!(conns0 || up_total > 0 || down_total > 0 || conn_count > 0 || mem_inuse > 0);
+	return {
+		ok,
+		running: true,
+		up,
+		down,
+		up_total,
+		down_total,
+		connections: conn_count,
+		memory_inuse: mem_inuse
+	};
+} catch (e) {
+	return {
+		ok: false,
+		running: is_running(),
+		error: 'overview_stats_failed',
+		message: '' + e
+	};
+}
+}
+},
+
+/* Aggregate poll endpoint: returns status + realtime stats in ONE rpcd invocation.
+   Critical: rpcd cold-starts ucode per call (~4s for this 2500-line script),
+   so combining avoids a 3x penalty when the page polls. */
+overview: {
+call: function() {
+try {
+	let c = cursor();
+	c.load('clashoo');
+	let configured_core = get_core_type();
+	let p = popen("pidof mihomo clash-meta clash sing-box >/dev/null 2>&1; echo $?");
+	let r = p ? trim(p.read('all')) : '1'; if (p) p.close();
+	let running = r === '0';
+	let proxy_mode = c.get('clashoo', 'config', 'p_mode')         || 'rule';
+	let conf_path  = c.get('clashoo', 'config', 'use_config')     || '';
+let panel_type = c.get('clashoo', 'config', 'dashboard_panel')|| 'metacubexd';
+let tcp_mode   = c.get('clashoo', 'config', 'tcp_mode')       || 'tun';
+let udp_mode   = c.get('clashoo', 'config', 'udp_mode')       || tcp_mode;
+let stack      = c.get('clashoo', 'config', 'stack')          || 'system';
+let api = get_clash_api_auth();
+	let dash_port  = api.port || (c.get('clashoo', 'config', 'dash_port') || '9090');
+	let dash_pass  = api.pass || '';
+	let effective_tcp_mode = runtime_state_get('effective_tcp_mode') || tcp_mode;
+	let effective_udp_mode = runtime_state_get('effective_udp_mode') || udp_mode;
+	let runtime_degraded = runtime_state_get('degraded') == '1';
+	let runtime_degrade_reason = runtime_state_get('degrade_reason') || '';
+	let health_status = runtime_state_get('health_status') || (running ? 'unknown' : 'stopped');
+	let health_detail = runtime_state_get('health_detail') || '';
+	let has_tun_device = runtime_state_get('has_tun_device');
+	let p2 = popen("ip route get 1.1.1.1 2>/dev/null | awk '/src/{print $(NF-2)}'");
+	let local_ip = p2 ? trim(p2.read('all')) : ''; if (p2) p2.close();
+	let config = get_display_config_name(configured_core);
+	let slash = rindex(conf_path, '/');
+	let conf_name = slash >= 0 ? substr(conf_path, slash + 1) : conf_path;
+	if (configured_core == 'singbox' && config) conf_name = config;
+
+let status_payload = { running, dash_port, dash_pass, proxy_mode, conf_path: conf_name, config,
+                       panel_type, tcp_mode, udp_mode, stack,
+                       effective_tcp_mode, effective_udp_mode,
+	                       runtime_degraded, runtime_degrade_reason,
+	                       health_status, health_detail, has_tun_device,
+	                       core_type: configured_core, local_ip };
+
+	let stats_payload = { ok: false, running: running };
+	if (running) {
+			let conns0 = clash_api_json('/connections', 1);
+			if (api_unauthorized_payload(conns0)) conns0 = null;
+			let conns = conns0 || {};
+			let up_total = int(conns.uploadTotal || conns.upload_total || 0);
+			let down_total = int(conns.downloadTotal || conns.download_total || 0);
+			let up = int(conns.up || conns.upload || conns.upSpeed || conns.uploadSpeed || 0);
+			let down = int(conns.down || conns.download || conns.downSpeed || conns.downloadSpeed || 0);
+			let mem_inuse = int(conns.memory || conns.memory_inuse || conns.inuse || 0);
+		let conn_count = 0;
+		if (conns && conns.connections) {
+			let n = int(conns.connections || 0);
+			if (n > 0) conn_count = n;
+			else for (let _ in conns.connections) conn_count++;
+		}
+		if (conn_count <= 0) conn_count = int(conns.connection || conns.connections_count || 0);
+		if ((up <= 0 && down <= 0) && (up_total > 0 || down_total > 0)) {
+			let now = now_epoch_sec();
+			let prev = read_overview_stats_cache();
+			let prev_ts = int(prev.ts || 0);
+			let dt = now - prev_ts;
+			if (dt > 0 && dt < 120) {
+				let prev_up_total = int(prev.up_total || 0);
+				let prev_down_total = int(prev.down_total || 0);
+				if (up_total >= prev_up_total) up = int((up_total - prev_up_total) / dt);
+				if (down_total >= prev_down_total) down = int((down_total - prev_down_total) / dt);
+			}
+			write_overview_stats_cache({ ts: now, up_total: up_total, down_total: down_total });
+		}
+		stats_payload = {
+				ok: !!(conns0 || up_total > 0 || down_total > 0 || conn_count > 0 || mem_inuse > 0),
+			running: true,
+			up, down, up_total, down_total,
+			connections: conn_count,
+			memory_inuse: mem_inuse
+		};
+	}
+
+	let configs_payload = build_configs_payload();
+	let access_payload = get_access_payload();
+
+	return {
+		status: status_payload,
+		stats: stats_payload,
+		configs: configs_payload,
+		access: access_payload
+	};
+} catch (e) {
+	return {
+		status: { running: false },
+		stats: { ok: false, running: false },
+		configs: { configs: [], current: '', core_type: get_core_type() },
+		access: default_access_payload('7890', 'redirect', 'redirect'),
+		error: 'overview_failed',
+		message: '' + e
+	};
+}
 }
 },
 
@@ -1086,17 +1626,22 @@ return { subs: rows, active: active_name };
 list_templates: {
 call: function() {
 let files = [];
-for (let f in (glob(TEMPLATE_DIR + '/*.yaml') || [])) {
-let name = replace(f, TEMPLATE_DIR + '/', '');
-if (index(name, '_merged_') == 0) continue;
+let seen = {};
+for (let dir in template_search_dirs()) {
+for (let f in (glob(dir + '/*.yaml') || [])) {
+let name = replace(f, dir + '/', '');
+if (index(name, '_merged_') == 0 || seen[name]) continue;
+seen[name] = 1;
 let fi = stat(f);
 push(files, { name, mtime: fi ? ('' + fi.mtime) : null, size: fi ? (int(fi.size / 1024) + ' KB') : null });
 }
-for (let f in (glob(TEMPLATE_DIR + '/*.yml') || [])) {
-let name = replace(f, TEMPLATE_DIR + '/', '');
-if (index(name, '_merged_') == 0) continue;
+for (let f in (glob(dir + '/*.yml') || [])) {
+let name = replace(f, dir + '/', '');
+if (index(name, '_merged_') == 0 || seen[name]) continue;
+seen[name] = 1;
 let fi = stat(f);
 push(files, { name, mtime: fi ? ('' + fi.mtime) : null, size: fi ? (int(fi.size / 1024) + ' KB') : null });
+}
 }
 return { files };
 }
@@ -1131,7 +1676,7 @@ return { success: true, message: '已移除模板绑定' };
 
 if (!access(SUB_DIR + '/' + sub_name, 'r'))
 return { success: false, error: 'sub_not_found', message: '订阅文件不存在' };
-if (!access(TEMPLATE_DIR + '/' + template_name, 'r'))
+if (!find_template_path(template_name))
 return { success: false, error: 'template_not_found', message: '模板文件不存在' };
 
 let rows = read_template_bindings();
@@ -1174,8 +1719,8 @@ return { success: false, error: 'binding_not_found', message: '未找到启用�
 template_name = b.template_name;
 }
 
-let template_path = TEMPLATE_DIR + '/' + template_name;
-if (!access(template_path, 'r'))
+let template_path = find_template_path(template_name);
+if (!template_path)
 return { success: false, error: 'template_not_found', message: '模板文件不存在' };
 
 let output_name = template_output_name(sub_name, template_name);
@@ -1219,8 +1764,8 @@ let failed = [];
 for (let row in rows) {
 if (row.enabled != '1') continue;
 let sub_path = SUB_DIR + '/' + row.sub_name;
-let template_path = TEMPLATE_DIR + '/' + row.template_name;
-if (!access(sub_path, 'r') || !access(template_path, 'r')) {
+let template_path = find_template_path(row.template_name);
+if (!access(sub_path, 'r') || !template_path) {
 push(failed, row.sub_name);
 continue;
 }
@@ -1389,13 +1934,14 @@ return { success: false, code: rc, message: '更新失败: ' + name };
 
 let msg = '更新完成: ' + name;
 let b = find_template_binding(name);
-if (b && b.enabled == '1' && access(TEMPLATE_DIR + '/' + b.template_name, 'r')) {
+let btpl = b ? find_template_path(b.template_name) : '';
+if (b && b.enabled == '1' && btpl) {
 let sub_path = SUB_DIR + '/' + name;
 let output_name = template_output_name(name, b.template_name);
 let out_path = TEMPLATE_DIR + '/' + output_name;
 let merge_cmd = 'sh /usr/share/clashoo/update/template_merge.sh '
   + shell_quote(sub_path) + ' '
-  + shell_quote(TEMPLATE_DIR + '/' + b.template_name) + ' '
+  + shell_quote(btpl) + ' '
   + shell_quote(out_path)
   + ' >/dev/null 2>&1';
 if (system(merge_cmd) == 0) {
@@ -1452,7 +1998,7 @@ return { success: false, error: 'download_failed', message: '远程模板下载�
 } else {
 let safe = safe_name(tpl_src);
 let local_path = null;
-let search_dirs = ['/usr/share/clashoo/config/custom', '/usr/share/clashoo/config/template'];
+let search_dirs = template_search_dirs();
 for (let i = 0; i < length(search_dirs); i++) {
 if (access(search_dirs[i] + '/' + safe, 'r')) { local_path = search_dirs[i] + '/' + safe; break; }
 }
@@ -1674,6 +2220,29 @@ let path = dir + '/' + name;
 if (writefile(path, content) === null)
 return { success: false, error: 'write_failed', message: '写入文件失败' };
 return { success: true, name, path };
+}
+},
+
+upload_template: {
+args: { name: 'name', content: 'content' },
+call: function(req) {
+let name = safe_name(ensure_yaml_name(req.args?.name || ''));
+let content = req.args?.content || '';
+if (!name)
+return { success: false, error: 'invalid_name', message: '模板文件名无效' };
+if (!content)
+return { success: false, error: 'empty_content', message: '模板内容为空' };
+
+system('mkdir -p ' + shell_quote(TEMPLATE_USER_DIR) + ' ' + shell_quote(TEMPLATE_DIR));
+let user_path = TEMPLATE_USER_DIR + '/' + name;
+if (writefile(user_path, content) === null)
+return { success: false, error: 'write_failed', message: '写入模板失败' };
+
+let custom_path = TEMPLATE_DIR + '/' + name;
+if (writefile(custom_path, content) === null)
+return { success: false, error: 'mirror_failed', message: '写入模板镜像失败' };
+
+return { success: true, name, path: user_path, mirror: custom_path };
 }
 },
 

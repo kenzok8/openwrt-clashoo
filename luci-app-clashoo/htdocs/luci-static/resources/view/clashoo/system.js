@@ -13,7 +13,7 @@ var CSS = [
   '.cl-tab.active{opacity:1;border-bottom-color:currentColor;font-weight:600}',
   '.cl-panel{display:none}.cl-panel.active{display:block}',
   '.cl-section{margin-bottom:20px}',
-  '.cl-section h4{font-size:13px;font-weight:700;margin-bottom:10px;opacity:.7}',
+  '.cl-section h4{font-size:.95rem;font-weight:600;margin-bottom:10px;color:var(--title-color,rgba(92,102,120,.72));opacity:.95}',
   '.cl-save-bar{display:flex;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid rgba(128,128,128,.15)}',
   '.cl-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}',
   '.cl-log-area{font-family:monospace;font-size:11px;opacity:.75;max-height:300px;overflow-y:auto;border:1px solid rgba(128,128,128,.2);border-radius:8px;padding:10px;white-space:pre-wrap;margin-top:8px}',
@@ -31,19 +31,137 @@ var CSS = [
   '.cl-wrap .btn,.cl-wrap .cbi-button{padding:4px 10px;line-height:1.35}'
 ].join('');
 
-function saveCommitApplyAndRestart(m, successMsg) {
-  return m.save()
-    .then(function () { return clashoo.commitConfig(); })
-    .then(function () { return clashoo.restart(); })
-    .then(function () {
-      if (ui.changes && typeof ui.changes.apply === 'function') {
-        ui.changes.apply(false);
-        return;
+function fastResolve(promise, timeoutMs, fallback) {
+  var t = new Promise(function (resolve) {
+    setTimeout(function () { resolve(fallback); }, timeoutMs);
+  });
+  return Promise.race([L.resolveDefault(promise, fallback), t]);
+}
+
+function decorateSystemForm(root) {
+  if (!root || !root.querySelectorAll)
+    return;
+
+  var fields = root.querySelectorAll('.cbi-value-field');
+  for (var i = 0; i < fields.length; i++) {
+    if (fields[i] && fields[i].classList)
+      fields[i].classList.add('cl-control-wrap');
+  }
+
+  var sections = root.querySelectorAll('.cbi-section');
+  for (var j = 0; j < sections.length; j++) {
+    if (sections[j] && sections[j].classList)
+      sections[j].classList.add('cl-form-card');
+  }
+}
+
+function randomSecret(len) {
+  var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+  var out = '';
+  var n = Math.max(6, parseInt(len, 10) || 6);
+  for (var i = 0; i < n; i++) {
+    out += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return out;
+}
+
+function enhanceDashPasswordField(root) {
+  if (!root || !root.querySelector)
+    return;
+
+  var input = root.querySelector('input[id$=".dash_pass"], input[name$=".dash_pass"]');
+  if (!input || input.dataset.clEnhanced === '1')
+    return;
+
+  input.dataset.clEnhanced = '1';
+  input.type = 'password';
+  input.autocomplete = 'new-password';
+
+  var parent = input.parentNode;
+  if (!parent)
+    return;
+
+  /* Remove LuCI default password helper controls (e.g. stray "*" button) */
+  var children = parent.children ? Array.prototype.slice.call(parent.children) : [];
+  children.forEach(function (el) {
+    if (!el || el === input)
+      return;
+    var tag = (el.tagName || '').toUpperCase();
+    var isBtnLike = tag === 'BUTTON'
+      || (tag === 'INPUT' && String(el.type || '').toLowerCase() === 'button')
+      || ((el.className || '').indexOf('cbi-button') >= 0);
+    if (isBtnLike)
+      parent.removeChild(el);
+  });
+
+  var wrap = E('div', { 'class': 'cl-pass-wrap' });
+  parent.insertBefore(wrap, input);
+  wrap.appendChild(input);
+
+  var eyeBtn = E('button', {
+    type: 'button',
+    'class': 'btn cbi-button cl-pass-btn',
+    title: '显示/隐藏',
+    click: function (ev) {
+      ev.preventDefault();
+      var show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      eyeBtn.textContent = show ? '🙈' : '👁';
+    }
+  }, '👁');
+
+  var genBtn = E('button', {
+    type: 'button',
+    'class': 'btn cbi-button-action cl-pass-btn cl-pass-gen',
+    click: function (ev) {
+      ev.preventDefault();
+      input.type = 'text';
+      input.value = randomSecret(6);
+      eyeBtn.textContent = '🙈';
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }, '随机');
+
+  wrap.appendChild(eyeBtn);
+  wrap.appendChild(genBtn);
+}
+
+function clearClashooDirty() {
+  var applyPromise;
+  try {
+    applyPromise = (L.uci && typeof L.uci.callApply === 'function')
+      ? Promise.resolve(L.uci.callApply(0, false)).catch(function () {})
+      : Promise.resolve();
+  } catch (e) { applyPromise = Promise.resolve(); }
+  return applyPromise.then(function () {
+    try {
+      if (L.ui && L.ui.changes && L.ui.changes.changes) {
+        delete L.ui.changes.changes.clashoo;
+        var n = Object.keys(L.ui.changes.changes).length;
+        if (typeof L.ui.changes.renderChangeIndicator === 'function')
+          L.ui.changes.renderChangeIndicator(n);
+        else if (typeof L.ui.changes.setIndicator === 'function')
+          L.ui.changes.setIndicator(n);
       }
-      if (ui.changes && typeof ui.changes.setIndicator === 'function')
-        ui.changes.setIndicator(0);
-      ui.addNotification(null, E('p', successMsg));
-      window.setTimeout(function () { location.reload(); }, 300);
+    } catch (e) {}
+  });
+}
+
+function saveCommitApplyMaybeReload(m, runningMsg, stoppedMsg) {
+  return clashoo.status()
+    .then(function (st) { return !!(st && st.running); })
+    .catch(function () { return false; })
+    .then(function (running) {
+      return m.save()
+        .then(function () { return clashoo.commitConfig(); })
+        .then(function () {
+          return running ? clashoo.reload() : { success: true, skipped: true };
+        })
+        .then(function () { return clearClashooDirty(); })
+        .then(function () {
+          ui.addNotification(null, E('p', running ? runningMsg : stoppedMsg));
+          window.setTimeout(function () { location.reload(); }, 300);
+        });
     });
 }
 
@@ -53,9 +171,9 @@ return view.extend({
 
   load: function () {
     return Promise.all([
-      clashoo.getCpuArch(),
-      clashoo.getLogStatus(),
-      clashoo.readLog(),
+      fastResolve(clashoo.getCpuArch(), 1200, ''),
+      fastResolve(clashoo.getLogStatus(), 1200, {}),
+      fastResolve(clashoo.readLog(), 1200, ''),
       uci.load('clashoo')
     ]);
   },
@@ -70,6 +188,15 @@ return view.extend({
       var s = document.createElement('style');
       s.id = 'cl-css'; s.textContent = CSS;
       document.head.appendChild(s);
+    }
+    if (!document.getElementById('cl-css-ext')) {
+      var link = document.createElement('link');
+      link.id = 'cl-css-ext';
+      link.rel = 'stylesheet';
+      link.href = L.resource('view/clashoo/clashoo.css') + '?v=20260422ai';
+      document.head.appendChild(link);
+    } else {
+      document.getElementById('cl-css-ext').href = L.resource('view/clashoo/clashoo.css') + '?v=20260422ai';
     }
 
     var tabs = [
@@ -96,15 +223,15 @@ return view.extend({
       })
     );
 
-    var kernelPanel = E('div', { 'class': 'cl-panel' + (this._tab === 'kernel' ? ' active' : '') });
+    var kernelPanel = E('div', { 'class': 'cl-panel' + (this._tab === 'kernel' ? ' active' : ''), id: 'cl-panel-kernel' });
     panelEls['kernel'] = kernelPanel;
     this._buildKernelPanel(kernelPanel, cpuArch);
 
-    var rulesPanel = E('div', { 'class': 'cl-panel' + (this._tab === 'rules' ? ' active' : '') });
+    var rulesPanel = E('div', { 'class': 'cl-panel' + (this._tab === 'rules' ? ' active' : ''), id: 'cl-panel-rules' });
     panelEls['rules'] = rulesPanel;
     this._buildRulesForm(rulesPanel);
 
-    var logsPanel = E('div', { 'class': 'cl-panel' + (this._tab === 'logs' ? ' active' : '') },
+    var logsPanel = E('div', { 'class': 'cl-panel' + (this._tab === 'logs' ? ' active' : ''), id: 'cl-panel-logs' },
       this._buildLogsPanel(runLog)
     );
     panelEls['logs'] = logsPanel;
@@ -113,7 +240,7 @@ return view.extend({
     this._panelEls = panelEls;
     poll.add(L.bind(this._pollLogs, this), 8);
 
-    return E('div', { 'class': 'cl-wrap' }, [tabBar, kernelPanel, rulesPanel, logsPanel]);
+    return E('div', { 'class': 'cl-wrap clashoo-container cl-system-page cl-form-page' }, [tabBar, kernelPanel, rulesPanel, logsPanel]);
   },
 
   _detectMihomoArch: function (raw) {
@@ -142,19 +269,28 @@ return view.extend({
     o = s.option(form.ListValue, 'core_type', '核心类型');
     o.value('mihomo', 'mihomo（Clash Meta 内核）');
     o.value('singbox', 'sing-box（需已安装并启用 clash_api）');
-    o.description = '切换后需重启服务；sing-box 需在 experimental.clash_api 中开启 Clash 兼容 API';
+    o.description = '';
 
     s = m.section(form.NamedSection, 'config', 'clashoo', '内核下载');
     s.addremove = false;
     o = s.option(form.ListValue, 'dcore', '版本类型');
-    o.value('2', 'mihomo（稳定版）'); o.value('3', 'mihomo（预发布版）');
-    o.value('4', 'sing-box（稳定版）'); o.value('5', 'sing-box（预发布版）');
+    o.value('2', 'mihomo（稳定版）'); o.value('3', 'mihomo（Alpha 版）');
+    o.value('4', 'sing-box（稳定版）'); o.value('5', 'sing-box（Alpha 版）');
     o = s.option(form.ListValue, 'download_core', 'CPU 架构');
     ['amd64','arm64','armv7','armv6','armv5','386','mips','mipsle','mips64','mips64le'].forEach(function(a){ o.value(a,a); });
     if (detectedArch) o.default = detectedArch;
-    o.description = cpuArch
-      ? ('检测到系统架构：' + cpuArch + (detectedArch ? '  →  下载架构：' + detectedArch : '  （未知，请手动选择）'))
-      : '无法自动检测，请手动选择架构';
+    o.description = '';
+    o = s.option(form.DummyValue, '_arch_badge', '架构建议');
+    o.cfgvalue = function () {
+      var sys = cpuArch || '未知';
+      var rec = detectedArch || '手动选择';
+      return E('div', { 'class': 'cl-arch-badge-row' }, [
+        E('span', { 'class': 'cl-arch-badge cl-arch-badge-sys' }, '系统架构 ' + sys),
+        E('span', { 'class': 'cl-arch-arrow' }, '→'),
+        E('span', { 'class': 'cl-arch-badge cl-arch-badge-rec' }, '推荐下载 ' + rec)
+      ]);
+    };
+    o.write = function () {};
     o = s.option(form.ListValue, 'download_source', '镜像源');
     o.value('github', 'GitHub'); o.value('ghproxy', 'GHProxy');
     o = s.option(form.DummyValue, '_dl_btn', '');
@@ -216,15 +352,18 @@ return view.extend({
     ['metacubexd','yacd','zashboard','razord'].forEach(function(p){ o.value(p,p); });
 
     m.render().then(function (node) {
+      decorateSystemForm(node);
+      enhanceDashPasswordField(node);
       container.appendChild(node);
       container.appendChild(E('div', { 'class': 'cl-save-bar' }, [
         E('button', { 'class': 'btn cbi-button', click: function () {
           m.save().then(function () { return clashoo.commitConfig(); })
+            .then(function () { return clearClashooDirty(); })
             .then(function () { location.reload(); })
             .catch(function (e) { ui.addNotification(null, E('p', '保存失败: ' + (e.message || e))); });
         }}, '保存配置'),
         E('button', { 'class': 'btn cbi-button-action', click: function () {
-          saveCommitApplyAndRestart(m, '配置已保存并重启服务')
+          saveCommitApplyMaybeReload(m, '配置已保存并热重载服务', '配置已保存，服务未启动')
             .catch(function (e) { ui.addNotification(null, E('p', '操作失败: ' + (e.message || e))); });
         }}, '应用配置')
       ]));
@@ -238,10 +377,22 @@ return view.extend({
     s = m.section(form.NamedSection, 'config', 'clashoo', '绕过规则');
     s.addremove = false;
     o = s.option(form.Flag, 'cn_redirect',  '大陆 IP 绕过');
-    o = s.option(form.DynamicList, 'bypass_port',  '绕过端口');
-    o = s.option(form.DynamicList, 'bypass_dscp',  '绕过 DSCP 标记');
-    o = s.option(form.DynamicList, 'bypass_fwmark','绕过 FWMark');
-    o.description = '只影响外部已打标流量（如 WireGuard）。Clashoo 核心自身出站固定使用 0x1a0a，与此无关。';
+    o = s.option(form.ListValue, 'bypass_port_mode', '绕过端口');
+    o.value('all', '所有端口');
+    o.value('common', '常用端口');
+    o.value('custom', '自定义');
+    o.default = 'all';
+
+    o = s.option(form.Value, 'bypass_port_custom', '自定义端口');
+    o.depends('bypass_port_mode', 'custom');
+    o.placeholder = '22,53,80,443,8080,8443';
+    o.datatype = 'string';
+    o.rmempty = true;
+
+    o = s.option(form.Flag, 'sniffer_streaming', '嗅探功能（流媒体兼容）');
+    o.default = '1';
+    o.rmempty = false;
+    o.description = '启用后自动注入 sniffer 配置，提升流媒体域名识别与分流稳定性。';
 
     s = m.section(form.NamedSection, 'config', 'clashoo', '局域网控制');
     s.addremove = false;
@@ -257,15 +408,17 @@ return view.extend({
     o = s.option(form.Value, 'clear_time','清理间隔（小时）');
 
     m.render().then(function (node) {
+      decorateSystemForm(node);
       container.appendChild(node);
       container.appendChild(E('div', { 'class': 'cl-save-bar' }, [
         E('button', { 'class': 'btn cbi-button', click: function () {
           m.save().then(function () { return clashoo.commitConfig(); })
+            .then(function () { return clearClashooDirty(); })
             .then(function () { location.reload(); })
             .catch(function (e) { ui.addNotification(null, E('p', '保存失败: ' + (e.message || e))); });
         }}, '保存配置'),
         E('button', { 'class': 'btn cbi-button-action', click: function () {
-          saveCommitApplyAndRestart(m, '配置已保存并重启服务')
+          saveCommitApplyMaybeReload(m, '配置已保存并热重载服务', '配置已保存，服务未启动')
             .catch(function (e) { ui.addNotification(null, E('p', '操作失败: ' + (e.message || e))); });
         }}, '应用配置')
       ]));
@@ -312,7 +465,8 @@ return view.extend({
       return logTypes.find(function (lt) { return lt.id === self._logTab; }) || logTypes[0];
     };
 
-    return [
+    return E('div', { 'class': 'cl-section cl-card cl-log-card' }, [
+      E('h4', {}, '日志'),
       logTabBar,
       logArea,
       E('div', { 'class': 'cl-actions', style: 'margin-top:8px' }, [
@@ -330,7 +484,7 @@ return view.extend({
           }
         }, '清空日志')
       ])
-    ];
+    ]);
   },
 
   _pollLogs: function () {

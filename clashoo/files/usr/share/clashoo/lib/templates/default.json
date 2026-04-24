@@ -1,0 +1,95 @@
+{
+  "log": {
+    "level": "info",
+    "timestamp": true
+  },
+  "dns": {
+    "servers": [
+      { "type": "tcp", "tag": "dns_proxy", "server": "1.1.1.1", "domain_resolver": "dns_resolver" },
+      { "type": "https", "tag": "dns_direct", "server": "dns.alidns.com", "domain_resolver": "dns_resolver" },
+      { "type": "udp", "tag": "dns_resolver", "server": "223.5.5.5" },
+      { "type": "fakeip", "tag": "dns_fakeip", "inet4_range": "198.18.0.0/15", "inet6_range": "fc00::/18" }
+    ],
+    "rules": [
+      { "rule_set": "geolocation-!cn", "query_type": ["A", "AAAA"], "server": "dns_fakeip", "action": "route" },
+      { "rule_set": "geolocation-!cn", "query_type": "CNAME", "server": "dns_proxy", "action": "route" },
+      { "query_type": ["A", "AAAA", "CNAME"], "invert": true, "action": "predefined", "rcode": "REFUSED" }
+    ],
+    "final": "dns_direct"
+  },
+  "ntp": {
+    "enabled": true,
+    "server": "time.apple.com",
+    "server_port": 123,
+    "interval": "30m"
+  },
+  "inbounds": [
+    { "type": "mixed", "tag": "mixed-in", "listen": "0.0.0.0", "listen_port": 2080 },
+    { "type": "tun", "tag": "tun-in", "address": "172.19.0.1/30", "auto_route": true, "strict_route": true, "stack": "mixed" }
+  ],
+  "outbounds": [
+    { "type": "selector", "tag": "🚀 节点选择", "outbounds": ["__NODES__", "DIRECT"] },
+    { "type": "urltest", "tag": "🚀 自动选择", "outbounds": ["__NODES__"], "url": "https://www.google.com/generate_204", "interval": "10m", "tolerance": 50 },
+    { "type": "direct", "tag": "DIRECT" },
+    { "type": "selector", "tag": "📹 油管视频", "outbounds": ["🚀 自动选择", "🚀 节点选择", "DIRECT"] },
+    { "type": "selector", "tag": "🔍 谷歌服务", "outbounds": ["🚀 自动选择", "🚀 节点选择", "DIRECT"] },
+    { "type": "selector", "tag": "🏠 私有网络", "outbounds": ["DIRECT", "🚀 自动选择", "🚀 节点选择"] },
+    { "type": "selector", "tag": "🔒 国内服务", "outbounds": ["DIRECT", "🚀 自动选择", "🚀 节点选择"] },
+    { "type": "selector", "tag": "📲 电报消息", "outbounds": ["🚀 自动选择", "🚀 节点选择", "DIRECT"] },
+    { "type": "selector", "tag": "🐱 Github", "outbounds": ["🚀 自动选择", "🚀 节点选择", "DIRECT"] },
+    { "type": "selector", "tag": "🍏 苹果服务", "outbounds": ["🚀 自动选择", "🚀 节点选择", "DIRECT"] },
+    { "type": "selector", "tag": "🎬 流媒体", "outbounds": ["🚀 自动选择", "🚀 节点选择", "DIRECT"] },
+    { "type": "selector", "tag": "🌐 非中国", "outbounds": ["🚀 自动选择", "🚀 节点选择", "DIRECT"] },
+    { "type": "selector", "tag": "🐟 漏网之鱼", "outbounds": ["🚀 自动选择", "🚀 节点选择", "DIRECT"] }
+  ],
+  "route": {
+    "default_domain_resolver": "dns_resolver",
+    "rule_set": [
+      { "tag": "youtube",         "type": "remote", "format": "binary", "url": "https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/sing/geo/geosite/youtube.srs" },
+      { "tag": "google",          "type": "remote", "format": "binary", "url": "https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/sing/geo/geosite/google.srs" },
+      { "tag": "geolocation-cn",  "type": "remote", "format": "binary", "url": "https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/sing/geo/geosite/geolocation-cn.srs" },
+      { "tag": "cn",              "type": "remote", "format": "binary", "url": "https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/sing/geo/geosite/cn.srs" },
+      { "tag": "github",          "type": "remote", "format": "binary", "url": "https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/sing/geo/geosite/github.srs" },
+      { "tag": "gitlab",          "type": "remote", "format": "binary", "url": "https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/sing/geo/geosite/gitlab.srs" },
+      { "tag": "apple",           "type": "remote", "format": "binary", "url": "https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/sing/geo/geosite/apple.srs" },
+      { "tag": "netflix",         "type": "remote", "format": "binary", "url": "https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/sing/geo/geosite/netflix.srs" },
+      { "tag": "hulu",            "type": "remote", "format": "binary", "url": "https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/sing/geo/geosite/hulu.srs" },
+      { "tag": "disney",          "type": "remote", "format": "binary", "url": "https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/sing/geo/geosite/disney.srs" },
+      { "tag": "hbo",             "type": "remote", "format": "binary", "url": "https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/sing/geo/geosite/hbo.srs" },
+      { "tag": "amazon",          "type": "remote", "format": "binary", "url": "https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/sing/geo/geosite/amazon.srs" },
+      { "tag": "bahamut",         "type": "remote", "format": "binary", "url": "https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/sing/geo/geosite/bahamut.srs" },
+      { "tag": "geolocation-!cn", "type": "remote", "format": "binary", "url": "https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/sing/geo/geosite/geolocation-!cn.srs" },
+      { "tag": "google-ip",       "type": "remote", "format": "binary", "url": "https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/sing/geo/geoip/google.srs" },
+      { "tag": "private-ip",      "type": "remote", "format": "binary", "url": "https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/sing/geo/geoip/private.srs" },
+      { "tag": "cn-ip",           "type": "remote", "format": "binary", "url": "https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/sing/geo/geoip/cn.srs" },
+      { "tag": "telegram-ip",     "type": "remote", "format": "binary", "url": "https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/sing/geo/geoip/telegram.srs" }
+    ],
+    "rules": [
+      { "clash_mode": "direct", "outbound": "DIRECT" },
+      { "clash_mode": "global", "outbound": "🚀 自动选择" },
+      { "action": "sniff" },
+      { "protocol": "dns", "action": "hijack-dns" },
+      { "rule_set": ["youtube"], "outbound": "📹 油管视频" },
+      { "rule_set": ["google"], "outbound": "🔍 谷歌服务" },
+      { "rule_set": ["geolocation-cn", "cn"], "outbound": "🔒 国内服务" },
+      { "rule_set": ["github", "gitlab"], "outbound": "🐱 Github" },
+      { "rule_set": ["apple"], "outbound": "🍏 苹果服务" },
+      { "rule_set": ["netflix", "hulu", "disney", "hbo", "amazon", "bahamut"], "outbound": "🎬 流媒体" },
+      { "rule_set": ["geolocation-!cn"], "outbound": "🌐 非中国" },
+      { "rule_set": ["google-ip"], "outbound": "🔍 谷歌服务" },
+      { "rule_set": ["private-ip"], "outbound": "🏠 私有网络" },
+      { "rule_set": ["cn-ip"], "outbound": "🔒 国内服务" },
+      { "rule_set": ["telegram-ip"], "outbound": "📲 电报消息" }
+    ],
+    "auto_detect_interface": true,
+    "final": "🐟 漏网之鱼"
+  },
+  "experimental": {
+    "cache_file": { "enabled": true },
+    "clash_api": {
+      "external_controller": "0.0.0.0:9090",
+      "external_ui": "/etc/clashoo/dashboard",
+      "secret": "clashoo"
+    }
+  }
+}

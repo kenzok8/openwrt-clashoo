@@ -7,7 +7,7 @@
 'require tools.clashoo as clashoo';
 
 var CSS = [
-  '.cl-wrap{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif}',
+  '.cl-wrap{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif;--cl-card-border:rgba(128,128,128,.22);--cl-card-bg:rgba(128,128,128,.08);--cl-card-shadow:0 4px 12px rgba(0,0,0,.08);--cl-muted:rgba(92,102,120,.72);--cl-primary:rgba(0,122,255,.8);--cl-primary-border:rgba(0,122,255,.45);--cl-primary-soft:rgba(0,122,255,.08)}',
   '.cl-tabs{display:flex;border-bottom:2px solid rgba(128,128,128,.15);margin-bottom:18px}',
   '.cl-tab{padding:10px 20px;cursor:pointer;font-size:13px;opacity:.55;border-bottom:2px solid transparent;margin-bottom:-2px;transition:opacity .15s}',
   '.cl-tab.active{opacity:1;border-bottom-color:currentColor;font-weight:600}',
@@ -20,29 +20,52 @@ var CSS = [
   '.cl-sub-url{border:1px solid rgba(128,128,128,.3);border-radius:6px;padding:8px 10px;width:100%;box-sizing:border-box;font-size:13px;margin-bottom:8px}',
   '.cl-btn-sm{padding:4px 10px;font-size:12px;border-radius:4px;cursor:pointer}',
   '.cl-section{margin-bottom:24px}',
-  '.cl-section h4{font-size:13px;font-weight:700;margin-bottom:10px;opacity:.7}',
+  '.cl-section h4{font-size:1.15rem;font-weight:600;margin-bottom:10px;color:var(--title-color,var(--cl-muted));opacity:.95}',
   /* constrain form inputs on desktop, table stays full-width */
   '.cl-form-wrap{max-width:640px}',
-  '.cl-rewrite-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}',
+  '.cl-file-list{display:flex;flex-direction:column;gap:10px;margin-top:10px}',
+  '.cl-file-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid var(--cl-card-border);border-radius:8px;background:var(--cl-card-bg);box-shadow:var(--cl-card-shadow)}',
+  '.cl-file-item.is-active{background:rgba(var(--primary-rgb,0,122,255),.08);border-color:rgba(var(--primary-rgb,0,122,255),.2)}',
+  '.cl-file-meta{display:flex;flex:1;min-width:0;align-items:center;justify-content:space-between;gap:12px}',
+  '.cl-file-name{display:flex;align-items:center;gap:8px;min-width:0}',
+  '.cl-file-name-text{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+  '.cl-sb-file-name{display:flex;align-items:center;gap:8px;min-width:0;white-space:normal !important;overflow:visible !important;text-overflow:clip !important}',
+  '.cl-sb-file-name .cl-file-name-text{min-width:0}',
+  '.cl-file-size{font-size:12px;color:var(--cl-muted);white-space:nowrap}',
+  '.cl-file-actions{display:flex;align-items:center;gap:8px;flex-shrink:0}',
+  '.cl-rewrite-wrap{max-width:760px;padding:0;border:0;background:transparent;box-shadow:none}',
+  '.cl-rewrite-group{display:flex;flex-direction:column;gap:8px}',
+  '.cl-rewrite-group-title{font-size:12px;font-weight:700;opacity:.68}',
+  '.cl-rw-divider{height:1px;background:rgba(128,128,128,.18);margin:10px 0}',
+  '.cl-rewrite-wrap .cl-sub-url,.cl-rewrite-wrap .cbi-input-select{padding:8px 12px;border-radius:6px;width:100%;box-sizing:border-box;margin-bottom:0}',
+  '.cl-rewrite-actions{margin-top:4px}',
   '.cl-actions{display:flex;gap:8px;flex-wrap:wrap}',
+  '.cl-btn-update-sub{border-color:var(--cl-primary-border);color:var(--cl-primary)}',
+  '.cl-btn-switch{background:var(--cl-primary-soft);border:1px solid var(--cl-primary-border);color:var(--cl-primary)}',
+  '.cl-btn-switch:hover{background:rgba(0,122,255,.14);border-color:rgba(0,122,255,.62);color:rgba(0,96,220,.92)}',
+  '.cl-btn-delete{border:1px solid rgba(var(--primary-rgb,0,122,255),.32);color:var(--cl-primary);background:rgba(var(--primary-rgb,0,122,255),.1)}',
+  '.cl-btn-delete:hover{background:rgba(var(--primary-rgb,0,122,255),.16);border-color:rgba(var(--primary-rgb,0,122,255),.4);color:var(--cl-primary)}',
+  '.cl-btn-generate-switch{box-shadow:0 4px 10px rgba(0,0,128,.2)}',
   '.cl-save-bar{display:flex;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid rgba(128,128,128,.15)}',
   '.cl-json-editor{width:100%;height:340px;font-family:monospace;font-size:11px;border:1px solid rgba(128,128,128,.25);border-radius:8px;padding:10px;box-sizing:border-box;resize:vertical;background:rgba(0,0,0,.02)}',
   '.cl-editor-hdr{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px;font-weight:600}',
-  '.cl-active-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:#e8f5e9;color:#2e7d32}',
+  '.cl-active-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:rgba(var(--primary-rgb,0,122,255),.12);color:var(--cl-primary)}',
   '.cl-hint{font-size:11px;opacity:.45;margin-left:auto}',
   /* hide auto-generated section IDs in TypedSection */
   '.cbi-section-table-titles .cbi-section-table-cell:first-child{display:none}',
   '.cbi-section-table-row .cbi-section-table-cell:first-child{display:none}',
   '.cl-mode-tabs{display:inline-flex;gap:4px;margin:6px 0}',
   '.cl-mode-tab-active{font-weight:700}',
-  '.cl-panel .cbi-section>h3{font-size:13px !important;font-weight:600;margin-bottom:8px}',
-  '.cl-panel .cbi-value-title{font-size:13px !important}',
+  '.cl-panel .cbi-section>h3{font-size:13px !important;font-weight:600;margin-bottom:8px;color:var(--cl-muted) !important;letter-spacing:.1px}',
+  '.cl-panel .cbi-value-title{font-size:13px !important;font-weight:500 !important;color:var(--cl-muted) !important}',
   '.cl-panel .cbi-value-field input,.cl-panel .cbi-value-field select,.cl-panel .cbi-value-field textarea{font-size:13px !important}',
-  '.cl-panel .cbi-section-descr,.cl-panel .cbi-value-helptext{font-size:12px !important}',
+  '.cl-panel .cbi-section-descr,.cl-panel .cbi-value-helptext{font-size:12px !important;color:var(--cl-muted) !important}',
   '.cl-panel .cbi-section{margin-bottom:12px}',
   '.cl-wrap .cbi-section>h3,.cl-wrap .cbi-value-title,.cl-wrap .cbi-section-descr,.cl-wrap .cbi-value-helptext{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif !important}',
   '.cl-wrap .cbi-input-text,.cl-wrap .cbi-input-select,.cl-wrap select,.cl-wrap input,.cl-wrap textarea,.cl-wrap .btn,.cl-wrap .cbi-button{font-size:13px !important;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif !important}',
   '.cl-wrap .btn,.cl-wrap .cbi-button{padding:4px 10px;line-height:1.35}',
+  '@media(prefers-color-scheme:dark){.cl-wrap{--cl-card-border:rgba(255,255,255,.14);--cl-card-bg:rgba(255,255,255,.04);--cl-card-shadow:0 4px 12px rgba(0,0,0,.28);--cl-muted:rgba(220,228,244,.58)}}',
+  '@media(max-width:680px){.cl-sub-list.cl-sb-list td:first-child{white-space:normal;overflow:visible;text-overflow:clip}}',
   '@media(max-width:680px){.cl-form-wrap{max-width:100%}}'
 ].join('');
 
@@ -53,38 +76,110 @@ var callUpdateSub     = rpc.declare({ object: 'luci.clashoo', method: 'update_su
 var callSetConfig     = rpc.declare({ object: 'luci.clashoo', method: 'set_config',          params: ['name'], expect: {} });
 var callDeleteCfg     = rpc.declare({ object: 'luci.clashoo', method: 'delete_config',       params: ['name', 'type'], expect: {} });
 var callUploadConfig  = rpc.declare({ object: 'luci.clashoo', method: 'upload_config',       params: ['name', 'content', 'type'], expect: {} });
+var callListTemplates = rpc.declare({ object: 'luci.clashoo', method: 'list_templates',      expect: {} });
+var callUploadTemplate= rpc.declare({ object: 'luci.clashoo', method: 'upload_template',     params: ['name', 'content'], expect: {} });
 var callApplyRewrite  = rpc.declare({ object: 'luci.clashoo', method: 'apply_rewrite',          params: ['base_type','base_name','rewrite_type','rewrite_name','output_name','set_active'], expect: {} });
 var callFetchUrl      = rpc.declare({ object: 'luci.clashoo', method: 'fetch_rewrite_url',      params: ['url','name'], expect: {} });
 var callApplyTplUrl   = rpc.declare({ object: 'luci.clashoo', method: 'apply_template_with_url', params: ['template_source','sub_url','output_name','set_active'], expect: {} });
 var callMigrateSbProfile = rpc.declare({ object: 'luci.clashoo', method: 'migrate_singbox_profile', params: ['name'], expect: {} });
 
-function saveCommitApplyAndRestart(m, successMsg) {
-  return m.save()
-    .then(function () { return clashoo.commitConfig(); })
-    .then(function () { return clashoo.restart(); })
-    .then(function () {
-      if (ui.changes && typeof ui.changes.apply === 'function') {
-        ui.changes.apply(false);
-        return;
+function fastResolve(promise, timeoutMs, fallback) {
+  var t = new Promise(function (resolve) {
+    setTimeout(function () { resolve(fallback); }, timeoutMs);
+  });
+  return Promise.race([L.resolveDefault(promise, fallback), t]);
+}
+
+function loadUiState() {
+  return L.resolveDefault(uci.load('clashoo'), null).then(function () {
+    return {
+      core_type:      uci.get('clashoo', 'config', 'core_type') || 'mihomo',
+      subscribe_url:  uci.get('clashoo', 'config', 'subscribe_url') || '',
+      config_name:    uci.get('clashoo', 'config', 'config_name') || ''
+    };
+  });
+}
+
+function readSavedTab(key, fallback, allowed) {
+  var raw = '';
+  if (window.location.hash)
+    raw = window.location.hash.replace(/^#/, '');
+  if (!raw) {
+    try { raw = window.localStorage.getItem(key) || ''; } catch (e) {}
+  }
+  return allowed.indexOf(raw) >= 0 ? raw : fallback;
+}
+
+function rememberTab(key, id) {
+  try { window.localStorage.setItem(key, id); } catch (e) {}
+  if (window.history && window.history.replaceState)
+    window.history.replaceState(null, '', '#' + id);
+  else
+    window.location.hash = id;
+}
+
+function decorateControlWraps(root) {
+  if (!root || !root.querySelectorAll)
+    return;
+  var fields = root.querySelectorAll('.cbi-value-field');
+  for (var i = 0; i < fields.length; i++) {
+    if (fields[i] && fields[i].classList)
+      fields[i].classList.add('cl-control-wrap');
+  }
+}
+
+function clearClashooDirty() {
+  var applyPromise;
+  try {
+    applyPromise = (L.uci && typeof L.uci.callApply === 'function')
+      ? Promise.resolve(L.uci.callApply(0, false)).catch(function () {})
+      : Promise.resolve();
+  } catch (e) { applyPromise = Promise.resolve(); }
+  return applyPromise.then(function () {
+    try {
+      if (L.ui && L.ui.changes && L.ui.changes.changes) {
+        delete L.ui.changes.changes.clashoo;
+        var n = Object.keys(L.ui.changes.changes).length;
+        if (typeof L.ui.changes.renderChangeIndicator === 'function')
+          L.ui.changes.renderChangeIndicator(n);
+        else if (typeof L.ui.changes.setIndicator === 'function')
+          L.ui.changes.setIndicator(n);
       }
-      if (ui.changes && typeof ui.changes.setIndicator === 'function')
-        ui.changes.setIndicator(0);
-      ui.addNotification(null, E('p', successMsg));
-      window.setTimeout(function () { location.reload(); }, 300);
+    } catch (e) {}
+  });
+}
+
+function saveCommitApplyMaybeReload(m, runningMsg, stoppedMsg) {
+  return clashoo.status()
+    .then(function (st) { return !!(st && st.running); })
+    .catch(function () { return false; })
+    .then(function (running) {
+      return m.save()
+        .then(function () { return clashoo.commitConfig(); })
+        .then(function () {
+          return running ? clashoo.reload() : { success: true, skipped: true };
+        })
+        .then(function () { return clearClashooDirty(); })
+        .then(function () {
+          ui.addNotification(null, E('p', running ? runningMsg : stoppedMsg));
+          window.setTimeout(function () { location.reload(); }, 300);
+        });
     });
 }
 
 return view.extend({
-  _tab: 'subs',
+  _tab: null,
+  _sbTab: null,
 
   load: function () {
     return Promise.all([
-      L.resolveDefault(callListSubs(), { subs: [], url: '' }),
-      L.resolveDefault(callListDir('1'), { files: [] }),
-      L.resolveDefault(callListDir('2'), { files: [] }),
-      L.resolveDefault(callListDir('3'), { files: [] }),
-      uci.load('clashoo'),
-      clashoo.listSingboxProfiles()
+      fastResolve(callListSubs(), 1200, { subs: [], url: '' }),
+      fastResolve(callListDir('1'), 1200, { files: [] }),
+      fastResolve(callListDir('2'), 1200, { files: [] }),
+      fastResolve(callListDir('3'), 1200, { files: [] }),
+      fastResolve(callListTemplates(), 1200, { files: [] }),
+      fastResolve(loadUiState(), 1200, { core_type: 'mihomo', subscribe_url: '', config_name: '' }),
+      fastResolve(clashoo.listSingboxProfiles(), 1200, { profiles: [], active: '' })
     ]);
   },
 
@@ -93,14 +188,25 @@ return view.extend({
     var subsData   = data[0] || {};
     var subFiles   = (data[1] && data[1].files) || [];
     var upFiles    = (data[2] && data[2].files) || [];
-    var tplFiles   = (data[3] && data[3].files) || [];
-    var sbData     = data[5] || { profiles: [], active: '' };
-    var coreType   = uci.get('clashoo', 'config', 'core_type') || 'mihomo';
+    var customFiles= (data[3] && data[3].files) || [];
+    var tplFiles   = (data[4] && data[4].files) || [];
+    var uiData     = data[5] || { core_type: 'mihomo', subscribe_url: '', config_name: '' };
+    var sbData     = data[6] || { profiles: [], active: '' };
+    var coreType   = uiData.core_type || 'mihomo';
 
     if (!document.getElementById('cl-css')) {
       var s = document.createElement('style');
       s.id = 'cl-css'; s.textContent = CSS;
       document.head.appendChild(s);
+    }
+    if (!document.getElementById('cl-css-ext')) {
+      var link = document.createElement('link');
+      link.id = 'cl-css-ext';
+      link.rel = 'stylesheet';
+      link.href = L.resource('view/clashoo/clashoo.css') + '?v=20260422ai';
+      document.head.appendChild(link);
+    } else {
+      document.getElementById('cl-css-ext').href = L.resource('view/clashoo/clashoo.css') + '?v=20260422ai';
     }
 
     if (coreType === 'singbox') return this._renderSingbox(sbData);
@@ -110,6 +216,9 @@ return view.extend({
       { id: 'proxy', label: '代理' },
       { id: 'dns',   label: 'DNS' }
     ];
+    var allowedTabs = tabs.map(function (t) { return t.id; });
+    this._tab = readSavedTab('clashoo.config.tab', this._tab || 'subs', allowedTabs);
+    rememberTab('clashoo.config.tab', this._tab);
     var tabEls   = {};
     var panelEls = {};
 
@@ -123,6 +232,7 @@ return view.extend({
               panelEls[k].className = 'cl-panel' + (k === t.id ? ' active' : '');
             });
             self._tab = t.id;
+            rememberTab('clashoo.config.tab', t.id);
           }
         }, t.label);
         tabEls[t.id] = el;
@@ -131,7 +241,7 @@ return view.extend({
     );
 
     var subPanel = E('div', { 'class': 'cl-panel' + (this._tab === 'subs' ? ' active' : ''), id: 'cl-panel-subs' },
-      this._buildSubsPanel(subsData, subFiles, upFiles, tplFiles)
+      this._buildSubsPanel(subsData, subFiles, upFiles, customFiles, tplFiles, uiData)
     );
     panelEls['subs'] = subPanel;
 
@@ -143,14 +253,16 @@ return view.extend({
     panelEls['dns'] = dnsPanel;
     this._buildDnsForm(dnsPanel);
 
-    return E('div', { 'class': 'cl-wrap' }, [tabBar, subPanel, proxyPanel, dnsPanel]);
+    return E('div', { 'class': 'cl-wrap clashoo-container cl-config-page cl-form-page' }, [tabBar, subPanel, proxyPanel, dnsPanel]);
   },
 
-  _buildSubsPanel: function (subsData, subFiles, upFiles, tplFiles) {
+  _buildSubsPanel: function (subsData, subFiles, upFiles, customFiles, tplFiles, uiData) {
     var self = this;
-    var subUrl      = uci.get('clashoo', 'config', 'subscribe_url') || '';
-    var savedName   = uci.get('clashoo', 'config', 'config_name')   || '';
+    var sanitizeText = function (v) { return (v == null || v === 'null') ? '' : String(v); };
+    var subUrl      = sanitizeText(uiData && uiData.subscribe_url);
+    var savedName   = sanitizeText(uiData && uiData.config_name);
     var subs        = subsData.subs || [];
+    var safeText    = function (v) { return (v == null || v === 'null') ? '' : String(v); };
 
     var urlInput = E('input', {
       'class': 'cl-sub-url',
@@ -170,9 +282,12 @@ return view.extend({
     var dlBtn = E('button', {
       'class': 'btn cbi-button-action cl-btn-sm',
       click: function () {
-        uci.set('clashoo', 'config', 'subscribe_url', urlInput.value);
-        uci.set('clashoo', 'config', 'config_name',   nameInput.value.trim());
-        uci.save()
+        L.resolveDefault(uci.load('clashoo'), null)
+          .then(function () {
+            uci.set('clashoo', 'config', 'subscribe_url', urlInput.value);
+            uci.set('clashoo', 'config', 'config_name',   nameInput.value.trim());
+            return uci.save();
+          })
           .then(function () { return clashoo.commitConfig(); })
           .then(function () { return L.resolveDefault(callDownloadSubs(), {}); })
           .then(function (r) {
@@ -182,17 +297,19 @@ return view.extend({
       }
     }, '下载订阅');
 
-    var subRows = subs.map(function (sub) {
-      var nameCells = sub.active
-        ? [E('span', { 'class': 'cl-active-badge', style: 'margin-right:6px' }, '使用中'), sub.name]
-        : [sub.name];
-      return E('tr', {}, [
-        E('td', {}, nameCells),
-        E('td', { style: 'opacity:.5;font-size:11px' }, sub.size || ''),
-        E('td', {}, [
+    var subCards = subs.map(function (sub) {
+      var nameNodes = [];
+      if (sub.active) nameNodes.push(E('span', { 'class': 'cl-active-badge' }, '使用中'));
+      nameNodes.push(E('span', { 'class': 'cl-file-name-text' }, safeText(sub.name)));
+
+      return E('div', { 'class': 'cl-file-item' + (sub.active ? ' is-active' : '') }, [
+        E('div', { 'class': 'cl-file-meta' }, [
+          E('div', { 'class': 'cl-file-name' }, nameNodes),
+          E('div', { 'class': 'cl-file-size' }, safeText(sub.size))
+        ]),
+        E('div', { 'class': 'cl-file-actions' }, [
           E('button', {
-            'class': 'btn cbi-button cl-btn-sm',
-            style: 'margin-right:4px',
+            'class': 'btn cbi-button cl-btn-sm cl-btn-update-sub',
             click: function () {
               L.resolveDefault(callUpdateSub(sub.name), {}).then(function (r) {
                 ui.addNotification(null, E('p', r.success ? sub.name + ' 更新成功' : '更新失败'));
@@ -201,14 +318,13 @@ return view.extend({
             }
           }, '更新'),
           E('button', {
-            'class': 'btn cbi-button cl-btn-sm',
-            style: 'margin-right:4px',
+            'class': 'btn cbi-button cl-btn-sm cl-btn-switch',
             click: function () {
               L.resolveDefault(callSetConfig(sub.name), {}).then(function () { location.reload(); });
             }
           }, '切换'),
           E('button', {
-            'class': 'btn cbi-button-negative cl-btn-sm',
+            'class': 'btn cbi-button cl-btn-sm cl-btn-delete',
             click: function () {
               if (!confirm('删除 ' + sub.name + '？')) return;
               L.resolveDefault(callDeleteCfg(sub.name, '1'), {}).then(function () { location.reload(); });
@@ -242,9 +358,31 @@ return view.extend({
 
     /* ── 模板复写（注入订阅 URL 模式）── */
     var tplSel     = mkSel(tplFiles, '选择本地模板文件');
+    tplSel.classList.add('cl-template-select');
+    tplSel.setAttribute('title', tplSel.value || '');
+    tplSel.addEventListener('change', function () { tplSel.setAttribute('title', tplSel.value || ''); });
+
+    var tplUploadInput = E('input', { type: 'file', accept: '.yaml,.yml', style: 'display:none', id: 'cl-template-upload-input' });
+    tplUploadInput.addEventListener('change', function (ev) {
+      var file = ev.target.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function (e) {
+        L.resolveDefault(callUploadTemplate(file.name, e.target.result), {}).then(function (r) {
+          if (r && r.success) {
+            ui.addNotification(null, E('p', '模板上传成功: ' + (r.name || file.name)));
+            location.reload();
+            return;
+          }
+          ui.addNotification(null, E('p', '模板上传失败: ' + ((r && (r.message || r.error)) || '未知错误')));
+        });
+      };
+      reader.readAsText(file);
+    });
+
     var tplUrlIn   = E('input', { type: 'text', 'class': 'cl-sub-url', placeholder: '输入远程模板 URL，例如 https://raw.githubusercontent.com/…/Clash.yaml' });
-    var subUrlIn   = E('input', { type: 'text', 'class': 'cl-sub-url', placeholder: '输入订阅链接 URL（注入到模板的 proxy-providers）', style: 'margin-top:6px' });
-    var outNameIn  = E('input', { type: 'text', 'class': 'cl-sub-url', placeholder: '输出文件名（不含扩展名，留空自动填写）', style: 'margin-top:6px' });
+    var subUrlIn   = E('input', { type: 'text', 'class': 'cl-sub-url', placeholder: '输入订阅链接 URL（注入到模板的 proxy-providers）' });
+    var outNameIn  = E('input', { type: 'text', 'class': 'cl-sub-url', placeholder: '输出文件名（不含扩展名，留空自动填写）' });
     var rwMode     = 'local';
 
     function rwAutoFill() {
@@ -254,8 +392,17 @@ return view.extend({
     }
     tplSel.addEventListener('change', rwAutoFill);
 
-    var localPanel  = E('div', { style: 'margin-top:8px' }, [tplSel]);
-    var remotePanel = E('div', { style: 'display:none;margin-top:8px' }, [tplUrlIn]);
+    var localPanel  = E('div', { 'class': 'cl-rw-pane cl-rw-pane-local' }, [
+      tplUploadInput,
+      E('div', { 'class': 'cl-template-row' }, [
+        E('div', { 'class': 'cl-template-select-wrap' }, [tplSel]),
+        E('button', {
+          'class': 'btn cbi-button cl-btn-sm cl-btn-template-upload',
+          click: function () { document.getElementById('cl-template-upload-input').click(); }
+        }, '上传 YAML 模板')
+      ])
+    ]);
+    var remotePanel = E('div', { 'class': 'cl-rw-pane cl-rw-pane-remote', style: 'display:none' }, [tplUrlIn]);
 
     var tabLocal  = E('button', { 'class': 'btn cbi-button cl-btn-sm cl-mode-tab-active',
       click: function () {
@@ -291,24 +438,26 @@ return view.extend({
     };
 
     /* ── 其他配置文件（上传 + 自定义/复写输出）── */
-    var makeOtherRows = function (files, type) {
+    var makeOtherCards = function (files, type) {
       return files.map(function (f) {
-        var nameCells = f.active
-          ? [E('span', { 'class': 'cl-active-badge', style: 'margin-right:6px' }, '使用中'), f.name]
-          : [f.name];
-        return E('tr', {}, [
-          E('td', {}, nameCells),
-          E('td', { style: 'opacity:.5;font-size:11px' }, f.size || ''),
-          E('td', {}, [
+        var nameNodes = [];
+        if (f.active) nameNodes.push(E('span', { 'class': 'cl-active-badge' }, '使用中'));
+        nameNodes.push(E('span', { 'class': 'cl-file-name-text' }, safeText(f.name)));
+
+        return E('div', { 'class': 'cl-file-item' + (f.active ? ' is-active' : '') }, [
+          E('div', { 'class': 'cl-file-meta' }, [
+            E('div', { 'class': 'cl-file-name' }, nameNodes),
+            E('div', { 'class': 'cl-file-size' }, safeText(f.size))
+          ]),
+          E('div', { 'class': 'cl-file-actions' }, [
             E('button', {
-              'class': 'btn cbi-button cl-btn-sm',
-              style: 'margin-right:4px',
+              'class': 'btn cbi-button cl-btn-sm cl-btn-switch',
               click: function () {
                 L.resolveDefault(callSetConfig(f.name), {}).then(function () { location.reload(); });
               }
             }, '切换'),
             E('button', {
-              'class': 'btn cbi-button-negative cl-btn-sm',
+              'class': 'btn cbi-button cl-btn-sm cl-btn-delete',
               click: function () {
                 if (!confirm('删除 ' + f.name + '？')) return;
                 L.resolveDefault(callDeleteCfg(f.name, type), {}).then(function () { location.reload(); });
@@ -320,55 +469,71 @@ return view.extend({
     };
 
     var otherFiles = (upFiles || []).map(function(f){ return {f:f, t:'2'}; })
-      .concat((tplFiles || []).map(function(f){ return {f:f, t:'3'}; }));
+      .concat((customFiles || []).map(function(f){ return {f:f, t:'3'}; }));
 
-    var otherRows = otherFiles.map(function(o) {
-      return makeOtherRows([o.f], o.t)[0];
+    var otherCards = otherFiles.map(function(o) {
+      return makeOtherCards([o.f], o.t)[0];
     });
 
-    return [
-      E('div', { 'class': 'cl-section' }, [
+    var sections = [
+      E('div', { 'class': 'cl-section cl-card' }, [
         E('h4', {}, '订阅链接'),
-        E('div', { 'class': 'cl-form-wrap' }, [urlInput, nameInput, dlBtn])
+        E('div', { 'class': 'cl-form-wrap cl-fixed-600' }, [urlInput, nameInput, dlBtn])
       ]),
-      E('div', { 'class': 'cl-section' }, [
+      E('div', { 'class': 'cl-section cl-card' }, [
         E('h4', {}, '已下载订阅'),
-        subs.length ? E('table', { 'class': 'cl-sub-list' }, [
-          E('thead', {}, E('tr', {}, [E('th', {}, '文件名'), E('th', {}, '大小'), E('th', {}, '操作')])),
-          E('tbody', {}, subRows)
-        ]) : E('p', { style: 'opacity:.5;font-size:13px' }, '暂无订阅')
+        subs.length ? E('div', { 'class': 'cl-fixed-600' }, [
+          E('div', { 'class': 'cl-file-list' }, subCards)
+        ])
+          : E('p', { style: 'opacity:.5;font-size:13px' }, '暂无订阅')
       ]),
-      E('div', { 'class': 'cl-section' }, [
+      E('div', { 'class': 'cl-section cl-card' }, [
         E('h4', {}, '上传配置文件'),
         uploadInput,
         E('button', {
-          'class': 'btn cbi-button cl-btn-sm',
+          'class': 'btn cbi-button cl-btn-sm cl-btn-upload-config',
           click: function () { document.getElementById('cl-upload-input').click(); }
         }, '选择 YAML 文件上传')
-      ]),
-      otherFiles.length ? E('div', { 'class': 'cl-section' }, [
+      ])
+    ];
+
+    var middleSection = '';
+    if (otherFiles.length) {
+      middleSection = E('div', { 'class': 'cl-section cl-card' }, [
         E('h4', {}, '其他配置文件（上传 / 复写输出）'),
-        E('table', { 'class': 'cl-sub-list' }, [
-          E('thead', {}, E('tr', {}, [E('th', {}, '文件名'), E('th', {}, '大小'), E('th', {}, '操作')])),
-          E('tbody', {}, otherRows)
+        E('div', { 'class': 'cl-fixed-600' }, [
+          E('div', { 'class': 'cl-file-list' }, otherCards)
         ])
-      ]) : null,
-      E('div', { 'class': 'cl-section' }, [
+      ]);
+    }
+    if (middleSection !== '')
+      sections.push(middleSection);
+
+    sections.push(
+      E('div', { 'class': 'cl-section cl-card' }, [
         E('h4', {}, '复写设置'),
-        E('p', { style: 'font-size:12px;opacity:.6;margin:0 0 8px' }, '选择一个含 proxy-providers 的模板，填入订阅链接，自动将链接注入模板并生成可用配置'),
-        E('div', { 'class': 'cl-form-wrap' }, [
-          E('div', { 'class': 'cl-mode-tabs' }, [tabLocal, tabRemote]),
-          localPanel,
-          remotePanel,
-          subUrlIn,
-          outNameIn,
-          E('div', { 'class': 'cl-actions', style: 'margin-top:8px' }, [
-            E('button', { 'class': 'btn cbi-button cl-btn-sm', click: function(){ rwApply(false); } }, '生成（不切换）'),
-            E('button', { 'class': 'btn cbi-button-action cl-btn-sm', click: function(){ rwApply(true); } }, '生成并切换')
+        E('div', { 'class': 'cl-form-wrap cl-rewrite-wrap cl-fixed-600' }, [
+          E('div', { 'class': 'cl-rewrite-group cl-rewrite-group-template' }, [
+            E('div', { 'class': 'cl-rewrite-group-title' }, '模板选择'),
+            E('div', { 'class': 'cl-mode-tabs' }, [tabLocal, tabRemote]),
+            localPanel,
+            remotePanel
+          ]),
+          E('div', { 'class': 'cl-rw-divider' }),
+          E('div', { 'class': 'cl-rewrite-group cl-rewrite-group-input' }, [
+            E('div', { 'class': 'cl-rewrite-group-title' }, '信息录入'),
+            subUrlIn,
+            outNameIn,
+            E('div', { 'class': 'cl-actions cl-rewrite-actions' }, [
+              E('button', { 'class': 'btn cbi-button cl-btn-sm', click: function(){ rwApply(false); } }, '生成配置'),
+              E('button', { 'class': 'btn cbi-button-action cl-btn-sm cl-btn-generate-switch', click: function(){ rwApply(true); } }, '应用配置')
+            ])
           ])
         ])
       ])
-    ];
+    );
+
+    return sections.filter(function (n) { return n !== null && n !== undefined; });
   },
 
   _buildProxyForm: function (container) {
@@ -417,15 +582,17 @@ return view.extend({
     o = sa.option(form.Value, 'password', '密码');
 
     m.render().then(function (node) {
+      decorateControlWraps(node);
       container.appendChild(node);
       container.appendChild(E('div', { 'class': 'cl-save-bar' }, [
         E('button', { 'class': 'btn cbi-button', click: function () {
           m.save().then(function () { return clashoo.commitConfig(); })
+            .then(function () { return clearClashooDirty(); })
             .then(function () { location.reload(); })
             .catch(function (e) { ui.addNotification(null, E('p', '保存失败: ' + (e.message || e))); });
         }}, '保存配置'),
         E('button', { 'class': 'btn cbi-button-action', click: function () {
-          saveCommitApplyAndRestart(m, '代理配置已保存并重启服务')
+          saveCommitApplyMaybeReload(m, '代理配置已保存并热重载服务', '代理配置已保存，服务未启动')
             .catch(function (e) { ui.addNotification(null, E('p', '操作失败: ' + (e.message || e))); });
         }}, '应用配置')
       ]));
@@ -440,41 +607,88 @@ return view.extend({
     s.addremove = false;
     o = s.option(form.Flag,        'enable_dns',        '启用 DNS 模块');
     o = s.option(form.Value,       'listen_port',       'DNS 监听端口');
+    o.datatype = 'port';
     o = s.option(form.ListValue,   'enhanced_mode',     '增强模式');
-    o.value('fake-ip', 'Fake-IP'); o.value('redir-host', '域名直连');
-    o = s.option(form.Value,       'fake_ip_range',     '虚拟 IP 网段');
-    o = s.option(form.Value,       'default_nameserver','默认 DNS 服务器');
+    o.value('fake-ip', 'Fake-IP'); o.value('redir-host', 'Redir-Host');
+    o.default = 'fake-ip';
+    o = s.option(form.Value,       'fake_ip_range',     'Fake-IP 网段');
+    o.default = '198.18.0.1/16';
+    o.placeholder = '198.18.0.1/16';
+    o.depends('enhanced_mode', 'fake-ip');
+    o.remove = function () {};
+    o = s.option(form.Flag,        'enable_ipv6',       'IPv6 DNS');
     o = s.option(form.Flag,        'dnsforwader',       '强制转发 DNS');
-    o = s.option(form.DynamicList, 'fake_ip_filter',    '虚拟 IP 过滤域名');
+    o = s.option(form.DynamicList, 'fake_ip_filter',    'Fake-IP 过滤域名');
+    o.placeholder = '*.lan / localhost.ptlogin2.qq.com';
+    o.depends('enhanced_mode', 'fake-ip');
+    o.remove = function () {};
+    o = s.option(form.DynamicList, 'default_nameserver', 'Bootstrap DNS');
+    o.placeholder = '223.5.5.5';
+    o.description = '用于解析 DoH/DoT/DoQ 服务器域名，建议填写纯 IP DNS。';
+    o = s.option(form.Value, 'dns_ecs', 'ECS 客户端子网');
+    o.placeholder = '223.5.5.0/24';
+    o.description = 'Mihomo 写入 DNS URL 的 ecs 参数；sing-box 写入 dns.client_subnet。清空则不写入。';
+    o.rmempty = true;
+    o = s.option(form.Flag, 'dns_ecs_override', '强制覆盖 ECS');
+    o.default = '0';
+    o = s.option(form.Flag, 'fallback_filter_geoip', 'Fallback GeoIP 过滤');
+    o.default = '1';
+    o = s.option(form.DynamicList, 'fallback_filter_ipcidr', 'Fallback IP CIDR');
+    o.placeholder = '240.0.0.0/4';
+    o = s.option(form.Flag, 'singbox_independent_cache', 'sing-box 独立 DNS 缓存');
+    o.default = '0';
+    o.description = '仅在特殊场景启用，默认关闭。';
 
-    s = m.section(form.TypedSection, 'dnsservers', '上游 DNS 服务器');
+    s = m.section(form.TypedSection, 'dnsservers', '上游 DNS');
     s.addremove = true; s.anonymous = true;
+    o = s.option(form.Flag, 'enabled', '启用');
+    o.default = '1';
     o = s.option(form.ListValue, 'ser_type', '角色');
-    o.value('nameserver','主解析'); o.value('fallback','回退解析');
+    o.value('nameserver', '国内上游 DNS');
+    o.value('direct-nameserver', '直连域名解析');
+    o.value('proxy-server-nameserver', '节点域名解析专用');
+    o.value('fallback', '国外加密 DNS（防污染）');
+    o.default = 'nameserver';
     o = s.option(form.Value,     'ser_address', 'DNS 地址');
-    o.placeholder = '例如 https://doh.pub/dns-query';
+    o.placeholder = 'https://dns.alidns.com/dns-query / https://doh.pub/dns-query';
     o = s.option(form.ListValue, 'protocol',    '协议');
-    o.value('udp','UDP'); o.value('tcp','TCP'); o.value('doh','DoH'); o.value('dot','DoT');
+    o.value('none', '完整 URL / 不补协议');
+    o.value('udp://', 'UDP');
+    o.value('tcp://', 'TCP');
+    o.value('tls://', 'DoT / TLS');
+    o.value('https://', 'DoH / HTTPS');
+    o.value('quic://', 'DoQ / QUIC');
+    o.default = 'none';
+    o = s.option(form.Value, 'ser_port', '端口');
+    o.placeholder = '853 / 784';
+    o.rmempty = true;
 
-    s = m.section(form.TypedSection, 'dnshijack', 'DNS 劫持');
+    s = m.section(form.TypedSection, 'dns_policy', '分流解析策略');
     s.addremove = true; s.anonymous = true;
-    o = s.option(form.ListValue, 'type', '协议类型');
-    o.value('udp','UDP'); o.value('tcp','TCP');
-    o = s.option(form.Value, 'ip',   '目标 DNS');
-    o.placeholder = '例如 114.114.114.114';
-    o = s.option(form.Value, 'port', '端口');
-    o.placeholder = '53';
+    o = s.option(form.Flag, 'enabled', '启用');
+    o.default = '1';
+    o = s.option(form.ListValue, 'policy_type', '策略类型');
+    o.value('nameserver-policy', '域名分流解析');
+    o.value('proxy-server-nameserver-policy', '代理域名分流解析');
+    o.default = 'nameserver-policy';
+    o = s.option(form.Value, 'matcher', '匹配规则');
+    o.placeholder = 'geosite:cn / domain:example.com / domain-suffix:google.com';
+    o = s.option(form.DynamicList, 'nameserver', '使用 DNS');
+    o.placeholder = 'udp://223.5.5.5';
+    o.description = '示例：geosite:cn 使用 https://dns.alidns.com/dns-query；geosite:geolocation-!cn 使用 https://cloudflare-dns.com/dns-query。';
 
     m.render().then(function (node) {
+      decorateControlWraps(node);
       container.appendChild(node);
       container.appendChild(E('div', { 'class': 'cl-save-bar' }, [
         E('button', { 'class': 'btn cbi-button', click: function () {
           m.save().then(function () { return clashoo.commitConfig(); })
+            .then(function () { return clearClashooDirty(); })
             .then(function () { location.reload(); })
             .catch(function (e) { ui.addNotification(null, E('p', '保存失败: ' + (e.message || e))); });
         }}, '保存配置'),
         E('button', { 'class': 'btn cbi-button-action', click: function () {
-          saveCommitApplyAndRestart(m, 'DNS 配置已保存并重启服务')
+          saveCommitApplyMaybeReload(m, 'DNS 配置已保存并热重载服务', 'DNS 配置已保存，服务未启动')
             .catch(function (e) { ui.addNotification(null, E('p', '操作失败: ' + (e.message || e))); });
         }}, '应用配置')
       ]));
@@ -486,23 +700,27 @@ return view.extend({
   _renderSingbox: function (sbData) {
     var self = this;
     var profiles = sbData.profiles || [];
-    var sbTab = 'profiles';
     var tabEls = {}, panelEls = {};
 
     var tabs = [
       { id: 'profiles', label: '配置文件' },
       { id: 'wizard',   label: '快速向导' }
     ];
+    var allowedTabs = tabs.map(function (t) { return t.id; });
+    this._sbTab = readSavedTab('clashoo.config.singbox.tab', this._sbTab || 'profiles', allowedTabs);
+    rememberTab('clashoo.config.singbox.tab', this._sbTab);
 
     var tabBar = E('div', { 'class': 'cl-tabs' },
       tabs.map(function (t) {
         var el = E('div', {
-          'class': 'cl-tab' + (t.id === 'profiles' ? ' active' : ''),
+          'class': 'cl-tab' + (self._sbTab === t.id ? ' active' : ''),
           click: function () {
             Object.keys(tabEls).forEach(function (k) {
               tabEls[k].className   = 'cl-tab'   + (k === t.id ? ' active' : '');
               panelEls[k].className = 'cl-panel' + (k === t.id ? ' active' : '');
             });
+            self._sbTab = t.id;
+            rememberTab('clashoo.config.singbox.tab', t.id);
           }
         }, t.label);
         tabEls[t.id] = el;
@@ -510,19 +728,20 @@ return view.extend({
       })
     );
 
-    var profilesPanel = E('div', { 'class': 'cl-panel active' },
+    var profilesPanel = E('div', { 'class': 'cl-panel' + (this._sbTab === 'profiles' ? ' active' : ''), id: 'cl-panel-profiles' },
       self._buildSbProfilesPanel(profiles, sbData.active || ''));
     panelEls['profiles'] = profilesPanel;
 
-    var wizardPanel = E('div', { 'class': 'cl-panel' },
+    var wizardPanel = E('div', { 'class': 'cl-panel' + (this._sbTab === 'wizard' ? ' active' : ''), id: 'cl-panel-wizard' },
       self._buildSbWizardPanel());
     panelEls['wizard'] = wizardPanel;
 
-    return E('div', { 'class': 'cl-wrap' }, [tabBar, profilesPanel, wizardPanel]);
+    return E('div', { 'class': 'cl-wrap clashoo-container cl-config-page cl-form-page' }, [tabBar, profilesPanel, wizardPanel]);
   },
 
   _buildSbProfilesPanel: function (profiles, activeProfile) {
     var self = this;
+    var safeText = function (v) { return (v == null || v === 'null') ? '' : String(v); };
 
     /* ── JSON editor (initially hidden) ── */
     var editorTitle = E('span', { 'class': 'cl-editor-hdr' }, '选择上方配置后可在此处编辑');
@@ -559,10 +778,10 @@ return view.extend({
       }
     }, '修复废弃字段');
 
-    var editorBox = E('div', { 'class': 'cl-section', style: 'margin-top:16px' }, [
+    var editorBox = E('div', { 'class': 'cl-section cl-card cl-sb-card cl-sb-editor' }, [
       editorTitle,
       textarea,
-      E('div', { 'class': 'cl-actions', style: 'margin-top:6px' }, [
+      E('div', { 'class': 'cl-actions cl-sb-row-actions cl-sb-editor-actions' }, [
         saveBtn,
         migrateBtn,
         E('span', { 'class': 'cl-hint' }, '编辑后点击保存；切换配置后服务将自动重启')
@@ -585,19 +804,20 @@ return view.extend({
       ? profiles.map(function (p) {
           return E('tr', {}, [
             E('td', {}, [
-              p.name,
-              p.active ? E('span', { 'class': 'cl-active-badge', style: 'margin-left:6px' }, '使用中') : ''
+              E('div', { 'class': 'cl-sb-file-name' }, [
+                p.active ? E('span', { 'class': 'cl-active-badge' }, '使用中') : '',
+                E('span', { 'class': 'cl-file-name-text' }, safeText(p.name))
+              ])
             ]),
-            E('td', { style: 'opacity:.5;font-size:12px' }, p.size || '—'),
-            E('td', { style: 'white-space:nowrap' }, [
+            E('td', { 'class': 'cl-sb-size' }, safeText(p.size) || '—'),
+            E('td', {}, [
+              E('div', { 'class': 'cl-sb-row-actions' }, [
               E('button', {
-                'class': 'btn cbi-button cl-btn-sm',
-                style: 'margin-right:4px',
+                'class': 'btn cbi-button cl-btn-sm cl-btn-sb-action cl-btn-sb-edit',
                 click: function () { loadEditor(p.name); }
               }, '编辑'),
               E('button', {
-                'class': 'btn cbi-button cl-btn-sm',
-                style: 'margin-right:4px',
+                'class': 'btn cbi-button-action cl-btn-sm cl-btn-sb-action cl-btn-sb-switch',
                 click: function () {
                   clashoo.setSingboxProfile(p.name).then(function (r) {
                     ui.addNotification(null, E('p', r.success ? '已切换至 ' + p.name : ('切换失败: ' + (r.message || ''))));
@@ -606,16 +826,17 @@ return view.extend({
                 }
               }, '切换'),
               E('button', {
-                'class': 'btn cbi-button-negative cl-btn-sm',
+                'class': 'btn cbi-button-negative cl-btn-sm cl-btn-sb-action cl-btn-sb-delete',
                 click: function () {
                   if (!confirm('删除 ' + p.name + '？')) return;
                   clashoo.deleteSingboxProfile(p.name).then(function () { location.reload(); });
                 }
               }, '删除')
+              ])
             ])
           ]);
         })
-      : [E('tr', {}, [E('td', { colspan: '3', style: 'opacity:.4;font-size:13px;padding:16px 0' }, '暂无配置文件，请使用快速向导生成或上传 JSON 文件')])];
+      : [E('tr', {}, [E('td', { 'class': 'cl-sb-empty', colspan: '3' }, '暂无配置文件，请使用快速向导生成或上传 JSON 文件')])];
 
     /* ── Upload ── */
     var uploadInput = E('input', { type: 'file', accept: '.json', style: 'display:none', id: 'sb-upload' });
@@ -633,16 +854,16 @@ return view.extend({
     });
 
     return [
-      E('div', { 'class': 'cl-section' }, [
+      E('div', { 'class': 'cl-section cl-card cl-sb-card' }, [
         E('h4', {}, 'sing-box 配置文件'),
-        E('table', { 'class': 'cl-sub-list' }, [
+        E('table', { 'class': 'cl-sub-list cl-sb-list' }, [
           E('thead', {}, E('tr', {}, [E('th', {}, '文件名'), E('th', {}, '大小'), E('th', {}, '操作')])),
           E('tbody', {}, rows)
         ]),
         uploadInput,
-        E('div', { 'class': 'cl-actions', style: 'margin-top:8px' }, [
+        E('div', { 'class': 'cl-actions cl-sb-top-actions' }, [
           E('button', {
-            'class': 'btn cbi-button cl-btn-sm',
+            'class': 'btn cbi-button-add cl-btn-sm cl-btn-sb-upload',
             click: function () { document.getElementById('sb-upload').click(); }
           }, '上传 JSON 配置')
         ])
@@ -688,16 +909,16 @@ return view.extend({
     }
 
     return [
-      E('div', { 'class': 'cl-section' }, [
+      E('div', { 'class': 'cl-section cl-card cl-sb-card' }, [
         E('h4', {}, '一键生成 sing-box 配置'),
-        E('div', { 'class': 'cl-form-wrap' }, [
+        E('div', { 'class': 'cl-form-wrap cl-fixed-600 cl-sb-form' }, [
           urlInput, nameInput, secretInput,
-          E('div', { 'class': 'cl-actions', style: 'margin-top:8px' }, [
+          E('div', { 'class': 'cl-actions cl-sb-top-actions' }, [
             E('button', { 'class': 'btn cbi-button cl-btn-sm', click: function () { doCreate(false); } }, '生成配置'),
-            E('button', { 'class': 'btn cbi-button-action cl-btn-sm', click: function () { doCreate(true); } }, '生成并切换')
+            E('button', { 'class': 'btn cbi-button-action cl-btn-sm', click: function () { doCreate(true); } }, '应用配置')
           ])
         ]),
-        E('p', { style: 'margin-top:14px;font-size:12px;opacity:.5;line-height:1.6' },
+        E('p', { 'class': 'cl-sb-note' },
           '生成的配置包含 TUN 透明代理、geoip/geosite 大陆直连、自动延迟测速策略组。\n' +
           '同名文件会直接覆盖，更新订阅时留空文件名或填相同名称即可，不会重复堆积文件。'
         )

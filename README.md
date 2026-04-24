@@ -1,4 +1,4 @@
-> 我维护 luci-app-clash，不是为了证明代码有多优秀，
+> 我维护 luci-app-clashoo，不是为了证明代码有多优秀，
 > 而是想把经典重新带回来。
 >
 > 在代理软件越来越复杂的今天，
@@ -7,10 +7,10 @@
 > 把复杂留给自己，把简单留给用户。
 
 <p align="center">
-    <img src="luci-app-clashoo/htdocs/luci-static/clash/logo.png" width="138" />
+    <img src="luci-app-clashoo/htdocs/luci-static/clashoo/logo.png" width="138" />
 </p>
 <h1 align="center">Clashoo</h1>
-<p align="center"><strong>基于 mihomo 内核的 OpenWrt LuCI 代理管理界面</strong></p>
+<p align="center"><strong>面向 OpenWrt 的双内核代理管理插件：mihomo + sing-box</strong></p>
 <div align="center">
     <a href="https://github.com/kenzok8/openwrt-clashoo/releases" target="_blank">
     <img alt="GitHub release" src="https://img.shields.io/github/v/release/kenzok8/openwrt-clashoo?style=flat-square"></a>
@@ -22,39 +22,126 @@
     <img alt="GitHub closed issues" src="https://img.shields.io/github/issues-closed/kenzok8/openwrt-clashoo.svg?style=flat-square"></a>
 </div>
 
+---
+
 ## 功能特性
 
-- **概览面板** — 一键启停、实时状态滚动、连接测试（微信 / YouTube）
-- **代理配置** — 多配置文件管理、运行模式切换（Fake-IP / TUN / 混合）
-- **DNS 设置** — 自定义上游 DNS、Fake-IP 过滤、DNS 劫持规则
-- **配置管理** — YAML 配置在线编辑与上传
-- **系统设置** — GeoIP 更新、大陆白名单、日志查看
+**双内核，一个界面**
+- **mihomo（Clash Meta）** — 稳定版 / Alpha 版可切，走 YAML 订阅
+- **sing-box** — 稳定版 / Alpha 版可切，走 JSON 配置文件
+- 内核切换无需重装，同一套 UCI 配置自动适配两端
+
+**概览面板**
+- 运行状态 / 健康检查（`pass` / `fail` / 降级运行）一栏可见
+- 内核切换（Mihomo ↔ Sing-box，当前选中高亮）
+- 透明代理分解（TCP / UDP / 网络栈）
+- 访问检查：内外站延迟分档显示（<400ms 绿 / <800ms 黄 / >800ms 红 / 超时红色单格）
+- 实时流量监控（上行 / 下行 / 活跃连接数）
+- 代理模式、运行模式、配置文件、管理面板一排下拉直达
+
+**DNS 策略（全面重构）**
+- 增强模式：Fake-IP ↔ Redir-Host 切换，不丢失字段
+- ECS 客户端子网（mihomo `ecs` / sing-box `client_subnet` 自动写入）
+- 上游 DNS 角色划分：默认 / 国内 / 代理 / 直连 / Fallback
+- 分流解析策略（按 `geosite`、`geoip`、域名规则下发到不同上游）
+- Fallback GeoIP 过滤与 IP-CIDR 过滤可配
+- Bootstrap DNS（用于解析 DoH / DoT / DoQ 服务器域名）
+
+**透明代理**
+- Fake-IP / TUN / Mixed 三种运行模式，切换后前端稳定不回退
+- TCP `redirect` + UDP `tproxy`（Fake-IP）/ TUN（TUN、Mixed）自动匹配
+- `gVisor` / `system` / `mixed` 网络栈按模式自动选择
+
+**管理面板**
+- 内置 MetaCubeXD / YACD / Zashboard / Razord 四选一
+- 一键更新面板（GitHub pages 直拉），更新日志实时落盘到「系统 → 日志 → 更新日志」
+
+**系统与数据**
+- 内核下载支持 GitHub / GHProxy 镜像源，按架构建议版本
+- GeoIP / GeoSite 定时自动更新（间隔可配）
+- 访问密钥（Dashboard）随机生成 / 掩码显示
+
+---
+
+## 界面预览（暗黑模式）
+
+**概览 · mihomo 运行中**
+![overview-mihomo](https://raw.githubusercontent.com/kenzok8/kenzok8/main/screenshot/clashoo-overview-mihomo.png)
+
+**概览 · sing-box 运行中**
+![overview-singbox](https://raw.githubusercontent.com/kenzok8/kenzok8/main/screenshot/clashoo-overview-singbox.png)
+
+**DNS 配置**
+![config-dns](https://raw.githubusercontent.com/kenzok8/kenzok8/main/screenshot/clashoo-config-dns.png)
+
+**sing-box 配置文件列表**
+![config-singbox](https://raw.githubusercontent.com/kenzok8/kenzok8/main/screenshot/clashoo-config-singbox.png)
+
+**系统 · 内核与数据**
+![system-kernel](https://raw.githubusercontent.com/kenzok8/kenzok8/main/screenshot/clashoo-system-kernel.png)
+
+**系统 · 更新日志**
+![system-update-log](https://raw.githubusercontent.com/kenzok8/kenzok8/main/screenshot/clashoo-system-update-log.png)
+
+---
 
 ## 仓库结构
 
-- `clashoo/`：核心包（`clashoo`，已内置运行时脚本）
-- `luci-app-clashoo/`：LuCI 前端与 i18n 包
-- `scripts/`：安装/卸载脚本
+```
+clashoo/                         # 运行时包（/etc/config, /usr/share/clashoo/*）
+├── files/etc/config/clashoo     # UCI 默认模板（DNS 策略、ECS、Fallback 等）
+├── files/etc/init.d/clashoo     # 服务启停
+└── files/usr/share/clashoo/
+    ├── lib/
+    │   ├── normalize_singbox_config.uc   # sing-box JSON 规则化（525 行 ucode）
+    │   └── templates/default.json        # sing-box 默认模板
+    ├── runtime/
+    │   ├── yum_change.sh                 # mihomo YAML 生成
+    │   ├── dns_helpers.sh                # POSIX sh DNS 工具函数
+    │   └── ...
+    └── update/                           # 内核 / 面板 / GeoIP 更新脚本
+
+luci-app-clashoo/                # LuCI 前端插件
+├── htdocs/luci-static/
+│   ├── resources/view/clashoo/  # overview / config / system 三大页
+│   ├── resources/tools/clashoo.js  # 统一 RPC + toast
+│   └── clashoo/logo.png
+├── po/                          # i18n
+└── root/usr/share/rpcd/ucode/
+    └── luci.clashoo             # 后端 RPC（status / set_mode / update_panel 等）
+
+scripts/                         # 安装 / 卸载 / 单元测试
+```
+
+---
 
 ## 依赖
 
 | 包名 | 说明 |
 |------|------|
-| `clashoo` | 内置 mihomo 核心包（架构相关） |
-| `luci-app-clashoo` | LuCI 管理界面 |
+| `clashoo` | 运行时包，内置 mihomo 二进制并软链 `clash-meta` |
+| `luci-app-clashoo` | LuCI 管理界面（主包） |
+| `luci-i18n-clashoo-zh-cn` | 简体中文翻译（可选） |
 | `luci` | OpenWrt Web 界面框架 |
+| `ucode` | sing-box JSON 规则化运行时（OpenWrt 24.10+ 默认已含） |
 | `curl` | 下载 GeoIP / 面板 / 订阅 |
+
+sing-box 二进制由用户按需独立安装（或通过「系统 → 内核下载」一键拉取）。
+
+---
 
 ## 系统要求
 
-- 仅支持新版本 OpenWrt，最低 `24.10+`（推荐 `24.10/25.x`）
+- OpenWrt **24.10+**（推荐 `24.10` / `25.x`）
 - 不再维护旧版 LuCI / OpenWrt（如 `18.06`、`21.02`、`23.05`）
+
+---
 
 ## 安装方式
 
 ### A. 一键安装（推荐）
 
-安装脚本会优先下载最新的 `Pre-release` 包；如果当前没有 `Pre-release`，才会回退到最新正式版 `Release`。
+安装脚本优先抓最新 `Pre-release`，没有时回退到最新 `Release`：
 
 ```bash
 wget -O - https://github.com/kenzok8/openwrt-clashoo/raw/refs/heads/main/scripts/install.sh | ash
@@ -74,7 +161,7 @@ apk add --allow-untrusted luci-app-clashoo_*.apk
 apk add --allow-untrusted luci-i18n-clashoo-zh-cn_*.apk
 ```
 
-### C. 从源码编译安装
+### C. 从源码编译
 
 ```bash
 git clone https://github.com/kenzok8/openwrt-clashoo.git package/openwrt-clashoo
@@ -88,22 +175,43 @@ make package/luci-app-clashoo/compile V=s
 wget -O - https://github.com/kenzok8/openwrt-clashoo/raw/refs/heads/main/scripts/uninstall.sh | ash
 ```
 
-## 核心产物说明
+---
 
-- `clashoo` 包通过 Go 构建直接产出 `/usr/bin/mihomo`，并创建 `/usr/bin/clash-meta` 软链接。
-- 仓库不维护 `clashoo/core/mihomo/<arch>/mihomo` 目录，也不再使用 `clashoo/scripts/fetch_mihomo_cores.sh`。
-- Release 中会按架构发布 `clashoo` 与 `luci-app-clashoo` 的安装包（`.ipk` / `.apk`，取决于目标 SDK 产物）。
+## 使用速览
 
-## 截图
+1. **安装** → 浏览器访问 LuCI，进入「服务 → Clashoo」
+2. **上传订阅 / 配置**
+   - mihomo：`配置 → 订阅` 或直接上传 YAML
+   - sing-box：`配置 → 配置文件` 上传 JSON
+3. **选择内核** → 概览右上「内核切换」Mihomo ↔ Sing-box
+4. **启动服务** → 概览「启用服务」开关
+5. **选运行模式** → Fake-IP（默认）/ TUN / Mixed
+6. **看日志** → 系统 → 日志（运行日志 / 更新日志 / GeoIP 日志）
 
-概览页面包含：
-- 🐱 Clashoo 品牌标识 + 启停状态动画
-- 📊 连接测试（国内/国外延迟检测）
-- ⚙️ 快捷配置（运行模式、代理模式、面板控制）
+---
+
+## 开发与测试
+
+```bash
+# POSIX sh DNS 工具函数单元测试（本机即可跑）
+./scripts/test_dns_helpers.sh
+
+# sing-box JSON 规则化集成测试（需 ucode）
+./scripts/test_singbox_dns_normalize.sh
+
+# init.d 启动守卫静态检查
+./scripts/test_initd_clash.sh
+
+# YAML → sing-box JSON 转换测试（需 ucode / yq / jq）
+./scripts/test_yaml2singbox.sh
+```
+
+---
 
 ## 致谢
 
 - [mihomo](https://github.com/MetaCubeX/mihomo) — Clash Meta 内核
+- [sing-box](https://github.com/SagerNet/sing-box) — 通用代理平台
 - [luci-app-clash](https://github.com/kenzok78/luci-app-clash) — 原始项目
 - [nikki](https://github.com/nikki-enrich/openwrt-nikki) — 参考实现
 

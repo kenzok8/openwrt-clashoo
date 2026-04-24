@@ -1,55 +1,71 @@
-# 内核二进制
+# ── OpenWrt 内核 / 数据 ──
 clashoo/root/etc/clash/clash
 clashoo/root/etc/clash/clash-meta
 clashoo/root/usr/bin/mihomo
 clashoo/root/usr/bin/clash*
-
-# GeoIP / GeoSite 数据
 clashoo/root/etc/clash/Country.mmdb
 clashoo/root/etc/clash/*.dat
 
-# 中国 IP 列表（运行时下载）
+# ── GeoIP / 中国 IP 列表（运行时下载） ──
 clashoo/root/usr/share/clash/china_ip.txt
 clashoo/root/usr/share/clash/china_ipv6.txt
+clashoo/core/mihomo/*/mihomo
 
-# 运行时日志/状态
+# ── 运行时日志 / 状态 ──
 clashoo/root/usr/share/clash/clash.txt
 clashoo/root/usr/share/clash/clash_real.txt
 clashoo/root/usr/share/clash/logstatus_check
-
-# 用户订阅配置
-clashoo/root/etc/clash/config.yaml
-clashoo/root/etc/clash/custom/
-clashoo/root/usr/share/clash/config/
-
-# yacd/dashboard 面板（运行时安装）
-clashoo/root/usr/share/clash/yacd/
-clashoo/root/usr/share/clash/dashboard/
-
-# macOS
-.DS_Store
-
-# build artifacts
-dist/
-
-# local test helpers
-test-http/
-_device_snapshot/
-.playwright-cli/
-.superpowers/
-docs/
-
-# root-level debug screenshots / snapshots
-/*.png
-/*.yml
-/*.yaml
-/.tmp_*
-
-# runtime generated state files
 clashoo/root/usr/share/clash/new_*
 clashoo/root/usr/share/clash/*_version
 clashoo/root/usr/share/clash/fake_filter.list
 clashoo/root/usr/share/clash/rules/
 
-# core binaries are fetched in CI/release pipeline
-clashoo/core/mihomo/*/mihomo
+# ── 用户订阅 / 配置（严禁入库） ──
+clashoo/root/etc/clash/config.yaml
+clashoo/root/etc/clash/custom/
+clashoo/root/usr/share/clash/config/
+clashoo/files/usr/share/clashoo/config/
+*.subscribe
+*.subscription
+
+# ── 运行时安装的面板 ──
+clashoo/root/usr/share/clash/yacd/
+clashoo/root/usr/share/clash/dashboard/
+
+# ── 开发辅助 / IDE / AI 协作笔记 ──
+.playwright-cli/
+.superpowers/
+.vscode/
+.idea/
+docs/
+CLAUDE.md
+AGENTS.md
+CODEX.md
+SKILLS.md
+
+# ── 调试产物 ──
+dist/
+test-http/
+_device_snapshot/
+*.log
+demo-flow.html
+
+# ── 根目录调试 / 截图 / 快照（历史泄漏过订阅，严格排除） ──
+/*.png
+/*.jpg
+/*.jpeg
+/*.gif
+/*.webp
+/*.yml
+/*.yaml
+/*.json
+!package.json
+!package-lock.json
+/.tmp_*
+
+# ── 本地拷贝/备份目录 ──
+openwrt-clashoo-test/
+
+# ── macOS / 系统 ──
+.DS_Store
+Thumbs.db
