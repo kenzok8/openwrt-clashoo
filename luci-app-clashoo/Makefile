@@ -39,12 +39,11 @@ define Package/luci-app-clashoo/install
 	$(INSTALL_DATA) ./root/usr/share/rpcd/acl.d/luci-app-clashoo.json $(1)/usr/share/rpcd/acl.d/luci-app-clashoo.json
 	$(INSTALL_DATA) ./root/usr/share/luci/menu.d/luci-app-clashoo.json $(1)/usr/share/luci/menu.d/luci-app-clashoo.json
 	
-	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/clashoo/app.js $(1)/www/luci-static/resources/view/clashoo/app.js
+	$(INSTALL_DATA) ./htdocs/luci-static/resources/tools/clashoo.js $(1)/www/luci-static/resources/tools/clashoo.js
+	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/clashoo/index.js $(1)/www/luci-static/resources/view/clashoo/index.js
 	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/clashoo/config.js $(1)/www/luci-static/resources/view/clashoo/config.js
-	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/clashoo/dns.js $(1)/www/luci-static/resources/view/clashoo/dns.js
-	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/clashoo/system.js $(1)/www/luci-static/resources/view/clashoo/system.js
-	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/clashoo/log.js $(1)/www/luci-static/resources/view/clashoo/log.js
 	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/clashoo/overview.js $(1)/www/luci-static/resources/view/clashoo/overview.js
+	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/clashoo/system.js $(1)/www/luci-static/resources/view/clashoo/system.js
 	$(INSTALL_DATA) ./htdocs/luci-static/clashoo/logo.png $(1)/www/luci-static/clashoo/logo.png
 endef
 
@@ -59,9 +58,25 @@ exit 0
 endef
 
 define Package/luci-i18n-clashoo-zh-cn
-  TITLE:=$(1) - Chinese (Simplified)
-  CONTENT:=zh-cn
-  DEPENDS:=+luci-app-clashoo
+	SECTION:=luci
+	CATEGORY:=LuCI
+	TITLE:=luci-app-clashoo - Simplified Chinese (zh-cn)
+	DEPENDS:=+luci-app-clashoo
+	PKGARCH:=all
+endef
+
+define Package/luci-i18n-clashoo-zh-cn/install
+	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/i18n
+	$(INSTALL_DATA) ./po/zh-cn/clash.zh-cn.lmo $(1)/usr/lib/lua/luci/i18n
+endef
+
+define Package/luci-i18n-clashoo-zh-cn/postinst
+#!/bin/sh
+if [ -z "$${IPKG_INSTROOT}" ]; then
+	rm -rf /tmp/luci*
+	/etc/init.d/uhttpd restart >/dev/null 2>&1 || true
+fi
+exit 0
 endef
 
 $(eval $(call BuildPackage,luci-app-clashoo))
