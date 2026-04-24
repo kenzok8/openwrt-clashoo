@@ -1760,14 +1760,19 @@ html[data-bs-theme="dark"] .cl-wrap .cl-live-num {
   background: rgba(128, 128, 128, 0.08) !important;
 }
 
-/* ─── Theme-override: disable Argon zebra stripes inside clashoo widgets ───
-   Argon 主题给 div > table > tbody > tr:nth-of-type(2n) 上了浅白/深灰斑马纹，
-   导致我们的 cl-sub-list、DynamicList items、任何子表格偶数行出现"杂色"。
-   全部强制透明背景。 */
+/* ─── Theme-override: force transparent bg on LuCI form elements ───
+   不论哪个主题（Argon / Bootstrap / Material 等），只要给表格行 /
+   form 行 / 列表项上了斑马纹，透过我们的透明元素就会显出底色杂色。
+   这里统一 reset 所有 LuCI 核心容器的背景，主题无关。 */
 .cl-wrap table tbody tr,
 .cl-wrap table tbody tr:nth-of-type(2n),
 .cl-wrap .table .tbody .tr,
 .cl-wrap .table .tbody .tr:nth-of-type(2n),
+.cl-wrap .cbi-value,
+.cl-wrap .cbi-value:nth-of-type(2n),
+.cl-wrap .cbi-rowstyle-1,
+.cl-wrap .cbi-rowstyle-2,
+.cl-wrap .cbi-section-table-row,
 .cl-wrap .cbi-dynlist,
 .cl-wrap .cbi-dynlist .item,
 .cl-wrap .cbi-dynlist .item:nth-of-type(2n),
