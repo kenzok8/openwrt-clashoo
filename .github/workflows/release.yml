@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*'
+      - 'alpha-*'
   workflow_dispatch:
     inputs:
       prerelease:
@@ -107,7 +108,11 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then
             echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
-            echo "prerelease=false" >> $GITHUB_OUTPUT
+            if [[ "${{ github.ref_name }}" == v* ]]; then
+              echo "prerelease=false" >> $GITHUB_OUTPUT
+            else
+              echo "prerelease=true" >> $GITHUB_OUTPUT
+            fi
           else
             echo "tag=v$(date -u +%Y.%m.%d)" >> $GITHUB_OUTPUT
             echo "prerelease=${{ github.event.inputs.prerelease }}" >> $GITHUB_OUTPUT
