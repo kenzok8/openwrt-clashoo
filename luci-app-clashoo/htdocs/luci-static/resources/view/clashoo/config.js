@@ -637,7 +637,7 @@ return view.extend({
     o.placeholder = '240.0.0.0/4';
     o = s.option(form.Flag, 'singbox_independent_cache', 'sing-box 独立 DNS 缓存');
     o.default = '0';
-    o.description = '仅在特殊场景启用，默认关闭。';
+    o.description = '开启后，direct / proxy / fallback 等角色各自独立 DNS 缓存；适用于同一域名按分流走不同解析链的场景。一般无需开启。';
 
     s = m.section(form.TypedSection, 'dnsservers', '上游 DNS');
     s.addremove = true; s.anonymous = true;

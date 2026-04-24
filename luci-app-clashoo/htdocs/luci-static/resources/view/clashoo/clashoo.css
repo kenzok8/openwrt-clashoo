@@ -1759,3 +1759,48 @@ html[data-bs-theme="dark"] .cl-wrap .cl-live-num {
   border-color: rgba(128, 128, 128, 0.36) !important;
   background: rgba(128, 128, 128, 0.08) !important;
 }
+
+/* ─── Theme-override: disable Argon zebra stripes inside clashoo widgets ───
+   Argon 主题给 div > table > tbody > tr:nth-of-type(2n) 上了浅白/深灰斑马纹，
+   导致我们的 cl-sub-list、DynamicList items、任何子表格偶数行出现"杂色"。
+   全部强制透明背景。 */
+.cl-wrap table tbody tr,
+.cl-wrap table tbody tr:nth-of-type(2n),
+.cl-wrap .table .tbody .tr,
+.cl-wrap .table .tbody .tr:nth-of-type(2n),
+.cl-wrap .cbi-dynlist,
+.cl-wrap .cbi-dynlist .item,
+.cl-wrap .cbi-dynlist .item:nth-of-type(2n),
+.cl-wrap .cbi-dynlist .add-item {
+  background: transparent !important;
+}
+
+/* DynamicList item 在 dark 下可读性：边框 + 字色 */
+.cl-wrap .cbi-dynlist .item {
+  color: inherit !important;
+  border: 1px solid rgba(128, 128, 128, 0.22) !important;
+  border-radius: 6px !important;
+  padding: 4px 10px !important;
+  margin-bottom: 4px !important;
+}
+.cl-wrap .cbi-dynlist .item.flash {
+  animation: none !important;
+  background: rgba(var(--primary-rgb, 0, 122, 255), 0.08) !important;
+}
+
+/* DynamicList 删除/添加按钮在暗色下对比度 */
+.cl-wrap .cbi-dynlist .item > span.close,
+.cl-wrap .cbi-dynlist .item > .close {
+  color: #c96a5a !important;
+  opacity: 0.8;
+}
+
+/* ─── Bug 4: 限制内联 Value 输入框宽度，不撑满父容器 ─── */
+.cl-wrap .cbi-value input[type="text"],
+.cl-wrap .cbi-value input[type="password"],
+.cl-wrap .cbi-value-field > .cbi-input-text,
+.cl-wrap .cbi-value-field > input.cbi-input-text {
+  max-width: 480px;
+  width: 100%;
+  box-sizing: border-box;
+}

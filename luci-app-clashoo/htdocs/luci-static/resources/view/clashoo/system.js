@@ -4,7 +4,14 @@
 'require uci';
 'require ui';
 'require poll';
+'require rpc';
 'require tools.clashoo as clashoo';
+
+var callHostHints = rpc.declare({
+  object: 'luci-rpc',
+  method: 'getHostHints',
+  expect: { '': {} }
+});
 
 var CSS = [
   '.cl-wrap{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif}',
@@ -174,7 +181,8 @@ return view.extend({
       fastResolve(clashoo.getCpuArch(), 1200, ''),
       fastResolve(clashoo.getLogStatus(), 1200, {}),
       fastResolve(clashoo.readLog(), 1200, ''),
-      uci.load('clashoo')
+      uci.load('clashoo'),
+      fastResolve(L.resolveDefault(callHostHints(), {}), 1500, {})
     ]);
   },
 
@@ -183,6 +191,8 @@ return view.extend({
     var cpuArch   = data[0] || '';
     var logStatus = data[1] || {};
     var runLog    = data[2] || '';
+    var hostHints = data[4] || {};
+    this._hostHints = hostHints;
 
     if (!document.getElementById('cl-css')) {
       var s = document.createElement('style');
@@ -398,7 +408,26 @@ return view.extend({
     s.addremove = false;
     o = s.option(form.ListValue, 'access_control_mode', '访问控制');
     o.value('all', '所有设备'); o.value('allow', '白名单'); o.value('deny', '黑名单');
-    o = s.option(form.DynamicList, 'access_control_list', 'IP 列表');
+    o = s.option(form.DynamicList, 'access_control_list', 'IP / MAC');
+    o.placeholder = '192.168.1.100 / AA:BB:CC:DD:EE:FF';
+    o.description = '从已发现的局域网设备下拉选择，也可手动输入 IP 或 MAC 地址。';
+    /* Populate dropdown options from DHCP/ARP hints */
+    var hints = self._hostHints || {};
+    var seen = {};
+    Object.keys(hints).forEach(function (mac) {
+      var h = hints[mac] || {};
+      var name = h.name || '';
+      var v4 = h.ipv4 || '';
+      var macU = mac.toUpperCase();
+      if (v4 && !seen[v4]) {
+        seen[v4] = true;
+        o.value(v4, v4 + (name ? ' · ' + name : '') + ' (' + macU + ')');
+      }
+      if (!seen[macU]) {
+        seen[macU] = true;
+        o.value(macU, macU + (name ? ' · ' + name : '') + (v4 ? ' (' + v4 + ')' : ''));
+      }
+    });
 
     s = m.section(form.NamedSection, 'config', 'clashoo', '自动化任务');
     s.addremove = false;

@@ -1402,8 +1402,8 @@ return view.extend({
     this._busy = true;
     var self = this;
 
-    /* Determine message set based on core type */
-    var coreType = uci.get('clashoo', 'config', 'core_type') || 'mihomo';
+    /* Determine message set based on CURRENT core (st.core_type first; uci.get is a stale LuCI cache) */
+    var coreType = this._currentCoreType(this._lastSt);
     var msgSet   = coreType === 'singbox' ? MSGS.singbox : MSGS.mihomo;
     var messages = msgSet[opKey] || [];
 
