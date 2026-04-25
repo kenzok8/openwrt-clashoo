@@ -759,8 +759,17 @@ if [ "$CORETYPE" = "4" ] || [ "$CORETYPE" = "5" ]; then
 fi
 
 if [ "$CORETYPE" = "1" ]; then
-	write_log "当前未配置可下载的 Clash 内核源"
-	exit 1
+	write_log "已选择内核通道：mihomo Smart 版（vernesong fork）"
+	TAG="Prerelease-Alpha"
+	ASSET=$(pick_mihomo_asset "vernesong/mihomo" "$TAG" "$(map_mihomo_arch "$MODELTYPE")" "alpha")
+	[ -z "$ASSET" ] && TAG=$(fetch_prerelease_tag "vernesong/mihomo")
+	[ -z "$TAG" ] && write_log "获取 Smart 版本号失败" && exit 1
+	[ -z "$ASSET" ] && ASSET=$(pick_mihomo_asset "vernesong/mihomo" "$TAG" "$(map_mihomo_arch "$MODELTYPE")" "alpha")
+	URL="https://github.com/vernesong/mihomo/releases/download/${TAG}/${ASSET}"
+	TARGET="/usr/bin/smart"
+	VERSION_FILE="/usr/share/clashoo/mihomo_version"
+	VERSION_VALUE="smart-$(printf '%s\n' "$ASSET" | sed -n 's#^mihomo-.*-alpha-\([0-9a-fA-F]\{7,\}\)\.gz$#\1#p' | head -n 1)"
+	[ "$VERSION_VALUE" = "smart-" ] && VERSION_VALUE="smart-${TAG}"
 elif [ "$CORETYPE" = "2" ]; then
 	write_log "已选择内核通道：稳定版"
 	TAG=$(fetch_latest_tag "MetaCubeX/mihomo")

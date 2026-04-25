@@ -284,6 +284,7 @@ return view.extend({
     s = m.section(form.NamedSection, 'config', 'clashoo', '内核下载');
     s.addremove = false;
     o = s.option(form.ListValue, 'dcore', '版本类型');
+    o.value('1', 'mihomo（Smart 版）');
     o.value('2', 'mihomo（稳定版）'); o.value('3', 'mihomo（Alpha 版）');
     o.value('4', 'sing-box（稳定版）'); o.value('5', 'sing-box（Alpha 版）');
     o = s.option(form.ListValue, 'download_core', 'CPU 架构');

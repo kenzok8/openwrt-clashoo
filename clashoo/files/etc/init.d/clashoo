@@ -46,7 +46,7 @@ _detect_selected_core() {
 	selected=$(uci get clashoo.config.core 2>/dev/null)
 	case "$selected" in
 		1)
-			for _bin in /etc/clashoo/clash /usr/bin/clash; do
+			for _bin in /usr/bin/smart /etc/clashoo/clash /usr/bin/clash; do
 				[ -x "$_bin" ] && echo "$_bin" && return
 			done
 			;;
@@ -66,7 +66,7 @@ _detect_selected_core() {
 
 core_supports_advanced_features() {
 	case "$CLASH" in
-		*/mihomo|*/clash-meta)
+		*/mihomo|*/clash-meta|*/smart)
 			return 0
 			;;
 		*)
@@ -76,7 +76,7 @@ core_supports_advanced_features() {
 }
 
 _core_names() {
-	echo "mihomo clash-meta clash sing-box"
+	echo "mihomo clash-meta clash sing-box smart"
 }
 
 _core_running() {
@@ -119,7 +119,11 @@ sync_legacy_core_field() {
 	if is_singbox_selected; then
 		[ "$dcore" = "5" ] && legacy="5" || legacy="4"
 	else
-		[ "$dcore" = "3" ] && legacy="3" || legacy="2"
+		case "$dcore" in
+			1) legacy="1" ;;
+			3) legacy="3" ;;
+			*) legacy="2" ;;
+		esac
 	fi
 	uci -q set clashoo.config.core="$legacy"
 	uci -q commit clashoo >/dev/null 2>&1
