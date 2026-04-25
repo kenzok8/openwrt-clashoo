@@ -27,13 +27,13 @@
 ## 功能特性
 
 **双内核，一个界面**
-- **mihomo（Clash Meta）** — 稳定版 / Alpha 版可切，走 YAML 订阅
+- **mihomo（Clash Meta）** — 稳定版 / Alpha 版 / **Smart 版**（[vernesong fork](https://github.com/vernesong/mihomo)，支持 `type: smart` 策略组）三选一，走 YAML 订阅
 - **sing-box** — 稳定版 / Alpha 版可切，走 JSON 配置文件
 - 内核切换无需重装，同一套 UCI 配置自动适配两端
 
 **概览面板**
 - 运行状态 / 健康检查（`pass` / `fail` / 降级运行）一栏可见
-- 内核切换（Mihomo ↔ Sing-box，当前选中高亮）
+- 内核切换（Mihomo / Smart / Sing-box 三向切换，当前选中高亮）
 - 透明代理分解（TCP / UDP / 网络栈）
 - 访问检查：内外站延迟分档显示（<400ms 绿 / <800ms 黄 / >800ms 红 / 超时红色单格）
 - 实时流量监控（上行 / 下行 / 活跃连接数）
@@ -183,7 +183,7 @@ wget -O - https://github.com/kenzok8/openwrt-clashoo/raw/refs/heads/main/scripts
 2. **上传订阅 / 配置**
    - mihomo：`配置 → 订阅` 或直接上传 YAML
    - sing-box：`配置 → 配置文件` 上传 JSON
-3. **选择内核** → 概览右上「内核切换」Mihomo ↔ Sing-box
+3. **选择内核** → 概览右上「内核切换」Mihomo / Smart / Sing-box（Smart 需先在「配置 → 代理 → Smart 策略设置」中启用策略）
 4. **启动服务** → 概览「启用服务」开关
 5. **选运行模式** → Fake-IP（默认）/ TUN / Mixed
 6. **看日志** → 系统 → 日志（运行日志 / 更新日志 / GeoIP 日志）
@@ -211,6 +211,7 @@ wget -O - https://github.com/kenzok8/openwrt-clashoo/raw/refs/heads/main/scripts
 ## 致谢
 
 - [mihomo](https://github.com/MetaCubeX/mihomo) — Clash Meta 内核
+- [mihomo (vernesong fork)](https://github.com/vernesong/mihomo) — Smart 策略组支持
 - [sing-box](https://github.com/SagerNet/sing-box) — 通用代理平台
 - [fchomo](https://github.com/fcshark-org/openwrt-fchomo) — 参考实现
 - [nikki](https://github.com/nikkinikki-org/OpenWrt-nikki) — 参考实现
