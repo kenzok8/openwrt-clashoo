@@ -203,10 +203,10 @@ return view.extend({
       var link = document.createElement('link');
       link.id = 'cl-css-ext';
       link.rel = 'stylesheet';
-      link.href = L.resource('view/clashoo/clashoo.css') + '?v=20260422ai';
+      link.href = L.resource('view/clashoo/clashoo.css') + '?v=20260425b1';
       document.head.appendChild(link);
     } else {
-      document.getElementById('cl-css-ext').href = L.resource('view/clashoo/clashoo.css') + '?v=20260422ai';
+      document.getElementById('cl-css-ext').href = L.resource('view/clashoo/clashoo.css') + '?v=20260425z2';
     }
 
     var tabs = [
@@ -408,25 +408,22 @@ return view.extend({
     s.addremove = false;
     o = s.option(form.ListValue, 'access_control_mode', '访问控制');
     o.value('all', '所有设备'); o.value('allow', '白名单'); o.value('deny', '黑名单');
-    o = s.option(form.DynamicList, 'access_control_list', 'IP / MAC');
-    o.placeholder = '192.168.1.100 / AA:BB:CC:DD:EE:FF';
-    o.description = '从已发现的局域网设备下拉选择，也可手动输入 IP 或 MAC 地址。';
-    /* Populate dropdown options from DHCP/ARP hints */
-    var hints = self._hostHints || {};
+    o = s.option(form.DynamicList, 'access_control_list', 'IP主机');
+    o.placeholder = '192.168.1.100';
+
+    /* Populate dropdown from DHCP/ARP hints (luci-rpc returns ipaddrs[] array) */
+    var hints = this._hostHints || {};
     var seen = {};
     Object.keys(hints).forEach(function (mac) {
       var h = hints[mac] || {};
-      var name = h.name || '';
-      var v4 = h.ipv4 || '';
       var macU = mac.toUpperCase();
-      if (v4 && !seen[v4]) {
-        seen[v4] = true;
-        o.value(v4, v4 + (name ? ' · ' + name : '') + ' (' + macU + ')');
-      }
-      if (!seen[macU]) {
-        seen[macU] = true;
-        o.value(macU, macU + (name ? ' · ' + name : '') + (v4 ? ' (' + v4 + ')' : ''));
-      }
+      var addrs = h.ipaddrs || (h.ipv4 ? [h.ipv4] : []);
+      addrs.forEach(function (ip) {
+        if (ip && !seen[ip]) {
+          seen[ip] = true;
+          o.value(ip, ip + ' (' + macU + ')');
+        }
+      });
     });
 
     s = m.section(form.NamedSection, 'config', 'clashoo', '自动化任务');
@@ -508,7 +505,6 @@ return view.extend({
         E('button', {
           'class': 'btn cbi-button-negative',
           click: function () {
-            if (!confirm('清空当前日志？')) return;
             currentType().clear().then(function () { logArea.textContent = ''; });
           }
         }, '清空日志')

@@ -13,7 +13,7 @@
   --cl-radius: var(--border-radius, 12px);
   --cl-title-color: var(--title-color, inherit);
   --cl-field-color: var(--text-color, inherit);
-  --cl-placeholder: rgba(var(--primary-rgb), 0.45);
+  --cl-placeholder: rgba(80, 88, 100, 0.55);
   --cl-control-border: rgba(128, 128, 128, 0.18);
   --cl-control-bg: rgba(128, 128, 128, 0.05);
   --cl-input-bg: rgba(128, 128, 128, 0.05);
@@ -44,6 +44,7 @@
   --cl-control-bg: rgba(255, 255, 255, 0.05);
   --cl-input-bg: rgba(255, 255, 255, 0.05);
   --cl-input-border: rgba(255, 255, 255, 0.16);
+  --cl-placeholder: rgba(200, 210, 220, 0.48);
   --cl-live-shell-bg: rgba(255, 255, 255, 0.03);
   --cl-live-card-bg: rgba(255, 255, 255, 0.04);
   --cl-live-border: rgba(255, 255, 255, 0.12);
@@ -448,14 +449,12 @@ html[data-darkmode="true"] .cl-wrap .cl-mode-tag {
 .cl-wrap.cl-config-page .cbi-value-title {
   color: var(--cl-label-muted) !important;
   font-size: 13px !important;
-  font-weight: 500 !important;
 }
 
 .cl-wrap.cl-config-page .cbi-section-descr,
 .cl-wrap.cl-config-page .cbi-value-helptext {
   color: var(--cl-label-muted) !important;
   font-size: 12px !important;
-  font-weight: 500 !important;
 }
 
 .cl-wrap.cl-system-page .cl-tab,
@@ -1775,13 +1774,15 @@ html[data-bs-theme="dark"] .cl-wrap .cl-live-num {
   background: transparent !important;
 }
 
-/* DynamicList item 在 dark 下可读性：边框 + 字色 */
+/* DynamicList items: config 页面不加外框（避免双框），system 页面 IP 主机需要外框 */
 .cl-wrap .cbi-dynlist .item {
   color: inherit !important;
+  margin-bottom: 4px !important;
+}
+.cl-wrap.cl-system-page .cbi-dynlist .item {
   border: 1px solid rgba(128, 128, 128, 0.22) !important;
   border-radius: 6px !important;
   padding: 4px 10px !important;
-  margin-bottom: 4px !important;
 }
 .cl-wrap .cbi-dynlist .item.flash {
   animation: none !important;

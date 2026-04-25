@@ -19,4 +19,7 @@ while IFS='#' read -r filename _url _type; do
 done < "$LIST_FILE"
 log_update "自动更新任务完成"
 
+log_update "更新大陆白名单"
+sh /usr/share/clashoo/update/update_china_ip.sh >> "$UPDATE_LOG" 2>&1
+
 exit 0

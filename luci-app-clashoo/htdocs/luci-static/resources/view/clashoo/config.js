@@ -56,10 +56,10 @@ var CSS = [
   '.cbi-section-table-row .cbi-section-table-cell:first-child{display:none}',
   '.cl-mode-tabs{display:inline-flex;gap:4px;margin:6px 0}',
   '.cl-mode-tab-active{font-weight:700}',
-  '.cl-panel .cbi-section>h3{font-size:13px !important;font-weight:600;margin-bottom:8px;color:var(--cl-muted) !important;letter-spacing:.1px}',
-  '.cl-panel .cbi-value-title{font-size:13px !important;font-weight:500 !important;color:var(--cl-muted) !important}',
+  '.cl-panel .cbi-section>h3{font-size:13px !important;font-weight:600;margin-bottom:8px}',
+  '.cl-panel .cbi-value-title{font-size:13px !important}',
   '.cl-panel .cbi-value-field input,.cl-panel .cbi-value-field select,.cl-panel .cbi-value-field textarea{font-size:13px !important}',
-  '.cl-panel .cbi-section-descr,.cl-panel .cbi-value-helptext{font-size:12px !important;color:var(--cl-muted) !important}',
+  '.cl-panel .cbi-section-descr,.cl-panel .cbi-value-helptext{font-size:12px !important}',
   '.cl-panel .cbi-section{margin-bottom:12px}',
   '.cl-wrap .cbi-section>h3,.cl-wrap .cbi-value-title,.cl-wrap .cbi-section-descr,.cl-wrap .cbi-value-helptext{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif !important}',
   '.cl-wrap .cbi-input-text,.cl-wrap .cbi-input-select,.cl-wrap select,.cl-wrap input,.cl-wrap textarea,.cl-wrap .btn,.cl-wrap .cbi-button{font-size:13px !important;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif !important}',
@@ -203,7 +203,7 @@ return view.extend({
       var link = document.createElement('link');
       link.id = 'cl-css-ext';
       link.rel = 'stylesheet';
-      link.href = L.resource('view/clashoo/clashoo.css') + '?v=20260422ai';
+      link.href = L.resource('view/clashoo/clashoo.css') + '?v=20260425b1';
       document.head.appendChild(link);
     } else {
       document.getElementById('cl-css-ext').href = L.resource('view/clashoo/clashoo.css') + '?v=20260422ai';
