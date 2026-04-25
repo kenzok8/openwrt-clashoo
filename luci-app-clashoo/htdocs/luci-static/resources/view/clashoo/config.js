@@ -566,15 +566,53 @@ return view.extend({
 
     s = m.section(form.NamedSection, 'config', 'clashoo', '智能策略设置');
     s.addremove = false;
-    o = s.option(form.Flag,  'smart_auto_switch',     '智能策略自动切换');
+    o = s.option(form.Flag,  'smart_auto_switch', '智能策略自动切换');
+    o.description = '将订阅中 url-test / load-balance 组转换为 mihomo smart 类型，启用 ML 路由算法。';
+
     o = s.option(form.Value, 'smart_policy_priority', '节点权重加成');
     o.placeholder = 'Premium:0.9;SG:1.3';
     o.rmempty = true;
-    o.description = '数值 <1 调低这个策略的优先级，>1 调高，默认为 1；格式：策略名:权重 多条用分号分隔，支持正则，例如 Premium:0.9;SG:1.3';
-    o = s.option(form.Flag,  'smart_prefer_asn',      'ASN 优先');
-    o = s.option(form.Flag,  'smart_uselightgbm',     '启用 LightGBM 模型');
-    o = s.option(form.Flag,  'smart_collectdata',     '收集训练数据');
-    o = s.option(form.Flag,  'smart_lgbm_auto_update','自动更新模型');
+    o.description = '数值 <1 降低优先级，>1 提高；格式：策略名:权重，多条用分号分隔，支持正则';
+    o.depends('smart_auto_switch', '1');
+
+    o = s.option(form.Flag,  'smart_prefer_asn', 'ASN 优先');
+    o.description = '优先选择与本机同 ASN 的节点';
+    o.depends('smart_auto_switch', '1');
+
+    o = s.option(form.Flag,  'smart_collectdata', '收集训练数据');
+    o.description = '收集节点延迟数据供 LightGBM 模型训练使用';
+    o.depends('smart_auto_switch', '1');
+
+    o = s.option(form.Value, 'smart_collect_size', '训练数据量');
+    o.datatype = 'uinteger';
+    o.placeholder = '100';
+    o.description = 'smart-collector-size，最多保留的训练样本数，默认 100';
+    o.depends('smart_collectdata', '1');
+
+    o = s.option(form.Value, 'smart_collect_rate', '采样率');
+    o.datatype = 'uinteger';
+    o.placeholder = '1';
+    o.description = 'sample-rate，1 = 每次测速都采样，调大可降低采集频率';
+    o.depends('smart_collectdata', '1');
+
+    o = s.option(form.Flag,  'smart_uselightgbm', '启用 LightGBM 模型');
+    o.description = '加载 LightGBM 模型进行智能节点评分（需要先收集足够训练数据）';
+    o.depends('smart_auto_switch', '1');
+
+    o = s.option(form.Flag,  'smart_lgbm_auto_update', '自动更新模型');
+    o.depends('smart_uselightgbm', '1');
+
+    o = s.option(form.Value, 'smart_lgbm_update_interval', '更新间隔（小时）');
+    o.datatype = 'uinteger';
+    o.placeholder = '72';
+    o.description = '自动拉取新模型的周期，同时决定 cron 触发频率，默认 72 小时';
+    o.depends('smart_uselightgbm', '1');
+
+    o = s.option(form.Value, 'smart_lgbm_url', '模型下载 URL');
+    o.placeholder = 'https://github.com/vernesong/mihomo/releases/download/LightGBM-Model/Model.bin';
+    o.rmempty = true;
+    o.description = 'LightGBM 模型文件下载地址，留空使用默认官方地址';
+    o.depends('smart_uselightgbm', '1');
 
     var sa = m.section(form.TypedSection, 'authentication', '代理认证');
     sa.anonymous = true; sa.addremove = true;
