@@ -1913,7 +1913,7 @@ call: function() {
 
 download_subs: {
 call: function() {
-let rc = system('sh /usr/share/clashoo/runtime/clash.sh >/dev/null 2>&1');
+let rc = system('sh /usr/share/clashoo/runtime/clashoo.sh >/dev/null 2>&1');
 let msg = rc == 0 ? '订阅下载完成' : '订阅下载失败';
 return { success: rc == 0, code: rc, message: msg };
 }
