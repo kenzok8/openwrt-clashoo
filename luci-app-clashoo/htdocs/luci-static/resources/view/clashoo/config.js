@@ -206,7 +206,7 @@ return view.extend({
       link.href = L.resource('view/clashoo/clashoo.css') + '?v=20260425b1';
       document.head.appendChild(link);
     } else {
-      document.getElementById('cl-css-ext').href = L.resource('view/clashoo/clashoo.css') + '?v=20260422ai';
+      document.getElementById('cl-css-ext').href = L.resource('view/clashoo/clashoo.css') + '?v=20260425b1';
     }
 
     if (coreType === 'singbox') return this._renderSingbox(sbData);
