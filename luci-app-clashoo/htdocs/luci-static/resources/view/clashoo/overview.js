@@ -529,13 +529,18 @@ return view.extend({
         self._lastSt.health_status = 'stopped';
       })
       .then(function () {
-        self._coreSwitchMsg = '已切换到 ' + targetLabel + '，点击启动后生效';
+        self._coreSwitchMsg = targetCore === 'smart'
+          ? '已切换到 Smart，启动前请先启用 Smart 策略组'
+          : '已切换到 ' + targetLabel + '，点击启动后生效';
         self._refreshCoreSwitch();
         return new Promise(function (resolve) { setTimeout(resolve, 500); });
       })
       .then(function () { return self._pollStatus(); })
       .then(function () {
-        ui.addNotification(null, E('p', '内核已切换：' + targetLabel + '。需要代理时请点击启动。'));
+        var msg = targetCore === 'smart'
+          ? '已切换 Smart 内核。请先在「配置 → 代理 → Smart 策略设置」中启用策略，再点击启动。'
+          : '内核已切换：' + targetLabel + '。需要代理时请点击启动。';
+        ui.addNotification(null, E('p', msg));
       })
       .catch(function (e) {
         self._coreSwitchMsg = '切换失败';
