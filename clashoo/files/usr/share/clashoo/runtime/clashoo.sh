@@ -127,23 +127,42 @@ ensure_system_dns() {
 }
 
 download_subscription() {
-	local url target tmp
+	local url target tmp hdr rc info_line
 	url="$1"
 	target="$2"
 	tmp="${TMP_PREFIX}.yaml"
+	hdr="${TMP_PREFIX}.hdr"
 
-	rm -f "$tmp" >/dev/null 2>&1
-	wget -q --tries=4 --timeout=20 --no-check-certificate --user-agent="Clash/OpenWRT" "$url" -O "$tmp"
-	if [ "$?" -ne 0 ]; then
-		rm -f "$tmp" >/dev/null 2>&1
+	rm -f "$tmp" "$hdr" >/dev/null 2>&1
+
+	if command -v curl >/dev/null 2>&1; then
+		curl -sSL --connect-timeout 15 --max-time 30 --retry 2 \
+			--no-check-certificate -A "Clash/OpenWRT" \
+			-D "$hdr" "$url" -o "$tmp" 2>/dev/null
+		rc=$?
+	else
+		wget -q --tries=4 --timeout=20 --no-check-certificate \
+			--user-agent="Clash/OpenWRT" "$url" -O "$tmp"
+		rc=$?
+	fi
+
+	if [ "$rc" -ne 0 ]; then
+		rm -f "$tmp" "$hdr" >/dev/null 2>&1
 		return 1
 	fi
 
 	if ! grep -Eq '^(proxies|proxy-providers):' "$tmp" 2>/dev/null; then
-		rm -f "$tmp" >/dev/null 2>&1
+		rm -f "$tmp" "$hdr" >/dev/null 2>&1
 		return 1
 	fi
 
+	# 保存流量信息到旁注文件（供前端展示）
+	info_line="$(grep -i 'subscription-userinfo:' "$hdr" 2>/dev/null | head -1 | \
+		sed 's/^[Ss]ubscription-[Uu]serinfo:[[:space:]]*//' | tr -d '\r')"
+	[ -n "$info_line" ] && printf '%s\n' "$info_line" > "${target}.info" || \
+		rm -f "${target}.info" >/dev/null 2>&1
+
+	rm -f "$hdr" >/dev/null 2>&1
 	mv "$tmp" "$target" >/dev/null 2>&1 || {
 		rm -f "$tmp" >/dev/null 2>&1
 		return 1

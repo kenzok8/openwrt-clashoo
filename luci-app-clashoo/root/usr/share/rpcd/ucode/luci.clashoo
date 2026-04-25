@@ -679,6 +679,21 @@ if (!payload) return;
 writefile(OVERVIEW_STATS_CACHE_FILE, sprintf('%J', payload));
 }
 
+function parse_sub_userinfo(raw) {
+let info = { upload: 0, download: 0, total: 0, expire: 0 };
+if (!raw) return info;
+for (let part in split(raw, ';')) {
+let kv = split(trim(part), '=');
+if (length(kv) == 2) {
+let k = trim(kv[0]);
+let v = int(trim(kv[1])) || 0;
+if (k == 'upload' || k == 'download' || k == 'total' || k == 'expire')
+info[k] = v;
+}
+}
+return info;
+}
+
 function read_subscriptions() {
 let rows = [];
 if (!access(LIST_FILE, 'r')) return rows;
@@ -691,7 +706,13 @@ if (length(parts) < 2) continue;
 let name = trim(parts[0]);
 let url  = trim(parts[1]);
 let typ  = length(parts) > 2 ? trim(parts[2]) : 'clashoo';
-if (name && url) push(rows, { name, url, type: typ });
+if (!name || !url) continue;
+let info_path = SUB_DIR + '/' + name + '.info';
+let raw_info  = access(info_path, 'r') ? trim(readfile(info_path) || '') : '';
+let ui = parse_sub_userinfo(raw_info);
+push(rows, { name, url, type: typ,
+sub_upload: ui.upload, sub_download: ui.download,
+sub_total: ui.total,  sub_expire: ui.expire });
 }
 return rows;
 }

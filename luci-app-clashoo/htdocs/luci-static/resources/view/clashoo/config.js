@@ -18,6 +18,13 @@ var CSS = [
   '.cl-sub-list th:nth-child(2),.cl-sub-list td:nth-child(2){width:72px}',
   '.cl-sub-list th:nth-child(3),.cl-sub-list td:nth-child(3){width:220px;text-align:right;white-space:nowrap}',
   '.cl-sub-url{border:1px solid rgba(128,128,128,.3);border-radius:6px;padding:8px 10px;width:100%;box-sizing:border-box;font-size:13px;margin-bottom:8px}',
+  '.cl-sub-traffic{margin-top:4px;font-size:11px;color:var(--cl-muted,#888)}',
+  '.cl-sub-traffic-bar{height:4px;border-radius:2px;background:rgba(128,128,128,.18);margin-top:3px;overflow:hidden}',
+  '.cl-sub-traffic-fill{height:100%;border-radius:2px;background:var(--primary-color,#0b68dd);transition:width .3s}',
+  '.cl-sub-traffic-fill.cl-traffic-warn{background:#f59e0b}',
+  '.cl-sub-traffic-fill.cl-traffic-danger{background:#ef4444}',
+  '.cl-sub-expire{font-size:11px;color:var(--cl-muted,#888);margin-top:2px}',
+  '.cl-sub-expire.cl-expire-soon{color:#f59e0b}',
   '.cl-btn-sm{padding:4px 10px;font-size:12px;border-radius:4px;cursor:pointer}',
   '.cl-section{margin-bottom:24px}',
   '.cl-section h4{font-size:1.15rem;font-weight:600;margin-bottom:10px;color:var(--title-color,var(--cl-muted));opacity:.95}',
@@ -302,15 +309,50 @@ return view.extend({
       }
     }, '下载订阅');
 
+    var fmtBytes = function (b) {
+      b = parseInt(b) || 0;
+      if (b >= 1e12) return (b / 1e12).toFixed(2) + ' TB';
+      if (b >= 1e9)  return (b / 1e9).toFixed(2)  + ' GB';
+      if (b >= 1e6)  return (b / 1e6).toFixed(1)  + ' MB';
+      return Math.round(b / 1e3) + ' KB';
+    };
+    var pad2 = function (n) { return n < 10 ? '0' + n : '' + n; };
+    var fmtExpire = function (ts) {
+      if (!ts || ts === 0) return '';
+      var d = new Date(ts * 1000);
+      return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+    };
+
     var subCards = subs.map(function (sub) {
       var nameNodes = [];
       if (sub.active) nameNodes.push(E('span', { 'class': 'cl-active-badge' }, '使用中'));
       nameNodes.push(E('span', { 'class': 'cl-file-name-text' }, safeText(sub.name)));
 
+      // 流量信息
+      var trafficEl = null, expireEl = null;
+      var total = parseInt(sub.sub_total) || 0;
+      if (total > 0) {
+        var used = (parseInt(sub.sub_upload) || 0) + (parseInt(sub.sub_download) || 0);
+        var pct  = Math.min(100, Math.round(used / total * 100));
+        var fillCls = 'cl-sub-traffic-fill' + (pct >= 90 ? ' cl-traffic-danger' : pct >= 75 ? ' cl-traffic-warn' : '');
+        var fillEl = E('div', { 'class': fillCls, 'style': 'width:' + pct + '%' });
+        trafficEl = E('div', { 'class': 'cl-sub-traffic' }, [
+          fmtBytes(used) + ' / ' + fmtBytes(total) + ' (' + pct + '%)',
+          E('div', { 'class': 'cl-sub-traffic-bar' }, [fillEl])
+        ]);
+      }
+      if (sub.sub_expire) {
+        var expStr = fmtExpire(sub.sub_expire);
+        var daysLeft = Math.ceil((sub.sub_expire * 1000 - Date.now()) / 86400000);
+        var expCls = 'cl-sub-expire' + (daysLeft <= 7 ? ' cl-expire-soon' : '');
+        expireEl = E('div', { 'class': expCls }, '到期：' + expStr + (daysLeft > 0 ? '（' + daysLeft + ' 天）' : '（已过期）'));
+      }
+
       return E('div', { 'class': 'cl-file-item' + (sub.active ? ' is-active' : '') }, [
         E('div', { 'class': 'cl-file-meta' }, [
           E('div', { 'class': 'cl-file-name' }, nameNodes),
-          E('div', { 'class': 'cl-file-size' }, safeText(sub.size))
+          E('div', { 'class': 'cl-file-size' }, safeText(sub.size)),
+          trafficEl, expireEl
         ]),
         E('div', { 'class': 'cl-file-actions' }, [
           E('button', {

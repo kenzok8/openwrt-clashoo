@@ -63,17 +63,37 @@ target_file="$SUB_DIR/$config_name"
 log_update "开始更新订阅：${config_name}"
 log_text "Updating configuration..." "开始更新配置"
 
-if ! wget -q -c4 --no-check-certificate --user-agent="Clash/OpenWRT" "$url" -O "$TMP_FILE"; then
+HDR_FILE="/tmp/clash_update_$$.hdr"
+
+if command -v curl >/dev/null 2>&1; then
+	curl -sSL --connect-timeout 15 --max-time 30 --retry 2 \
+		--no-check-certificate -A "Clash/OpenWRT" \
+		-D "$HDR_FILE" "$url" -o "$TMP_FILE" 2>/dev/null
+	_rc=$?
+else
+	wget -q -c4 --no-check-certificate --user-agent="Clash/OpenWRT" "$url" -O "$TMP_FILE"
+	_rc=$?
+fi
+
+if [ "$_rc" -ne 0 ]; then
+	rm -f "$HDR_FILE" >/dev/null 2>&1
 	log_update "更新失败（下载失败）：${config_name}"
 	log_text "Configuration update failed" "更新配置失败"
 	exit 1
 fi
 
 if ! grep -Eq '^(proxies|proxy-providers):' "$TMP_FILE" 2>/dev/null; then
+	rm -f "$HDR_FILE" >/dev/null 2>&1
 	log_update "更新失败（YAML 校验失败）：${config_name}"
 	log_text "Configuration update failed" "更新配置失败"
 	exit 1
 fi
+
+_info_line="$(grep -i 'subscription-userinfo:' "$HDR_FILE" 2>/dev/null | head -1 | \
+	sed 's/^[Ss]ubscription-[Uu]serinfo:[[:space:]]*//' | tr -d '\r')"
+[ -n "$_info_line" ] && printf '%s\n' "$_info_line" > "${target_file}.info" || \
+	rm -f "${target_file}.info" >/dev/null 2>&1
+rm -f "$HDR_FILE" >/dev/null 2>&1
 
 mv "$TMP_FILE" "$target_file" >/dev/null 2>&1 || exit 1
 
