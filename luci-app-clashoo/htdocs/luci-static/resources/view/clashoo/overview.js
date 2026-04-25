@@ -465,13 +465,16 @@ return view.extend({
   _coreLabel: function (family, channel) {
     if (!family)
       return '未运行';
-    return (family === 'singbox' ? 'sing-box' : 'mihomo') + ' ' + (channel === 'alpha' ? 'Alpha 版' : '稳定版');
+    var f = family === 'singbox' ? 'sing-box' : 'mihomo';
+    var c = channel === 'smart' ? 'Smart 版' : channel === 'alpha' ? 'Alpha 版' : '稳定版';
+    return f + ' ' + c;
   },
 
   _configuredChannel: function (family) {
     var dcore = uci.get('clashoo', 'config', 'dcore') || '2';
     if (family === 'singbox')
       return dcore === '5' ? 'alpha' : 'stable';
+    if (dcore === '1') return 'smart';
     return dcore === '3' ? 'alpha' : 'stable';
   },
 
@@ -479,12 +482,11 @@ return view.extend({
     return (st && st.core_type) || uci.get('clashoo', 'config', 'core_type') || 'mihomo';
   },
 
-  _mapDcoreForCore: function (dcore, targetCore) {
-    var d = String(dcore || '');
-    var alpha = d === '3' || d === '5';
-    if (targetCore === 'singbox')
-      return alpha ? '5' : '4';
-    return alpha ? '3' : '2';
+  _effectiveCore: function (st) {
+    var family = this._currentCoreType(st);
+    if (family === 'singbox') return 'singbox';
+    var dcore = uci.get('clashoo', 'config', 'dcore') || '2';
+    return dcore === '1' ? 'smart' : 'mihomo';
   },
 
   _refreshCoreSwitch: function () {
@@ -499,24 +501,30 @@ return view.extend({
     if (self._coreSwitchBusy)
       return Promise.resolve();
 
-    var currentCore = self._currentCoreType(self._lastSt || {});
-    if (targetCore === currentCore)
+    var currentEffective = self._effectiveCore(self._lastSt || {});
+    if (targetCore === currentEffective)
       return Promise.resolve();
 
     var currentDcore = uci.get('clashoo', 'config', 'dcore') || '2';
-    var nextDcore = self._mapDcoreForCore(currentDcore, targetCore);
-    var targetLabel = targetCore === 'singbox' ? 'sing-box' : 'mihomo';
+    var rpcCore, nextDcore, targetLabel;
+    if (targetCore === 'smart') {
+      rpcCore = 'mihomo'; nextDcore = '1'; targetLabel = 'Smart';
+    } else if (targetCore === 'singbox') {
+      rpcCore = 'singbox'; nextDcore = currentDcore === '5' ? '5' : '4'; targetLabel = 'sing-box';
+    } else {
+      rpcCore = 'mihomo'; nextDcore = currentDcore === '3' ? '3' : '2'; targetLabel = 'mihomo';
+    }
 
     self._coreSwitchBusy = true;
     self._coreSwitchMsg = '正在切换到 ' + targetLabel + '...';
     self._refreshCoreSwitch();
 
-    return clashoo.setCore(targetCore, nextDcore)
+    return clashoo.setCore(rpcCore, nextDcore)
       .then(function (r) {
         if (r && r.success === false)
           throw new Error(r.message || '切换内核失败');
         self._lastSt = self._lastSt || {};
-        self._lastSt.core_type = targetCore;
+        self._lastSt.core_type = rpcCore;
         self._lastSt.running = false;
         self._lastSt.health_status = 'stopped';
       })
@@ -544,15 +552,15 @@ return view.extend({
 
   _renderCoreSwitch: function (st) {
     var self = this;
-    var current = this._currentCoreType(st);
+    var effective = this._effectiveCore(st);
     var statusKnown = st && typeof st.running === 'boolean';
     var running = statusKnown && st.running === true;
     var runningText = statusKnown ? (running ? '运行中' : '未运行') : '同步中';
-    var coreText = current === 'singbox' ? 'sing-box' : 'mihomo';
+    var coreText = effective === 'singbox' ? 'sing-box' : effective === 'smart' ? 'Smart' : 'mihomo';
     var note = this._coreSwitchMsg || ('当前内核：' + coreText + ' · ' + runningText);
 
     var mkBtn = function (core, label) {
-      var active = core === current;
+      var active = core === effective;
       return E('button', {
         type: 'button',
         'class': 'cl-core-btn' + (active ? ' active' : ''),
@@ -569,6 +577,7 @@ return view.extend({
       title: note
     }, [
       mkBtn('mihomo', 'Mihomo'),
+      mkBtn('smart', 'Smart'),
       mkBtn('singbox', 'Sing-box')
     ]);
   },
