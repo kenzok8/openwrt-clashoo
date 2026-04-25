@@ -212,9 +212,10 @@ wget -O - https://github.com/kenzok8/openwrt-clashoo/raw/refs/heads/main/scripts
 
 - [mihomo](https://github.com/MetaCubeX/mihomo) — Clash Meta 内核
 - [sing-box](https://github.com/SagerNet/sing-box) — 通用代理平台
-- [luci-app-clash](https://github.com/kenzok78/luci-app-clash) — 原始项目
-- [nikki](https://github.com/nikki-enrich/openwrt-nikki) — 参考实现
+- [fchomo](https://github.com/fcshark-org/openwrt-fchomo) — 参考实现
+- [nikki](https://github.com/nikkinikki-org/OpenWrt-nikki) — 参考实现
 
+  
 ## 许可证
 
 本项目遵循仓库内现有开源许可证（见 `LICENSE`），并保留上游项目的版权与许可声明。
