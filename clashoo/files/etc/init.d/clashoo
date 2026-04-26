@@ -1333,29 +1333,16 @@ _start_launch_core() {
 	procd_set_param respawn 3600 5 5
 	procd_close_instance
 	[ "$disable_quic_gso" = "1" ] && log_msg "Disable quic-go GSO support" "已启用：禁用 quic-go GSO 支持"
-	log_msg "mihomo Core Started Successfully " "mihomo 计划任务,启动进程守护程序..."
-	sleep 1
 	ln -s /usr/share/clashoo/yacd /www/luci-static/yacd 2>/dev/null
 
-	log_msg "Setting up mihomo $(backend_name) rules" "设置 mihomo 网络规则"
-	sleep 1
-
+	log_msg "Configuring firewall rules" "配置防火墙规则"
 	backend_apply_rules >/dev/null 2>&1
 
-	log_msg "Restarting Dnsmasq " "重启 Dnsmasq 程序"
-	sleep 1
-
+	log_msg "Reloading DNS resolver" "重启 DNS 解析"
 	/etc/init.d/dnsmasq restart >/dev/null 2>&1
 
 	restore >/dev/null 2>&1
-
-	log_msg "Setting Cron Job" "设置Cron"
 	add_cron
-	sleep 1
-	log_msg "mihomo Started Successfully " "mihomo 启动成功，请等待服务器上线！"
-	sleep 1
-	log_msg "mihomo is Running " "mihomo 运行中"
-	sleep 1
 	echo "Clashoo" > "$REAL_LOG"
 	core_wait=0
 	while [ "$core_wait" -lt 15 ]; do
@@ -1413,8 +1400,7 @@ start_service(){
 	if [ "${enable:-0}" -eq 1 ]; then
 		resolve_effective_tp_modes
 		runtime_state_record_preflight "$(selected_core_family)"
-		log_msg "Starting Client" "启动客户端"
-		sleep 1
+		log_msg "Starting Clashoo" "启动 Clashoo"
 		if is_singbox_selected; then
 			stop_service >/dev/null 2>&1
 			resolve_effective_tp_modes
@@ -1433,15 +1419,11 @@ start_service(){
 				echo "Clashoo" > "$REAL_LOG"
 				return 1
 			fi
-			log_msg "Starting clashoo sing-box runtime" "启动 clashoo sing-box 运行时"
-			sleep 1
-			log_msg "Setting up sing-box $(backend_name) rules" "设置 sing-box 网络规则"
+			log_msg "Configuring firewall rules" "配置防火墙规则"
 			backend_apply_rules >/dev/null 2>&1
 			singbox_dns_change >/dev/null 2>&1
 			add_cron >/dev/null 2>&1
 			(runtime_run_health_check >/dev/null 2>&1) &
-			log_msg "sing-box Started Successfully " "sing-box 启动成功，请等待服务器上线！"
-			sleep 1
 			echo "Clashoo" > "$REAL_LOG"
 			return 0
 		fi
@@ -1450,7 +1432,6 @@ start_service(){
 			_log_runtime_error "Config file is missing or empty; please import a subscription/config first"
 			return 1
 		fi
-	sleep 1
 	
 	if ! _require_runtime_network_stack; then
 		runtime_state_record_health "fail" "preflight:missing_fw4_stack"
@@ -1477,8 +1458,7 @@ else
 		echo "  $(date "+%Y-%m-%d %H:%M:%S")  - 你的config.yaml有问题还是为了空 0kb " >> /usr/share/clashoo/clashoo.txt
 	fi
 	runtime_state_record_health "fail" "start:config_yaml_invalid"
-	log_msg "  problem with config file " "  你的config.yaml有问题还是为了空 0kb "
-	sleep 1
+	log_msg "Config file invalid or empty" "配置文件无效或为空"
 	echo "Clashoo" > "$REAL_LOG"
 fi
 
@@ -1486,13 +1466,11 @@ else
 	runtime_state_set "health_status" "stopped"
 	runtime_state_set "health_detail" "service_disabled"
 	runtime_state_set "updated_at" "$(date +%s)"
-	log_msg "Enable Client and Start Client Again" "启用客户端并重新启动客户端"
 	if [ "${lang}" = "en" ] || [ "${lang}" = "auto" ]; then
 		echo "  $(date "+%Y-%m-%d %H:%M:%S") - Enable Client and Start Client Again" >> /usr/share/clashoo/clashoo.txt
 	elif [ "${lang}" = "zh_cn" ]; then
 		echo "  $(date "+%Y-%m-%d %H:%M:%S") - 启用客户端并重新启动客户端" >> /usr/share/clashoo/clashoo.txt
 	fi
-	sleep 1
 	echo "Clashoo" > "$REAL_LOG"
 fi
 #=========================================================================================================================== 
@@ -1513,42 +1491,30 @@ stop_service(){
 
 			sed -i '/#START/,/#END/d' "$LIST" 2>/dev/null
 
-			log_msg "Stopping Client..." "正在停止客户端..."
-		sleep 1
+			log_msg "Stopping Clashoo" "正在停止 Clashoo"
+		log_msg "Removing firewall rules" "清理防火墙规则"
 		backend_remove_rules >/dev/null 2>&1
 		revert_dns >/dev/null 2>&1
-		
-		log_msg "Removing mihomo $(backend_name) rules" "清理 mihomo 网络规则"
-		sleep 1
-		
+
 			sh /usr/share/clashoo/runtime/backup.sh >/dev/null 2>&1
 
 			_kill_core
 			stop_singbox_service
 
-			log_msg "clashoo runtime stopped" "clashoo 运行核心已停止"
-			sleep 1
-		
 		rm -rf /www/luci-static/yacd 2>/dev/null
-		
-		log_msg "Deleting Cron Job" "删除Cron"
-		sleep 1
-		
+
   	  	del_cron >/dev/null 2>&1
-	    sleep 1		
 
 
 	 	echo "" >/usr/share/clashoo/clashoo.txt >/dev/null 2>&1
 
 		echo "0" > /usr/share/clashoo/logstatus_check >/dev/null 2>&1
-		
+
 		if [ "${lang}" = "en" ] || [ "${lang}" = "auto" ]; then
 			echo "  $(date "+%Y-%m-%d %H:%M:%S") - CLIENT IS DISABLED " >> /usr/share/clashoo/clashoo.txt
 		elif [ "${lang}" = "zh_cn" ]; then
 			echo "  $(date "+%Y-%m-%d %H:%M:%S")  - 客户端被禁用 " >> /usr/share/clashoo/clashoo.txt
 		fi
-		log_msg "Client is Disabled " "客户端被禁用 "
-		sleep 1
 		echo "Clashoo" > "$REAL_LOG"
 	
 		if _core_running; then

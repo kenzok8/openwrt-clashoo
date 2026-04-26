@@ -682,7 +682,7 @@ return view.extend({
         smartSec.appendChild(E('div', { 'class': 'cbi-value' }, [
           E('label', { 'class': 'cbi-value-title' }, '更新模型'),
           E('div', { 'class': 'cbi-value-field' }, [
-            E('div', { 'style': 'display:flex;align-items:center;gap:10px' }, [
+            E('div', { 'class': 'cl-smart-action-row' }, [
               upgBtn, E('span', { 'class': 'cl-hint' }, verText)
             ])
           ])

@@ -485,7 +485,8 @@ return view.extend({
   _effectiveCore: function (st) {
     var family = this._currentCoreType(st);
     if (family === 'singbox') return 'singbox';
-    var dcore = uci.get('clashoo', 'config', 'dcore') || '2';
+    /* 优先用 ubus status 实时返回的 dcore，避免 uci.get LuCI 缓存切换后滞后 */
+    var dcore = (st && st.dcore) || uci.get('clashoo', 'config', 'dcore') || '2';
     return dcore === '1' ? 'smart' : 'mihomo';
   },
 
@@ -525,6 +526,7 @@ return view.extend({
           throw new Error(r.message || '切换内核失败');
         self._lastSt = self._lastSt || {};
         self._lastSt.core_type = rpcCore;
+        self._lastSt.dcore = nextDcore;          /* 乐观更新，避免重绘前 uci 缓存滞后 */
         self._lastSt.running = false;
         self._lastSt.health_status = 'stopped';
       })
@@ -1410,40 +1412,107 @@ return view.extend({
     return this._pollOverview();
   },
 
-  /* fn: async RPC call, opKey: 'start'|'stop'|'restart', pollDelay: ms to wait before final status poll */
-  _svc: function (fn, opKey, pollDelay) {
+  /* health_detail → 用户看得懂的中文（参考 P2-F 字典；详细状态时只在状态卡上展示） */
+  _friendlyHealth: function (detail) {
+    var map = {
+      'boot_disabled':                    '已停止（开机不自启动）',
+      'service_disabled':                 '服务已禁用',
+      'service_stopped':                  '服务已停止',
+      'preflight:openclash_conflict':     'OpenClash 已启用，请先停用以避免规则冲突',
+      'preflight:config_missing':         '未找到配置文件，请先在「配置」页导入订阅或上传配置',
+      'preflight:missing_fw4_stack':      '系统缺少 nftables 运行时',
+      'preflight:core_validation_failed': '内核校验未通过，请到「系统 → 内核」检查',
+      'start:core_not_running':           '内核未在 15 秒内启动（procd 自愈中）',
+      'start:singbox_service_failed':     'sing-box 服务启动失败，请到「系统 → 日志」查看',
+      'init':                             '初始化中…'
+    };
+    return map[detail] || '';
+  },
+
+  /* health_detail → 启动 / 停止 进度文字 */
+  _opPhase: function (opKey, st) {
+    var hd = (st && st.health_detail) || '';
+    if (opKey === 'stop') {
+      if (st && st.running === false) return '已停止 ✓';
+      return '停止中…';
+    }
+    if (!st || st.running !== true) return '启动内核…';
+    if (hd === 'init')                    return '检查环境…';
+    if (hd.indexOf('preflight:') === 0)   return '检查环境…';
+    if (hd.indexOf('start:') === 0)       return this._friendlyHealth(hd) || '启动内核…';
+    if (st.health_status === 'pass')      return '已就绪 ✓';
+    if (st.health_status === 'fail')      return '已启动（' + (this._friendlyHealth(hd) || '健康检查未通过') + '）';
+    return '健康检查中…';
+  },
+
+  /* 1s 轮询 status，直到运行状态稳定（pass / fail / 已停止） 或超时 */
+  _pollUntilOpDone: function (opKey, maxWaitMs) {
+    var self = this;
+    var t0 = Date.now();
+    var settle = function () {
+      self._busy = false;
+      self._op = null;
+      self._clearOpTimers();
+      self._pollStatus();
+    };
+    var poll = function () {
+      return clashoo.status().then(function (st) {
+        self._lastSt = st || {};
+        var msg = self._opPhase(opKey, st);
+        self._showOpMsg(msg);
+
+        var done = false;
+        if (opKey === 'stop') {
+          done = st && st.running === false;
+        } else {
+          done = st && st.running === true && (st.health_status === 'pass' || st.health_status === 'fail');
+        }
+
+        if (done) {
+          /* 让最终状态字停留 1.5s 再清场 */
+          setTimeout(settle, 1500);
+          return;
+        }
+        if (Date.now() - t0 > maxWaitMs) {
+          self._showOpMsg('操作较慢，请到「系统 → 日志」查看');
+          settle();
+          return;
+        }
+        return new Promise(function (resolve) { setTimeout(resolve, 1000); }).then(poll);
+      }).catch(function () {
+        return new Promise(function (resolve) { setTimeout(resolve, 1000); }).then(poll);
+      });
+    };
+    return poll();
+  },
+
+  /* fn: 调用对应 RPC（fire-and-forget）；opKey: 'start'|'stop'|'restart'；maxWaitMs: 进度轮询最长等待 */
+  _svc: function (fn, opKey, maxWaitMs) {
     if (this._busy) return Promise.resolve();
     this._busy = true;
     var self = this;
 
-    /* Determine message set based on CURRENT core (st.core_type first; uci.get is a stale LuCI cache) */
-    var coreType = this._currentCoreType(this._lastSt);
-    var msgSet   = coreType === 'singbox' ? MSGS.singbox : MSGS.mihomo;
-    var messages = msgSet[opKey] || [];
-
     self._op = opKey;
-    if (messages.length) self._startMsgAnim(messages, pollDelay);
+    self._showOpMsg(
+      opKey === 'start'   ? '启动中…' :
+      opKey === 'stop'    ? '停止中…' :
+                            '重启中…'
+    );
 
     return fn().then(function () {
-      self._busy = false;
-      /* Clear animation timers, then wait for the service to actually finish */
-      setTimeout(function () {
-        self._clearOpTimers();
-        self._op = null;
-        self._pollStatus();
-      }, pollDelay);
+      return self._pollUntilOpDone(opKey, maxWaitMs || 30000);
     }).catch(function (e) {
       self._busy = false;
-      self._clearOpTimers();
       self._op = null;
+      self._clearOpTimers();
       ui.addNotification(null, E('p', '操作失败: ' + (e.message || e)));
       self._pollStatus();
     });
   },
 
-  _start:   function () { return this._svc(function () { return clashoo.start(); },   'start',   15000); },
-  _stop:    function () { return this._svc(function () { return clashoo.stop();  },   'stop',    12000); },
-  _restart: function () { return this._svc(function () { return clashoo.restart(); }, 'restart', 20000); },
+  _start:   function () { return this._svc(function () { return clashoo.start(); },   'start',   45000); },
+  _stop:    function () { return this._svc(function () { return clashoo.stop();  },   'stop',    20000); },
+  _restart: function () { return this._svc(function () { return clashoo.restart(); }, 'restart', 60000); },
 
   _updSubs: function () {
     return L.resolveDefault(callDownloadSubs(), {}).then(function (r) {

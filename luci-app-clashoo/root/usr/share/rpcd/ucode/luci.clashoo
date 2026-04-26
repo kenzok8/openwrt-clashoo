@@ -1048,10 +1048,13 @@ function migrate_singbox(cfg) {
     });
   }
 
-  // --- Migrate TUN inbound inet4_address/inet6_address → address array (1.12+) ---
+  // --- Migrate TUN inbound inet4_address/inet6_address → address array (1.12+),
+  // and strip legacy inbound fields removed in 1.13 (sniff / sniff_override_destination /
+  // sniff_timeout / domain_strategy). 若任意 inbound 原本启用过 sniff，则在 route.rules
+  // 顶部补一条 { "action": "sniff" } 规则，等价表达。 ---
+  let had_sniff = false;
   if (cfg.inbounds) {
     cfg.inbounds = map(cfg.inbounds, function(ib) {
-      if (ib.type !== 'tun') return ib;
       let r = {};
       let addrs = [];
       for (let k in ib) {
@@ -1061,6 +1064,11 @@ function migrate_singbox(cfg) {
         } else if (k === 'inet6_address') {
           if (type(ib[k]) === 'array') { for (let a in ib[k]) push(addrs, a); }
           else push(addrs, ib[k]);
+        } else if (k === 'sniff') {
+          if (ib[k]) had_sniff = true;
+        } else if (k === 'sniff_override_destination' || k === 'sniff_timeout' ||
+                   k === 'domain_strategy') {
+          // drop — moved to route.rules actions in 1.13
         } else {
           r[k] = ib[k];
         }
@@ -1068,6 +1076,18 @@ function migrate_singbox(cfg) {
       if (length(addrs) > 0) r.address = addrs;
       return r;
     });
+  }
+  if (had_sniff) {
+    if (!cfg.route) cfg.route = {};
+    if (!cfg.route.rules) cfg.route.rules = [];
+    let has_sniff_rule = false;
+    for (let rl in cfg.route.rules)
+      if (rl.action === 'sniff') { has_sniff_rule = true; break; }
+    if (!has_sniff_rule) {
+      let new_rules = [ { action: 'sniff' } ];
+      for (let rl in cfg.route.rules) push(new_rules, rl);
+      cfg.route.rules = new_rules;
+    }
   }
 
   // --- Remove dangling outbound references from selectors/urltest ---
@@ -1141,12 +1161,13 @@ let slash = rindex(conf_path, '/');
 let conf_name = slash >= 0 ? substr(conf_path, slash + 1) : conf_path;
 if (configured_core == 'singbox' && config)
 	conf_name = config;
+let dcore = c.get('clashoo', 'config', 'dcore') || '2';
 return { running, dash_port, dash_pass, proxy_mode, conf_path: conf_name, config,
          panel_type, tcp_mode, udp_mode, stack,
          effective_tcp_mode, effective_udp_mode,
          runtime_degraded, runtime_degrade_reason,
          health_status, health_detail, has_tun_device,
-         core_type: configured_core, local_ip };
+         core_type: configured_core, dcore, local_ip };
 } catch (e) {
 return { success: false, error: 'status_failed', message: '' + e };
 }
@@ -1245,6 +1266,10 @@ let c = cursor(); c.load('clashoo');
 c.set('clashoo', 'config', 'core_type', core);
 if (dcore)
 c.set('clashoo', 'config', 'dcore', dcore);
+/* Smart 策略仅 Smart 内核（dcore=1）有意义。切到 Smart 时自动开启
+ * smart_auto_switch；切回普通 mihomo / sing-box 时自动关闭，避免
+ * Smart 模型字段误注入到非 Smart 配置。 */
+c.set('clashoo', 'config', 'smart_auto_switch', dcore === '1' ? '1' : '0');
 sync_legacy_core_fields(c);
 c.commit('clashoo');
 system('uci commit clashoo >/dev/null 2>&1');
@@ -2636,13 +2661,14 @@ if (config_obj) {
 '  "inbounds": [\n' +
 '    { "type": "tun", "tag": "tun-in",\n' +
 '      "address": ["172.19.0.1/30", "fdfe:dcba:9876::1/126"],\n' +
-'      "auto_route": true, "strict_route": true, "sniff": true }\n' +
+'      "auto_route": true, "strict_route": true }\n' +
 '  ],\n' +
 '  "outbounds": [\n' +
 '    { "type": "direct", "tag": "DIRECT" }\n' +
 '  ],\n' +
 '  "route": {\n' +
 '    "rules": [\n' +
+'      { "action": "sniff" },\n' +
 '      { "protocol": "dns", "action": "hijack-dns" },\n' +
 '      { "clash_mode": "Direct", "outbound": "DIRECT" }\n' +
 '    ],\n' +

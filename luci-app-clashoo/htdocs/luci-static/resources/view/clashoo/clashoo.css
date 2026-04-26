@@ -1804,3 +1804,28 @@ html[data-bs-theme="dark"] .cl-wrap .cl-live-num {
   max-width: 480px;
   box-sizing: border-box;
 }
+
+/* Smart 策略设置 — 行动按钮 + 当前版本说明（桌面端：横排，移动端：换行） */
+.cl-smart-action-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.cl-smart-action-row .cl-hint {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 480px) {
+  .cl-smart-action-row {
+    gap: 8px;
+  }
+  .cl-smart-action-row .btn {
+    flex: 0 0 auto;
+  }
+  .cl-smart-action-row .cl-hint {
+    flex: 1 1 100%;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+}
