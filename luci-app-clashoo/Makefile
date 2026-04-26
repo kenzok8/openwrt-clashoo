@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-clashoo
-PKG_VERSION:=1.19.23
+PKG_VERSION:=1.19.24
 PKG_RELEASE:=1
 PKG_MAINTAINER:=kenzok8
 
@@ -40,10 +40,7 @@ define Package/luci-app-clashoo/install
 	$(INSTALL_DATA) ./root/usr/share/luci/menu.d/luci-app-clashoo.json $(1)/usr/share/luci/menu.d/luci-app-clashoo.json
 	
 	$(INSTALL_DATA) ./htdocs/luci-static/resources/tools/clashoo.js $(1)/www/luci-static/resources/tools/clashoo.js
-	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/clashoo/index.js $(1)/www/luci-static/resources/view/clashoo/index.js
-	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/clashoo/config.js $(1)/www/luci-static/resources/view/clashoo/config.js
-	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/clashoo/overview.js $(1)/www/luci-static/resources/view/clashoo/overview.js
-	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/clashoo/system.js $(1)/www/luci-static/resources/view/clashoo/system.js
+	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/clashoo/* $(1)/www/luci-static/resources/view/clashoo/
 	$(INSTALL_DATA) ./htdocs/luci-static/clashoo/logo.png $(1)/www/luci-static/clashoo/logo.png
 endef
 
