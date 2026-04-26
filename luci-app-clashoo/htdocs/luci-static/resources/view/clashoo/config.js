@@ -1007,12 +1007,38 @@ return view.extend({
       style: 'margin-top:0'
     });
 
+    var genBtn, applyBtn;
+    function setBusy(busy) {
+      [genBtn, applyBtn].forEach(function (b) {
+        if (!b) return;
+        b.disabled = busy ? '' : null;
+        if (busy) {
+          if (!b.dataset.label) b.dataset.label = b.textContent;
+          b.textContent = '生成中…';
+        } else if (b.dataset.label) {
+          b.textContent = b.dataset.label;
+        }
+      });
+    }
     function doCreate(setActive) {
       var url = urlInput.value.trim();
       if (!url) { ui.addNotification(null, E('p', '请填写订阅链接')); return; }
+      setBusy(true);
       clashoo.createSingboxConfig(url, nameInput.value.trim(), secretInput.value.trim())
         .then(function (r) {
-          if (!r.success) { ui.addNotification(null, E('p', '生成失败: ' + (r.message || ''))); return; }
+          /* RPC 超时被 resolveDefault 兜底成 {}，r.success 是 undefined。
+           * 此时后端可能仍在跑（yaml2singbox 转 90 节点等），让用户直接刷新页
+           * 看实际产物，而不是误报"失败"。 */
+          if (!r || typeof r.success === 'undefined') {
+            ui.addNotification(null, E('p', '生成时间较长，正在刷新查看结果…'));
+            setTimeout(function () { location.reload(); }, 1500);
+            return;
+          }
+          if (!r.success) {
+            setBusy(false);
+            ui.addNotification(null, E('p', '生成失败: ' + (r.message || '')));
+            return;
+          }
           if (setActive) {
             return clashoo.setSingboxProfile(r.name).then(function () {
               ui.addNotification(null, E('p', r.message + '，已切换为活动配置'));
@@ -1021,8 +1047,14 @@ return view.extend({
           }
           ui.addNotification(null, E('p', r.message));
           location.reload();
+        }).catch(function (e) {
+          setBusy(false);
+          ui.addNotification(null, E('p', '生成异常: ' + (e && e.message || e)));
         });
     }
+
+    genBtn   = E('button', { 'class': 'btn cbi-button cl-btn-sm',        click: function () { doCreate(false); } }, '生成配置');
+    applyBtn = E('button', { 'class': 'btn cbi-button-action cl-btn-sm', click: function () { doCreate(true);  } }, '应用配置');
 
     return [
       E('div', { 'class': 'cl-section cl-card cl-sb-card' }, [
@@ -1030,8 +1062,8 @@ return view.extend({
         E('div', { 'class': 'cl-form-wrap cl-fixed-600 cl-sb-form' }, [
           urlInput, nameInput, secretInput,
           E('div', { 'class': 'cl-actions cl-sb-top-actions' }, [
-            E('button', { 'class': 'btn cbi-button cl-btn-sm', click: function () { doCreate(false); } }, '生成配置'),
-            E('button', { 'class': 'btn cbi-button-action cl-btn-sm', click: function () { doCreate(true); } }, '应用配置')
+            genBtn,
+            applyBtn
           ])
         ]),
         E('p', { 'class': 'cl-sb-note' },

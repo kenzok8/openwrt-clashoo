@@ -2530,7 +2530,7 @@ else if (match(sub_url, /format=clash/i))
   push(try_urls, replace(sub_url, /format=clash/i, 'format=singbox'));
 
 for (let try_url in try_urls) {
-  let p0 = popen('curl -sL --max-time 30 ' + shell_quote(try_url) + ' 2>/dev/null');
+  let p0 = popen('curl -sL --max-time 12 ' + shell_quote(try_url) + ' 2>/dev/null');
   let raw0 = p0 ? trim(p0.read('all')) : '';
   if (p0) p0.close();
   if (length(raw0) > 50 && substr(raw0, 0, 1) === '{') {
@@ -2542,43 +2542,15 @@ for (let try_url in try_urls) {
   }
 }
 
-// Step 2: If not sing-box JSON (e.g. Clash YAML), try subconverter APIs
-if (!config_obj) {
-  // Each converter: [base_url, param_name]
-  // curl -G appends --data-urlencode "param@file" to base_url query string
-  let converters = [
-    // kidsqq: outputs 1.13-native format directly, no migration needed
-    ['https://sub.kidsqq.cn/singbox?selectedRules=%5B%22Location%3ACN%22%2C%22Private%22%2C%22Non-China%22%2C%22Github%22%2C%22Google%22%2C%22Youtube%22%2C%22AI%2BServices%22%2C%22Telegram%22%2C%22Ad%2BBlock%22%2C%22Streaming%22%2C%22Apple%22%2C%22Social%2BMedia%22%5D&customRules=%5B%5D&group_by_country=true', 'config'],
-    // acl4ssr-style converters
-    ['https://sub.xeton.dev/sub?target=singbox', 'url'],
-    ['https://api.v1.mk/sub?target=singbox',     'url'],
-  ];
-  for (let cv in converters) {
-    let base = cv[0], param = cv[1];
-    let p = popen('curl -sL --max-time 30 -G --data-urlencode ' +
-                  shell_quote(param + '@' + tmp_url) + ' ' +
-                  shell_quote(base) + ' 2>/dev/null');
-    let raw = p ? trim(p.read('all')) : '';
-    if (p) p.close();
-    if (length(raw) < 50 || substr(raw, 0, 1) !== '{') continue;
-    let obj = json(raw);
-    if (has_proxy_outbounds(obj)) {
-      config_obj = obj;
-      break;
-    }
-  }
-}
-
-system('rm -f ' + shell_quote(tmp_url));
-
-// Step 3: Use local mihomo/clash YAML and convert with yaml2singbox
+// Step 2 (本地最快路径): 把 yaml 喂给 yaml2singbox，避免外部 subconverter 30s × 3
+// 把它前置后，常规 yaml 订阅在 5s 内就生成完，不会触发 LuCI RPC ~30s 超时。
 if (!config_obj && system('command -v ucode >/dev/null 2>&1') == 0 &&
     access('/usr/share/clashoo/lib/yaml2singbox.uc', 'r') &&
     access('/usr/share/clashoo/lib/templates/default.json', 'r')) {
   let yaml_src = uci_get('clashoo', 'config', 'use_config') || '';
   if (!(yaml_src && access(yaml_src, 'r') && match(yaml_src, /\.(yaml|yml)$/))) {
     let tmp_yaml = '/tmp/clashoo_sb_sub.yaml';
-    let dl_cmd = '(curl -fL --connect-timeout 15 --max-time 90 ' + shell_quote(sub_url)
+    let dl_cmd = '(curl -fL --connect-timeout 8 --max-time 20 ' + shell_quote(sub_url)
       + ' -o ' + shell_quote(tmp_yaml)
       + ' || wget -O ' + shell_quote(tmp_yaml) + ' ' + shell_quote(sub_url) + ') >/dev/null 2>&1';
     if (system(dl_cmd) == 0 && access(tmp_yaml, 'r')) {
@@ -2603,6 +2575,31 @@ if (!config_obj && system('command -v ucode >/dev/null 2>&1') == 0 &&
   }
 }
 
+// Step 3: 本地 yaml2singbox 失败再走外部 subconverter（base64 ss/vmess 链接列表
+// yaml2singbox 不识别，要靠外部转换器）。每个 max-time 12s，最坏 36s 兜底。
+if (!config_obj) {
+  let converters = [
+    ['https://sub.kidsqq.cn/singbox?selectedRules=%5B%22Location%3ACN%22%2C%22Private%22%2C%22Non-China%22%2C%22Github%22%2C%22Google%22%2C%22Youtube%22%2C%22AI%2BServices%22%2C%22Telegram%22%2C%22Ad%2BBlock%22%2C%22Streaming%22%2C%22Apple%22%2C%22Social%2BMedia%22%5D&customRules=%5B%5D&group_by_country=true', 'config'],
+    ['https://sub.xeton.dev/sub?target=singbox', 'url'],
+    ['https://api.v1.mk/sub?target=singbox',     'url'],
+  ];
+  for (let cv in converters) {
+    let base = cv[0], param = cv[1];
+    let p = popen('curl -sL --max-time 12 -G --data-urlencode ' +
+                  shell_quote(param + '@' + tmp_url) + ' ' +
+                  shell_quote(base) + ' 2>/dev/null');
+    let raw = p ? trim(p.read('all')) : '';
+    if (p) p.close();
+    if (length(raw) < 50 || substr(raw, 0, 1) !== '{') continue;
+    let obj = json(raw);
+    if (has_proxy_outbounds(obj)) {
+      config_obj = obj;
+      break;
+    }
+  }
+}
+
+system('rm -f ' + shell_quote(tmp_url));
 if (downloaded_yaml)
   system('rm -f ' + shell_quote(downloaded_yaml));
 
