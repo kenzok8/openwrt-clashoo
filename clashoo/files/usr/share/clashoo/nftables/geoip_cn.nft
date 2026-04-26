@@ -1,4 +1,4 @@
-set clash_china {
+set clashoo_china {
 	type ipv4_addr;
 	flags interval;
 	auto-merge;

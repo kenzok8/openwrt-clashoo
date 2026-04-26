@@ -10,7 +10,7 @@ OUTPUT_RULES="${NFT_DIR}/fw4_output.nft"
 BUILTIN_NFT_DIR="/usr/share/clashoo/nftables"
 GEOIP_CN_NFT="${BUILTIN_NFT_DIR}/geoip_cn.nft"
 GEOIP6_CN_NFT="${BUILTIN_NFT_DIR}/geoip6_cn.nft"
-LOCAL_OUTPUT_TABLE="clash_local"
+LOCAL_OUTPUT_TABLE="clashoo_local"
 # PROXY_FWMARK: 入站 TPROXY 打的 mark，ip rule → table PROXY_ROUTE_TABLE 把包吸回本地给 mihomo 接收
 # CORE_ROUTING_MARK: mihomo 自身出站 SO_MARK（= mihomo config 的 routing-mark）
 # 两者必须不同值：否则 mihomo 出站会被 ip rule 误吸到 lo → network unreachable
@@ -258,17 +258,17 @@ apply_local_output_rule() {
 	fwmark_elements="$(merge_fwmark_tokens "$bypass_fwmark")"
 	[ -n "$fwmark_elements" ] && fwmark_rule="meta mark { ${fwmark_elements} } return"
 
-	# 国内 IP 旁路（复用 /usr/share/clashoo/nftables/geoip_cn.nft 的 clash_china set）
+	# 国内 IP 旁路（复用 /usr/share/clashoo/nftables/geoip_cn.nft 的 clashoo_china set）
 	china_set=""
 	china_rule=""
 	if bool_enabled "$bypass_china" && [ -s "$GEOIP_CN_NFT" ]; then
 		china_set="$(cat "$GEOIP_CN_NFT")"
-		china_rule="ip daddr @clash_china return"
+		china_rule="ip daddr @clashoo_china return"
 	fi
 
 	nft -f - <<EOF
 table ip ${LOCAL_OUTPUT_TABLE} {
-	set clash_localnetwork {
+	set clashoo_localnetwork {
 		type ipv4_addr
 		flags interval
 		auto-merge
@@ -280,7 +280,7 @@ table ip ${LOCAL_OUTPUT_TABLE} {
 	chain output {
 		type nat hook output priority dstnat; policy accept;
 		${fwmark_rule}
-		ip daddr @clash_localnetwork return
+		ip daddr @clashoo_localnetwork return
 		${china_rule}
 		ip daddr ${fake_ip_range} tcp dport != 53 redirect to :${redir_port}
 		meta l4proto tcp redirect to :${redir_port}
@@ -349,11 +349,11 @@ generate_rules() {
 	fwmark_elements="$(merge_fwmark_tokens "$bypass_fwmark")"
 
 	{
-		printf 'set clash_localnetwork {\n\ttype ipv4_addr;\n\tflags interval;\n\tauto-merge;\n'
+		printf 'set clashoo_localnetwork {\n\ttype ipv4_addr;\n\tflags interval;\n\tauto-merge;\n'
 		printf '\telements = { 0.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16, 224.0.0.0/4, 240.0.0.0/4 }\n}\n\n'
 
-		append_set_from_file_or_empty "$GEOIP_CN_NFT" clash_china ipv4_addr
-		append_set_from_file_or_empty "$GEOIP6_CN_NFT" clash_china6 ipv6_addr
+		append_set_from_file_or_empty "$GEOIP_CN_NFT" clashoo_china ipv4_addr
+		append_set_from_file_or_empty "$GEOIP6_CN_NFT" clashoo_china6 ipv6_addr
 
 		printf 'set clash_proxy_lan {\n\ttype ipv4_addr;\n\tflags interval;\n\tauto-merge;\n'
 		[ -n "$proxy_elements" ] && printf '\telements = { %s }\n' "$proxy_elements"
@@ -371,9 +371,9 @@ generate_rules() {
 		redirect)
 			tcp_match="$(render_port_match tcp "$proxy_tcp_dport")"
 			cat > "$DSTNAT_RULES" <<EOF
-ip daddr @clash_localnetwork return
-$( bool_enabled "$bypass_china" && printf '%s\n' 'ip6 daddr @clash_china6 return' )
-$( bool_enabled "$bypass_china" && printf '%s\n' 'ip daddr @clash_china return' )
+ip daddr @clashoo_localnetwork return
+$( bool_enabled "$bypass_china" && printf '%s\n' 'ip6 daddr @clashoo_china6 return' )
+$( bool_enabled "$bypass_china" && printf '%s\n' 'ip daddr @clashoo_china return' )
 $( [ "$access_control" = "1" ] && printf '%s\n' 'ip saddr != @clash_proxy_lan return' )
 $( [ "$access_control" = "2" ] && printf '%s\n' 'ip saddr @clash_reject_lan return' )
 $( [ -n "$dscp_elements" ] && printf '%s\n' "ip dscp { ${dscp_elements} } return" )
@@ -401,10 +401,10 @@ EOF
 		tcp_match="$(render_port_match tcp "$proxy_tcp_dport")"
 		udp_match="$(render_port_match udp "$proxy_udp_dport")"
 		{
-			printf 'ip daddr @clash_localnetwork return\n'
+			printf 'ip daddr @clashoo_localnetwork return\n'
 			if bool_enabled "$bypass_china"; then
-				printf 'meta nfproto ipv6 ip6 daddr @clash_china6 return\n'
-				printf 'ip daddr @clash_china return\n'
+				printf 'meta nfproto ipv6 ip6 daddr @clashoo_china6 return\n'
+				printf 'ip daddr @clashoo_china return\n'
 			fi
 			if [ "$access_control" = "1" ]; then
 				printf 'ip saddr != @clash_proxy_lan return\n'

@@ -93,14 +93,14 @@ download_with_fallback "$url4" "$TMP_V4"
 	log '大陆 IPv4 白名单下载失败：返回为空'
 	exit 1
 }
-render_nft_set "$TMP_V4" "$OUT_V4" clash_china ipv4_addr
+render_nft_set "$TMP_V4" "$OUT_V4" clashoo_china ipv4_addr
 mv "$OUT_V4" "$TARGET_V4"
 chmod 644 "$TARGET_V4" >/dev/null 2>&1 || true
 log '大陆 IPv4 白名单更新完成'
 
 if download_with_fallback "$url6" "$TMP_V6"; then
 	if [ -s "$TMP_V6" ]; then
-		render_nft_set "$TMP_V6" "$OUT_V6" clash_china6 ipv6_addr
+		render_nft_set "$TMP_V6" "$OUT_V6" clashoo_china6 ipv6_addr
 		mv "$OUT_V6" "$TARGET_V6"
 		chmod 600 "$TARGET_V6" >/dev/null 2>&1 || true
 		log '大陆 IPv6 白名单更新完成'

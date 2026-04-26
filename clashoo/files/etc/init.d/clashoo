@@ -1358,7 +1358,7 @@ _start_launch_core() {
 	sleep 1
 	echo "Clashoo" > "$REAL_LOG"
 	core_wait=0
-	while [ "$core_wait" -lt 8 ]; do
+	while [ "$core_wait" -lt 15 ]; do
 		if _core_running; then
 			break
 		fi
@@ -1367,15 +1367,14 @@ _start_launch_core() {
 	done
 
 	if ! _core_running; then
+		# 内核 15 秒内未起来 — 标记 fail，但保留 fw4 规则和进程交给 procd respawn 自愈，
+		# 避免一次启动慢就把已下发的 nft / DNS 规则清掉，导致 LAN 流量裸出
 		runtime_state_record_health "fail" "start:core_not_running"
-		echo "  $(date "+%Y-%m-%d %H:%M:%S") - clashoo runtime failed to stay running after start" >> /usr/share/clashoo/clashoo.txt
-		backend_remove_rules >/dev/null 2>&1
-		revert_dns >/dev/null 2>&1
-		_kill_core
-		sleep 1
+		echo "  $(date "+%Y-%m-%d %H:%M:%S") - clashoo core not detected within 15s, leaving rules in place for procd to recover" >> /usr/share/clashoo/clashoo.txt
 		echo "Clashoo" > "$REAL_LOG"
 	else
-		runtime_run_health_check >/dev/null 2>&1
+		# 健康检查含多次 curl，可能耗时 15-30 秒，放后台不阻塞主流程
+		(runtime_run_health_check >/dev/null 2>&1) &
 	fi
 }
 
@@ -1440,7 +1439,7 @@ start_service(){
 			backend_apply_rules >/dev/null 2>&1
 			singbox_dns_change >/dev/null 2>&1
 			add_cron >/dev/null 2>&1
-			runtime_run_health_check >/dev/null 2>&1
+			(runtime_run_health_check >/dev/null 2>&1) &
 			log_msg "sing-box Started Successfully " "sing-box 启动成功，请等待服务器上线！"
 			sleep 1
 			echo "Clashoo" > "$REAL_LOG"

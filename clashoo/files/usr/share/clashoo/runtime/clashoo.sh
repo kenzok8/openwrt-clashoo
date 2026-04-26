@@ -126,43 +126,116 @@ ensure_system_dns() {
 	sleep 2
 }
 
+extract_host() {
+	printf '%s' "$1" | sed -e 's#^[a-zA-Z0-9+.-]*://##' -e 's#/.*$##' -e 's#:.*$##' -e 's#.*@##'
+}
+
+resolve_via() {
+	local host dns
+	host="$1"
+	dns="$2"
+	nslookup "$host" "$dns" 2>/dev/null | awk '
+		/^Address/ {
+			ip = $NF
+			if (ip ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/ &&
+				ip !~ /^127\./ &&
+				ip !~ /^0\./ &&
+				ip !~ /^198\.18\./ &&
+				ip != "8.8.8.8" && ip != "8.8.4.4" &&
+				ip != "1.1.1.1" && ip != "1.0.0.1" &&
+				ip != "223.5.5.5" && ip != "223.6.6.6" &&
+				ip != "119.29.29.29" && ip != "114.114.114.114") {
+				print ip
+				exit
+			}
+		}'
+}
+
+curl_subscription() {
+	local url tmp hdr err ua extra_resolve http_code rc
+	url="$1"
+	tmp="$2"
+	hdr="$3"
+	err="$4"
+	ua="$5"
+	extra_resolve="$6"
+
+	rm -f "$tmp" "$hdr" "$err" >/dev/null 2>&1
+
+	# shellcheck disable=SC2086
+	http_code="$(curl -sSL --connect-timeout 15 --max-time 60 \
+		--speed-time 30 --speed-limit 1 --retry 2 \
+		-H "User-Agent: ${ua}" -D "$hdr" -o "$tmp" \
+		$extra_resolve \
+		-w '%{http_code}' "$url" 2>"$err")"
+	rc=$?
+	printf '%s\n' "$http_code"
+	return "$rc"
+}
+
 download_subscription() {
-	local url target tmp hdr rc info_line
+	local url target tmp hdr err rc http_code info_line ua err_msg
+	local host ip dns extra
 	url="$1"
 	target="$2"
 	tmp="${TMP_PREFIX}.yaml"
 	hdr="${TMP_PREFIX}.hdr"
+	err="${TMP_PREFIX}.err"
 
-	rm -f "$tmp" "$hdr" >/dev/null 2>&1
+	ua="$(uci -q get clashoo.config.sub_ua 2>/dev/null)"
+	[ -n "$ua" ] || ua='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
 
 	if command -v curl >/dev/null 2>&1; then
-		curl -sSL --connect-timeout 15 --max-time 30 --retry 2 \
-			--no-check-certificate -A "Clash/OpenWRT" \
-			-D "$hdr" "$url" -o "$tmp" 2>/dev/null
+		http_code="$(curl_subscription "$url" "$tmp" "$hdr" "$err" "$ua" "")"
 		rc=$?
+
+		if [ "$rc" -ne 0 ] || [ "$http_code" = "000" ]; then
+			host="$(extract_host "$url")"
+			if [ -n "$host" ]; then
+				for dns in 223.5.5.5 119.29.29.29 1.1.1.1 8.8.8.8; do
+					ip="$(resolve_via "$host" "$dns")"
+					[ -n "$ip" ] || continue
+					log_update "DNS 回退：${host} -> ${ip} (@${dns})"
+					extra="--resolve ${host}:443:${ip} --resolve ${host}:80:${ip}"
+					http_code="$(curl_subscription "$url" "$tmp" "$hdr" "$err" "$ua" "$extra")"
+					rc=$?
+					[ "$rc" -eq 0 ] && [ "$http_code" = "200" ] && break
+				done
+			fi
+		fi
 	else
-		wget -q --tries=4 --timeout=20 --no-check-certificate \
-			--user-agent="Clash/OpenWRT" "$url" -O "$tmp"
+		wget -q --tries=4 --timeout=20 \
+			--user-agent="$ua" "$url" -O "$tmp" 2>"$err"
 		rc=$?
+		http_code=""
 	fi
 
 	if [ "$rc" -ne 0 ]; then
-		rm -f "$tmp" "$hdr" >/dev/null 2>&1
+		err_msg="$(grep -a 'curl:' "$err" 2>/dev/null | tail -1)"
+		[ -z "$err_msg" ] && err_msg="$(tail -1 "$err" 2>/dev/null)"
+		log_update "下载失败：$(basename "$target") rc=${rc} ${err_msg}"
+		rm -f "$tmp" "$hdr" "$err" >/dev/null 2>&1
+		return 1
+	fi
+
+	if [ -n "$http_code" ] && [ "$http_code" != "200" ]; then
+		log_update "下载失败：$(basename "$target") HTTP ${http_code}"
+		rm -f "$tmp" "$hdr" "$err" >/dev/null 2>&1
 		return 1
 	fi
 
 	if ! grep -Eq '^(proxies|proxy-providers):' "$tmp" 2>/dev/null; then
-		rm -f "$tmp" "$hdr" >/dev/null 2>&1
+		log_update "校验失败：$(basename "$target") 内容不含 proxies/proxy-providers"
+		rm -f "$tmp" "$hdr" "$err" >/dev/null 2>&1
 		return 1
 	fi
 
-	# 保存流量信息到旁注文件（供前端展示）
 	info_line="$(grep -i 'subscription-userinfo:' "$hdr" 2>/dev/null | head -1 | \
 		sed 's/^[Ss]ubscription-[Uu]serinfo:[[:space:]]*//' | tr -d '\r')"
 	[ -n "$info_line" ] && printf '%s\n' "$info_line" > "${target}.info" || \
 		rm -f "${target}.info" >/dev/null 2>&1
 
-	rm -f "$hdr" >/dev/null 2>&1
+	rm -f "$hdr" "$err" >/dev/null 2>&1
 	mv "$tmp" "$target" >/dev/null 2>&1 || {
 		rm -f "$tmp" >/dev/null 2>&1
 		return 1
@@ -185,7 +258,8 @@ upsert_meta() {
 }
 
 cleanup_tmp() {
-	rm -f "${TMP_PREFIX}.yaml" "${TMP_PREFIX}.urls" "${TMP_PREFIX}.list" >/dev/null 2>&1
+	rm -f "${TMP_PREFIX}.yaml" "${TMP_PREFIX}.urls" "${TMP_PREFIX}.list" \
+		"${TMP_PREFIX}.hdr" "${TMP_PREFIX}.err" >/dev/null 2>&1
 }
 
 trap cleanup_tmp EXIT INT TERM

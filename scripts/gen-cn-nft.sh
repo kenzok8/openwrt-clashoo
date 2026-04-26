@@ -77,8 +77,8 @@ CN_TXT="$(find "${TMP_DIR}/out" -type f -name '*_cn.txt' | head -1)"
 awk 'index($0, ":") == 0 { print }' "${CN_TXT}" > "${TMP_DIR}/cn_ipv4.txt"
 awk 'index($0, ":") != 0 { print }' "${CN_TXT}" > "${TMP_DIR}/cn_ipv6.txt"
 
-render_nft_set ipv4_addr "${TMP_DIR}/cn_ipv4.txt" "${OUT_DIR}/geoip_cn.nft" clash_china
-render_nft_set ipv6_addr "${TMP_DIR}/cn_ipv6.txt" "${OUT_DIR}/geoip6_cn.nft" clash_china6
+render_nft_set ipv4_addr "${TMP_DIR}/cn_ipv4.txt" "${OUT_DIR}/geoip_cn.nft" clashoo_china
+render_nft_set ipv6_addr "${TMP_DIR}/cn_ipv6.txt" "${OUT_DIR}/geoip6_cn.nft" clashoo_china6
 
 echo "generated:"
 echo "  ${OUT_DIR}/geoip_cn.nft"
