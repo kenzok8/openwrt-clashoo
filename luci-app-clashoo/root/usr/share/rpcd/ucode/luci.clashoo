@@ -324,13 +324,16 @@ core_family = core_family || get_core_type();
 if (core_family == 'singbox') {
 	let active = uci_get('clashoo', 'config', 'singbox_active') || '';
 	let active_name = replace(active, /^.*\//, '');
-	if (active_name) return active_name;
+	/* 文件已被删除时不返回 stale 名 */
+	if (active_name && access(SINGBOX_DIR + '/' + active_name, 'r')) return active_name;
 	if (access('/etc/sing-box/config.json', 'r')) return 'config.json';
 	return '';
 }
 
 let use_config = uci_get('clashoo', 'config', 'use_config');
-return replace(use_config, /^.*\//, '');
+let name = replace(use_config, /^.*\//, '');
+if (name && use_config && !access(use_config, 'r')) return '';
+return name;
 }
 
 function get_display_config_name(core_family) {
@@ -759,8 +762,15 @@ let n = replace(f, SINGBOX_DIR + '/', '');
 if (n && !has_cfg(n)) push(configs, n);
 }
 
-if (current && !has_cfg(current))
-push(configs, current);
+/* 仅当 current 真实存在于任一标准目录时才补到列表，避免删除文件后下拉框残留 */
+if (current && !has_cfg(current)) {
+let exists = access('/usr/share/clashoo/config/sub/' + current, 'r')    ||
+             access('/usr/share/clashoo/config/upload/' + current, 'r') ||
+             access('/usr/share/clashoo/config/custom/' + current, 'r') ||
+             access(SINGBOX_DIR + '/' + current, 'r');
+if (exists) push(configs, current);
+else current = '';
+}
 
 return { configs: configs, current: current, core_type: core_type };
 }
