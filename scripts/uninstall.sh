@@ -2,9 +2,9 @@
 
 set -eu
 
-echo "Stopping clash service..."
-/etc/init.d/clash stop >/dev/null 2>&1 || true
-/etc/init.d/clash disable >/dev/null 2>&1 || true
+echo "Stopping clashoo service..."
+/etc/init.d/clashoo stop >/dev/null 2>&1 || true
+/etc/init.d/clashoo disable >/dev/null 2>&1 || true
 
 if command -v opkg >/dev/null 2>&1; then
   echo "Removing packages with opkg..."
@@ -17,8 +17,8 @@ else
 fi
 
 echo "Cleaning runtime files..."
-rm -rf /etc/clash /usr/share/clash /usr/share/clashbackup /tmp/clashoo-install
-rm -f /etc/init.d/clash /etc/config/clash
+rm -rf /etc/clashoo /usr/share/clashoo /usr/share/clashbackup /tmp/clashoo-install
+rm -f /etc/init.d/clashoo /etc/config/clashoo
 
 rm -rf /tmp/luci*
 /etc/init.d/rpcd restart >/dev/null 2>&1 || true
