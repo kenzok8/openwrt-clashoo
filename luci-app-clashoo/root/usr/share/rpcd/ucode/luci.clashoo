@@ -1090,6 +1090,19 @@ function migrate_singbox(cfg) {
     }
   }
 
+  // --- sing-box 1.14 强制要求 route.default_domain_resolver；缺失时补一个，
+  //     首选 dns.final，否则 dns.servers 的第一个有 tag 的 server。 ---
+  if (cfg.route && !cfg.route.default_domain_resolver) {
+    let resolver_tag = '';
+    if (cfg.dns && cfg.dns.final) resolver_tag = cfg.dns.final;
+    else if (cfg.dns && cfg.dns.servers) {
+      for (let srv in cfg.dns.servers)
+        if (srv.tag) { resolver_tag = srv.tag; break; }
+    }
+    if (resolver_tag)
+      cfg.route.default_domain_resolver = { server: resolver_tag };
+  }
+
   // --- Remove dangling outbound references from selectors/urltest ---
   // Converters may reference non-existent tags (e.g. REJECT) in selector outbound lists
   if (cfg.outbounds) {
@@ -2667,6 +2680,7 @@ if (config_obj) {
 '    { "type": "direct", "tag": "DIRECT" }\n' +
 '  ],\n' +
 '  "route": {\n' +
+'    "default_domain_resolver": { "server": "local" },\n' +
 '    "rules": [\n' +
 '      { "action": "sniff" },\n' +
 '      { "protocol": "dns", "action": "hijack-dns" },\n' +
