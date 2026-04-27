@@ -1,6 +1,6 @@
 #!/bin/sh
-. /lib/functions.sh
-[ -f /usr/share/clashoo/runtime/dns_helpers.sh ] && . /usr/share/clashoo/runtime/dns_helpers.sh
+
+[ -n "$(echo $SHELL)" ] && export SHELL=/bin/sh
 
 # 自定义/上传配置（config_type=2 上传, 3 自定义）跳过 yum_change.sh，
 # 保留 proxy-providers/proxies/rules 等完整不动。只添加运行时必需字段。
@@ -8,6 +8,7 @@ _config_type=$(uci get clashoo.config.config_type 2>/dev/null)
 if [ "$_config_type" = "2" ] || [ "$_config_type" = "3" ]; then
 	CONFIG_YAML="/etc/clashoo/config.yaml"
 
+	# --- 运行时字段注入 ---
 	_dash_port=$(uci get clashoo.config.dash_port 2>/dev/null)
 	[ -z "$_dash_port" ] && _dash_port=9090
 	_da_password=$(uci get clashoo.config.dash_pass 2>/dev/null)
@@ -29,7 +30,7 @@ if [ "$_config_type" = "2" ] || [ "$_config_type" = "3" ]; then
 	_log_level=$(uci get clashoo.config.level 2>/dev/null)
 	[ -z "$_log_level" ] && _log_level=info
 
-	# 仅有则替换，没有则 1i\ 插入首行（不破坏原始配置结构）
+	# 字段替换/前置（存在则 sed 替换，不存在则 1i\ 前置）
 	if grep -Eq '^port:' "$CONFIG_YAML"; then
 		sed -i "s@^port:.*@port: $_http_port@g" "$CONFIG_YAML" 2>/dev/null
 	else
@@ -85,10 +86,64 @@ if [ "$_config_type" = "2" ] || [ "$_config_type" = "3" ]; then
 	else
 		sed -i '1i\routing-mark: 6666' "$CONFIG_YAML" 2>/dev/null
 	fi
+
+	# 提取 provider URL 域名 -> 构造 fake-ip-filter 条目
+	_fip_entries=""
+	while IFS= read -r _url_line; do
+		_url=$(printf '%s' "$_url_line" | sed "s/.*url: *\"//; s/\"//")
+		_domain=$(printf '%s' "$_url" | sed -n 's#.*https\?://\([^/]*\).*#\1#p')
+		if [ -n "$_domain" ]; then
+			_fip_entries="${_fip_entries}    - \"${_domain}\"
+"
+		fi
+	done <<-EOT
+		$(grep -E '^\s+url:.*https?://' "$CONFIG_YAML" | grep -v 'generate_204\|raw\.githubusercontent\.com')
+	EOT
+
+	# 若配置无 dns 段，追加含 fake-ip-filter 的 DNS 块
+	if ! grep -Eq '^dns:' "$CONFIG_YAML"; then
+		_listen_port=$(uci get clashoo.config.listen_port 2>/dev/null)
+		[ -z "$_listen_port" ] && _listen_port=1053
+		_enhanced_mode=$(uci get clashoo.config.enhanced_mode 2>/dev/null)
+		[ -z "$_enhanced_mode" ] && _enhanced_mode=fake-ip
+		_default_ns=$(uci get clashoo.config.default_nameserver 2>/dev/null)
+		[ -z "$_default_ns" ] && _default_ns="223.5.5.5 119.29.29.29"
+
+		cat >> "$CONFIG_YAML" <<-DNS_EOF
+
+		dns:
+		  enable: true
+		  listen: 0.0.0.0:${_listen_port}
+		  enhanced-mode: ${_enhanced_mode}
+		DNS_EOF
+			# fake-ip-filter 插入 dns: 块内部
+			if [ -n "$_fip_entries" ]; then
+				echo "  fake-ip-filter:" >> "$CONFIG_YAML"
+				printf '%s' "$_fip_entries" >> "$CONFIG_YAML"
+			fi
+		cat >> "$CONFIG_YAML" <<-DNS_EOF
+		  default-nameserver:
+		DNS_EOF
+		for _ns in $_default_ns; do
+			echo "    - '$_ns'" >> "$CONFIG_YAML"
+		done
+		cat >> "$CONFIG_YAML" <<-DNS_EOF
+		  nameserver:
+		    - 'https://doh.pub/dns-query'
+		    - 'https://dns.alidns.com/dns-query'
+		DNS_EOF
+	else
+		# dns 段已存在但缺少 fake-ip-filter -> 追加
+		if ! grep -Eq '^\s+fake-ip-filter:' "$CONFIG_YAML"; then
+			if [ -n "$_fip_entries" ]; then
+				echo "  fake-ip-filter:" >> "$CONFIG_YAML"
+				printf '%s' "$_fip_entries" >> "$CONFIG_YAML"
+			fi
+		fi
+	fi
 	exit 0
 fi
 
-		lang=$(uci get luci.main.lang 2>/dev/null)
 		REAL_LOG="/usr/share/clashoo/clashoo_real.txt"
 		if [ "$lang" = "en" ] || [ "$lang" = "auto" ];then
 				echo "Setting DNS" >$REAL_LOG   
