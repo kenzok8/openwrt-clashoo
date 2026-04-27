@@ -2,13 +2,22 @@
 
 'use strict';
 
-import { readfile, writefile } from 'fs';
+import { readfile, writefile, access, popen } from 'fs';
 
 let path = ARGV[0] || '';
 let redir_port = +(ARGV[1] || '7891');
 let tproxy_port = +(ARGV[2] || '7982');
 let mixed_port = +(ARGV[3] || '7890');
-let has_tun_device = (ARGV[4] || '1') == '1';
+let has_tun_device = (ARGV[4] || '1') == '1' && access('/dev/net/tun', 'r');
+/* 验证 TUN 是否真的可用（LXC 容器可能可读但不可用） */
+if (has_tun_device) {
+	let tmpf = '/tmp/.clashoo_tun_test';
+	system('(cat /dev/net/tun >/dev/null 2>&1) & P=0; sleep 0.3 2>/dev/null; kill  2>/dev/null; wait  2>/dev/null; echo 0 > ' + tmpf + ' 2>/dev/null');
+	let ec = trim_s(readfile(tmpf) || '');
+	system('rm -f ' + tmpf + ' 2>/dev/null');
+	if (ec != '0') has_tun_device = false;
+}
+
 // 默认 6666 必须与 /usr/share/clashoo/net/fw4.sh:CORE_ROUTING_MARK (0x1a0a) 一致；
 // 不能用 354 (=0x162=PROXY_FWMARK)，那个会被 ip rule 吸到 lo 导致出站不可达。
 let routing_mark = +(ARGV[5] || '6666');
@@ -249,6 +258,11 @@ function dns_server_obj(uri, tag, fallback_type) {
 		obj.path = path;
 	if ((scheme == 'https' || scheme == 'tls' || scheme == 'quic') && tag != 'dns_resolver')
 		obj.domain_resolver = 'dns_resolver';
+	/* sing-box 1.12+ DNS server 默认 detour 走 final outbound（机场代理）→
+	 * 机场要解析自己 server 域名又走 dns_resolver → 死循环 → "lookup ... deadline exceeded" → 国外全 out。
+	 * 直连/解析类 server 一律强制走 DIRECT；只有 dns_proxy 这种"解析国外用"才允许走代理。 */
+	if (tag == 'dns_resolver' || tag == 'dns_direct' || tag == 'dns_foreign')
+		obj.detour = 'DIRECT';
 	return obj;
 }
 
@@ -271,7 +285,7 @@ function first_or(arr, fallback) {
 }
 
 function matcher_rule(matcher, server_tag) {
-	let r = { server: server_tag, action: 'route' };
+	let r = { server: server_tag };
 	if (starts_with(matcher, 'geosite:'))
 		r.rule_set = s_sub(matcher, 8);
 	else if (starts_with(matcher, 'rule_set:'))
@@ -292,7 +306,7 @@ function apply_dns_from_uci() {
 		bootstrap = uci_list('defaul_nameserver');
 	let resolver_uri = first_or(bootstrap, '223.5.5.5');
 	let direct_uri = first_or(dns_servers_by_role('direct-nameserver'), first_or(dns_servers_by_role('nameserver'), 'https://doh.pub/dns-query'));
-	let proxy_uri = first_or(dns_servers_by_role('proxy-server-nameserver'), first_or(dns_servers_by_role('fallback'), 'tls://1.1.1.1:853'));
+	let proxy_uri = first_or(dns_servers_by_role('proxy-server-nameserver'), first_or(dns_servers_by_role('fallback'), '1.1.1.1'));
 
 	let servers = [];
 	push(servers, dns_server_obj(resolver_uri, 'dns_resolver', 'udp'));
@@ -311,36 +325,13 @@ function apply_dns_from_uci() {
 	}
 
 	let rules = [];
-	let policy_idx = 1;
-	for (let s in uci_sections('dns_policy')) {
-		if (!opt_bool(s.options.enabled, true))
-			continue;
-		let matcher = trim_s(s.options.matcher || '');
-		if (!s_len(matcher))
-			continue;
-		let list = s.lists.nameserver || [];
-		if (!length(list) && s.options.nameserver)
-			list = [ s.options.nameserver ];
-		if (!length(list))
-			continue;
-		let tag = 'dns_policy_' + policy_idx++;
-		push(servers, dns_server_obj(list[0], tag, 'udp'));
-		push(rules, matcher_rule(matcher, tag));
-	}
-	if (enhanced == 'fake-ip') {
-		push(rules, {
-			rule_set: 'geolocation-!cn',
-			query_type: [ 'A', 'AAAA' ],
-			server: 'dns_fakeip',
-			action: 'route'
-		});
-		push(rules, {
-			rule_set: 'geolocation-!cn',
-			query_type: 'CNAME',
-			server: 'dns_proxy',
-			action: 'route'
-		});
-	}
+	push(servers, { type: 'udp', tag: 'dns_foreign', server: '1.1.1.1' });
+		if (enhanced == 'fake-ip') {
+			push(rules, {
+				rule_set: 'geolocation-!cn',
+				server: 'dns_fakeip'
+			});
+		}
 
 	let clean_servers = [];
 	for (let s in servers)
@@ -361,9 +352,9 @@ function apply_dns_from_uci() {
 	else
 		delete cfg.dns.independent_cache;
 
-	cfg.route = cfg.route || {};
-	cfg.route.default_domain_resolver = 'dns_resolver';
-}
+		/* sing-box 1.14 强制要求：不设则 Fatal；dns_resolver 绑定 DIRECT，首启动节点域名解析走 DIRECT DNS */
+		cfg.route.default_domain_resolver = 'dns_resolver';
+	}
 
 let inbounds = cfg.inbounds || [];
 let normalized = [];
@@ -491,6 +482,28 @@ for (let ob in (cfg.outbounds || [])) {
 		ob.routing_mark = routing_mark;
 }
 
+/* 把机场塞的"伪节点"（Traffic:/Expire:/剩余流量/官网/QQ/套餐/续费 等）从 selector/urltest 列表中剔除。
+ * 它们是真 SS/Vmess 配置（保留让 UI 抽流量到期），但服务端不真转发；放进 selector 后默认选第一个 / urltest 选最快，
+ * 国外流量会被吸到伪节点 → 表现为"国内通、国外 out"。 */
+let _is_pseudo_tag = function(t) {
+	if (!t) return false;
+	return match(t, /^Traffic[：:]/) || match(t, /^Expire[：:]/) ||
+	       match(t, /剩余流量|剩余[：:]/) || match(t, /距离下次重置/) ||
+	       match(t, /到期(时间|日期)?[：:]/) ||
+	       match(t, /官网[：:]|网站[：:]|套餐[：:]?|客服[：:]/) ||
+	       match(t, /QQ[群]?[：:]/) || match(t, /Telegram|TG群|官方群/) ||
+	       match(t, /续费|订阅地址|流量重置/);
+};
+for (let ob in (cfg.outbounds || [])) {
+	if (!ob || type(ob) != 'object') continue;
+	let t = ob.type || '';
+	if (t != 'selector' && t != 'urltest' && t != 'fallback' && t != 'load_balance') continue;
+	if (type(ob.outbounds) != 'array') continue;
+	let cleaned = [];
+	for (let tag in ob.outbounds) if (!_is_pseudo_tag(tag)) push(cleaned, tag);
+	ob.outbounds = cleaned;
+}
+
 cfg.route = cfg.route || {};
 cfg.route.rules = cfg.route.rules || [];
 let has_dns_hijack = false;
@@ -511,6 +524,32 @@ if (!has_dns_hijack) {
 cfg.route.auto_detect_interface = true;
 apply_dns_from_uci();
 
+/* 本地有 .srs 则转 local；剩余的 remote rule_set 必须保留/补 download_detour。
+ * 大陆首启动死锁链：没 srs → 拉规则 → 走 ♻️ 自动选择 → urltest 测速要拨机场 →
+ *   要解析机场域名 → 又被 DNS rules 卷进未加载的 rule_set → deadline。
+ * 模板里 srs URL 都走 https://gh-proxy.com/...（大陆直连可达），所以 download_detour
+ * 必须是 DIRECT；用 direct outbound 的真实 tag 优先，没有再退到字符串 'DIRECT'。 */
+let _pick_dl_detour = function() {
+	if (cfg.outbounds) {
+		for (let ob in cfg.outbounds) {
+			if (ob && ob.type == 'direct' && ob.tag) return ob.tag;
+		}
+	}
+	return 'DIRECT';
+};
+let _dl_detour = _pick_dl_detour();
+for (let rs in (cfg.route || {}).rule_set || []) {
+	if (!rs) continue;
+	if (rs.type != 'remote') { delete rs.download_detour; continue; }
+	let path = '/usr/share/clashoo/ruleset/' + (rs.tag || '') + '.srs';
+	if (rs.tag && access(path, 'r')) {
+		delete rs.url; delete rs.download_detour; rs.type = 'local'; rs.path = path;
+		continue;
+	}
+	/* 无条件覆盖：subconverter 常输出 download_detour="♻️ 自动选择"，会跟首启动死锁。
+	 * 见 _pick_dl_detour 注释 —— srs URL 是 gh-proxy.com 大陆直连可达，必须走 DIRECT。 */
+	rs.download_detour = _dl_detour;
+}
 cfg.experimental = cfg.experimental || {};
 cfg.experimental.clash_api = cfg.experimental.clash_api || {};
 cfg.experimental.clash_api.external_controller = '0.0.0.0:' + dash_port;

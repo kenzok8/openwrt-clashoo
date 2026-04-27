@@ -531,16 +531,16 @@ return view.extend({
         self._lastSt.health_status = 'stopped';
       })
       .then(function () {
-        self._coreSwitchMsg = targetCore === 'smart'
-          ? '已切换到 Smart，启动前请先启用 Smart 策略组'
-          : '已切换到 ' + targetLabel + '，点击启动后生效';
+        /* 切到 Smart 时后端 set_core 已自动开启 smart_auto_switch；启动后 init.d
+         * smart_inject 会把 url-test/load-balance 转成 Smart 策略，无需手动操作。 */
+        self._coreSwitchMsg = '已切换到 ' + targetLabel + '，点击启动后生效';
         self._refreshCoreSwitch();
         return new Promise(function (resolve) { setTimeout(resolve, 500); });
       })
       .then(function () { return self._pollStatus(); })
       .then(function () {
         var msg = targetCore === 'smart'
-          ? '已切换 Smart 内核。请先在「配置 → 代理 → Smart 策略设置」中启用策略，再点击启动。'
+          ? '已切换 Smart 内核，Smart 策略已自动启用。点击启动即可生效。'
           : '内核已切换：' + targetLabel + '。需要代理时请点击启动。';
         ui.addNotification(null, E('p', msg));
       })
@@ -1465,12 +1465,15 @@ return view.extend({
         if (opKey === 'stop') {
           done = st && st.running === false;
         } else {
-          done = st && st.running === true && (st.health_status === 'pass' || st.health_status === 'fail');
+          done = st && ((st.health_status === 'fail') || (st.health_status === 'pass' && st.running === true));
         }
 
         if (done) {
-          /* 让最终状态字停留 1.5s 再清场 */
-          setTimeout(settle, 1500);
+          /* fail 立刻 settle：再等 1.5s，状态卡会被 _pollStatus 重画，
+           * 而 _opMsg 还停在旧文字上，视觉上会"反弹"一下；让 fail 走同一渲染路径。
+           * pass / stop 仍保留 1.5s，让"已就绪/已停止"留个尾巴。 */
+          if (st && st.health_status === 'fail') settle();
+          else                                   setTimeout(settle, 1500);
           return;
         }
         if (Date.now() - t0 > maxWaitMs) {

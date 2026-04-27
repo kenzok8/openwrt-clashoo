@@ -128,6 +128,42 @@ function rememberTab(key, id) {
     window.location.hash = id;
 }
 
+function fmtBytes(b) {
+  b = parseInt(b) || 0;
+  if (b >= 1e12) return (b / 1e12).toFixed(2) + ' TB';
+  if (b >= 1e9)  return (b / 1e9).toFixed(2)  + ' GB';
+  if (b >= 1e6)  return (b / 1e6).toFixed(1)  + ' MB';
+  return Math.round(b / 1e3) + ' KB';
+}
+function fmtExpireDate(ts) {
+  if (!ts || ts === 0) return '';
+  var d = new Date(ts * 1000);
+  var pad2 = function (n) { return n < 10 ? '0' + n : '' + n; };
+  return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+}
+/* 渲染流量条；返回 DOM 节点或 null */
+function renderTrafficBar(used, total) {
+  total = parseInt(total) || 0;
+  if (total <= 0) return null;
+  used = parseInt(used) || 0;
+  var pct = Math.min(100, Math.round(used / total * 100));
+  var fillCls = 'cl-sub-traffic-fill' + (pct >= 90 ? ' cl-traffic-danger' : pct >= 75 ? ' cl-traffic-warn' : '');
+  return E('div', { 'class': 'cl-sub-traffic' }, [
+    fmtBytes(used) + ' / ' + fmtBytes(total) + ' (' + pct + '%)',
+    E('div', { 'class': 'cl-sub-traffic-bar' }, [
+      E('div', { 'class': fillCls, 'style': 'width:' + pct + '%' })
+    ])
+  ]);
+}
+/* 渲染到期文本；返回 DOM 节点或 null */
+function renderExpire(ts) {
+  if (!ts) return null;
+  var daysLeft = Math.ceil((ts * 1000 - Date.now()) / 86400000);
+  var cls = 'cl-sub-expire' + (daysLeft <= 7 ? ' cl-expire-soon' : '');
+  return E('div', { 'class': cls },
+    '到期：' + fmtExpireDate(ts) + (daysLeft > 0 ? '（' + daysLeft + ' 天）' : '（已过期）'));
+}
+
 function decorateControlWraps(root) {
   if (!root || !root.querySelectorAll)
     return;
@@ -309,44 +345,14 @@ return view.extend({
       }
     }, '下载订阅');
 
-    var fmtBytes = function (b) {
-      b = parseInt(b) || 0;
-      if (b >= 1e12) return (b / 1e12).toFixed(2) + ' TB';
-      if (b >= 1e9)  return (b / 1e9).toFixed(2)  + ' GB';
-      if (b >= 1e6)  return (b / 1e6).toFixed(1)  + ' MB';
-      return Math.round(b / 1e3) + ' KB';
-    };
-    var pad2 = function (n) { return n < 10 ? '0' + n : '' + n; };
-    var fmtExpire = function (ts) {
-      if (!ts || ts === 0) return '';
-      var d = new Date(ts * 1000);
-      return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
-    };
-
     var subCards = subs.map(function (sub) {
       var nameNodes = [];
       if (sub.active) nameNodes.push(E('span', { 'class': 'cl-active-badge' }, '使用中'));
       nameNodes.push(E('span', { 'class': 'cl-file-name-text' }, safeText(sub.name)));
 
-      // 流量信息
-      var trafficEl = null, expireEl = null;
-      var total = parseInt(sub.sub_total) || 0;
-      if (total > 0) {
-        var used = (parseInt(sub.sub_upload) || 0) + (parseInt(sub.sub_download) || 0);
-        var pct  = Math.min(100, Math.round(used / total * 100));
-        var fillCls = 'cl-sub-traffic-fill' + (pct >= 90 ? ' cl-traffic-danger' : pct >= 75 ? ' cl-traffic-warn' : '');
-        var fillEl = E('div', { 'class': fillCls, 'style': 'width:' + pct + '%' });
-        trafficEl = E('div', { 'class': 'cl-sub-traffic' }, [
-          fmtBytes(used) + ' / ' + fmtBytes(total) + ' (' + pct + '%)',
-          E('div', { 'class': 'cl-sub-traffic-bar' }, [fillEl])
-        ]);
-      }
-      if (sub.sub_expire) {
-        var expStr = fmtExpire(sub.sub_expire);
-        var daysLeft = Math.ceil((sub.sub_expire * 1000 - Date.now()) / 86400000);
-        var expCls = 'cl-sub-expire' + (daysLeft <= 7 ? ' cl-expire-soon' : '');
-        expireEl = E('div', { 'class': expCls }, '到期：' + expStr + (daysLeft > 0 ? '（' + daysLeft + ' 天）' : '（已过期）'));
-      }
+      var used = (parseInt(sub.sub_upload) || 0) + (parseInt(sub.sub_download) || 0);
+      var trafficEl = renderTrafficBar(used, sub.sub_total);
+      var expireEl  = renderExpire(sub.sub_expire);
 
       return E('div', { 'class': 'cl-file-item' + (sub.active ? ' is-active' : '') }, [
         E('div', { 'class': 'cl-file-meta' }, [
@@ -918,13 +924,18 @@ return view.extend({
     /* ── Profile table ── */
     var rows = profiles.length
       ? profiles.map(function (p) {
+          var nameCell = [
+            E('div', { 'class': 'cl-sb-file-name' }, [
+              p.active ? E('span', { 'class': 'cl-active-badge' }, '使用中') : '',
+              E('span', { 'class': 'cl-file-name-text' }, safeText(p.name))
+            ])
+          ];
+          var trafficEl = renderTrafficBar(p.sub_used, p.sub_total);
+          var expireEl  = renderExpire(p.sub_expire);
+          if (trafficEl) nameCell.push(trafficEl);
+          if (expireEl)  nameCell.push(expireEl);
           return E('tr', {}, [
-            E('td', {}, [
-              E('div', { 'class': 'cl-sb-file-name' }, [
-                p.active ? E('span', { 'class': 'cl-active-badge' }, '使用中') : '',
-                E('span', { 'class': 'cl-file-name-text' }, safeText(p.name))
-              ])
-            ]),
+            E('td', {}, nameCell),
             E('td', { 'class': 'cl-sb-size' }, safeText(p.size) || '—'),
             E('td', {}, [
               E('div', { 'class': 'cl-sb-row-actions' }, [

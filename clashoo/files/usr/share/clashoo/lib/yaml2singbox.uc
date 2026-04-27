@@ -164,12 +164,19 @@ function convert_ss(p) {
 	const plugin = p.plugin, popts = p['plugin-opts'] || {};
 	let plugin_opts = null;
 	if (plugin && type(popts) === 'object') {
-		/* 序列化为 "k=v;k=v" */
+		/* 字段名映射：Clash simple-obfs 命名 → sing-box obfs-local 命名
+		 * Clash: mode=http;host=xxx
+		 * sing-box: obfs=http;obfs-host=xxx */
+		const FIELD_MAP = {
+			'mode': 'obfs',
+			'host': 'obfs-host',
+			'uri': 'obfs-uri'
+		};
 		const parts = [];
 		for (let k in popts) {
 			const v = popts[k];
-			if (type(v) === 'object') continue;  /* 深层对象另说 */
-			push(parts, k + '=' + v);
+			if (type(v) === 'object') continue;
+			push(parts, (FIELD_MAP[k] || k) + '=' + v);
 		}
 		plugin_opts = join(';', parts);
 	}
@@ -299,15 +306,42 @@ function dedupe_tags(nodes) {
 	return nodes;
 }
 
-/* ---------- 把 __NODES__ 占位符替换为真实 tag ---------- */
+/* 机场常塞的"伪节点"标签：流量计费 / 到期日 / 套餐链接 / 客服等。
+ * 它们是真实 SS/Vmess 配置（参与 sing-box 解析、能让 P2-H 抽流量到期信息），
+ * 但服务端通常不真转发流量或被限速到不可用——必须从 selector/urltest 里剔除，
+ * 否则 selector 默认选第一个、urltest 选延迟最低（同源 0ms），所有代理都会打到伪节点 → 国外 out。 */
+function is_pseudo_node_tag(tag) {
+	if (!tag) return false;
+	const t = '' + tag;
+	const patterns = [
+		/^Traffic[：:]/i,
+		/^Expire[：:]/i,
+		/剩余流量|剩余[：:]/,
+		/距离下次重置/,
+		/到期(时间|日期)?[：:]/,
+		/官网[：:]/,
+		/网站[：:]/,
+		/套餐[：:]?/,
+		/客服[：:]/,
+		/QQ[群]?[：:]/i,
+		/Telegram|TG群|官方群/i,
+		/续费|订阅地址|流量重置/,
+	];
+	for (let re in patterns) if (match(t, re)) return true;
+	return false;
+}
+
+/* ---------- 把 __NODES__ 占位符替换为真实 tag（剔除伪节点） ---------- */
 function expand_node_placeholder(outbounds, node_tags) {
+	const real_tags = [];
+	for (let t in node_tags) if (!is_pseudo_node_tag(t)) push(real_tags, t);
 	for (let ob in outbounds) {
 		if (ob.type !== 'selector' && ob.type !== 'urltest') continue;
 		if (!ob.outbounds || type(ob.outbounds) !== 'array') continue;
 		const expanded = [];
 		for (let item in ob.outbounds) {
 			if (item === '__NODES__') {
-				for (let t in node_tags) push(expanded, t);
+				for (let t in real_tags) push(expanded, t);
 			} else {
 				push(expanded, item);
 			}

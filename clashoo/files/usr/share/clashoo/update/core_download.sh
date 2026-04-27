@@ -51,11 +51,14 @@ normalize_prefix() {
 }
 
 mirror_prefixes() {
+	# 默认源按 2026-04 实测排序：mirror.ghproxy.com 已挂、hub.gitmirror.com/git.886.be 全死、
+	# gh.idayer.com/ghproxy.net 限速截断；只保留 gh-proxy.com + ghfast.top 两条快通道。
+	# 末尾会自动追加裸 GitHub（download_with_mirrors 末尾会 push 一个空 prefix）。
 	custom="$(normalize_prefix "$MIRROR_PREFIX")"
 	if [ -n "$custom" ]; then
-		echo "$custom https://gh-proxy.com/ https://mirror.ghproxy.com/"
+		echo "$custom https://gh-proxy.com/ https://ghfast.top/"
 	else
-		echo "https://gh-proxy.com/ https://mirror.ghproxy.com/"
+		echo "https://gh-proxy.com/ https://ghfast.top/"
 	fi
 }
 
@@ -807,7 +810,8 @@ fi
 
 write_log "开始下载内核"
 if ! download_with_mirrors "$URL" /tmp/clash.gz; then
-	write_log "内核下载失败"
+	write_log "内核下载失败：所有镜像源均不可达（已尝试 gh-proxy.com / ghfast.top / 裸 GitHub）"
+	write_log "可设置自定义镜像前缀：uci set clashoo.config.core_mirror_prefix='https://your.mirror/' && uci commit clashoo"
 	exit 1
 fi
 

@@ -978,19 +978,25 @@ function migrate_singbox(cfg) {
   if (cfg.dns && cfg.dns.rules)
     cfg.dns.rules = map(cfg.dns.rules, migrate_geo_rule);
 
+  // 选 download_detour：模板和 subconverter 输出的 srs URL 都已用 gh-proxy.com（大陆直连可达），
+  // 所以必须走 DIRECT。绝不能选机场代理：首启动 rule_set 还没载入，机场域名解析会被未匹配
+  // 的 DNS rules 反复递归 → deadline → sing-box FATAL。
+  let pick_dl_detour = function() {
+    if (cfg.outbounds) {
+      for (let ob in cfg.outbounds) {
+        if (ob && ob.type === 'direct' && ob.tag) return ob.tag;
+      }
+    }
+    return 'DIRECT';
+  };
+
   // Add rule_set download entries for each referenced geo tag
   if (length(keys(needed_rule_sets)) > 0) {
     if (!cfg.route) cfg.route = {};
     if (!cfg.route.rule_set) cfg.route.rule_set = [];
     let existing_tags = {};
     for (let rs in cfg.route.rule_set) existing_tags[rs.tag] = true;
-    // Prefer DIRECT outbound tag for downloading rule sets
-    let dl_detour = 'DIRECT';
-    if (cfg.outbounds) {
-      for (let ob in cfg.outbounds) {
-        if (ob.type === 'direct') { dl_detour = ob.tag || 'DIRECT'; break; }
-      }
-    }
+    let dl_detour = pick_dl_detour();
     for (let tag in keys(needed_rule_sets)) {
       if (!existing_tags[tag]) {
         push(cfg.route.rule_set, {
@@ -1058,6 +1064,26 @@ function migrate_singbox(cfg) {
     });
   }
 
+  // --- 修 reject method: sing-box 1.14 拒收 "dropped"，只接受 "default"/"drop" ---
+  if (cfg.dns && cfg.dns.rules) {
+    cfg.dns.rules = map(cfg.dns.rules, function(rule) {
+      if (rule.action !== 'reject' || !rule.method) return rule;
+      let m = rule.method;
+      if (m === 'dropped') m = 'drop';
+      if (m !== 'default' && m !== 'drop') {
+        // 未知值直接去掉，让 sing-box 用默认 (default → NXDOMAIN)
+        let r = {};
+        for (let k in rule) if (k !== 'method') r[k] = rule[k];
+        return r;
+      }
+      if (m === rule.method) return rule;
+      let r = {};
+      for (let k in rule) r[k] = rule[k];
+      r.method = m;
+      return r;
+    });
+  }
+
   // --- Migrate TUN inbound inet4_address/inet6_address → address array (1.12+),
   // and strip legacy inbound fields removed in 1.13 (sniff / sniff_override_destination /
   // sniff_timeout / domain_strategy). 若任意 inbound 原本启用过 sniff，则在 route.rules
@@ -1113,8 +1139,24 @@ function migrate_singbox(cfg) {
       cfg.route.default_domain_resolver = { server: resolver_tag };
   }
 
-  // --- Remove dangling outbound references from selectors/urltest ---
-  // Converters may reference non-existent tags (e.g. REJECT) in selector outbound lists
+  // --- Remove dangling outbound references from selectors/urltest，并剔除"机场伪节点" ---
+  // 1. subconverter 可能引用不存在的 tag（如 REJECT）
+  // 2. 机场塞的 "Traffic: xxx GB | yyy GB" / "Expire: 2026-08-15" / "剩余流量"
+  //    等伪节点是真 SS/Vmess outbound（参与 sing-box 解析、让 UI 能抽流量到期），
+  //    但服务端不真转发；放进 selector 后 selector 默认选第一个 / urltest 选最快
+  //    （同源 0ms），所有国外流量会被吸到伪节点 → 表现为"国内通、国外 out"。
+  let is_pseudo_tag = function(t) {
+    if (!t) return false;
+    return match(t, /^Traffic[：:]/) ||
+           match(t, /^Expire[：:]/) ||
+           match(t, /剩余流量|剩余[：:]/) ||
+           match(t, /距离下次重置/) ||
+           match(t, /到期(时间|日期)?[：:]/) ||
+           match(t, /官网[：:]|网站[：:]|套餐[：:]?|客服[：:]/) ||
+           match(t, /QQ[群]?[：:]/) ||
+           match(t, /Telegram|TG群|官方群/) ||
+           match(t, /续费|订阅地址|流量重置/);
+  };
   if (cfg.outbounds) {
     let defined_tags = {};
     for (let ob in cfg.outbounds) defined_tags[ob.tag] = true;
@@ -1123,12 +1165,29 @@ function migrate_singbox(cfg) {
           !ob.outbounds) return ob;
       let valid = [];
       for (let t in ob.outbounds) {
-        if (defined_tags[t]) push(valid, t);
+        if (!defined_tags[t]) continue;
+        if (is_pseudo_tag(t)) continue;
+        push(valid, t);
       }
       if (length(valid) === length(ob.outbounds)) return ob;
       let r = {};
       for (let k in ob) r[k] = ob[k];
       r.outbounds = valid;
+      return r;
+    });
+  }
+
+  // --- 强制覆盖所有 remote rule_set 的 download_detour ---
+  // subconverter 常输出 download_detour="♻️ 自动选择"，但首启动时机场代理还不可用
+  // → urltest 测速死锁 → "fetch rule-set: deadline exceeded" → sing-box FATAL。
+  // 模板/转换器写入的 srs URL 都用 gh-proxy.com（大陆直连可达），必须无条件覆盖成 DIRECT。
+  if (cfg.route && cfg.route.rule_set) {
+    let dl_detour = pick_dl_detour();
+    cfg.route.rule_set = map(cfg.route.rule_set, function(rs) {
+      if (!rs || rs.type !== 'remote') return rs;
+      let r = {};
+      for (let k in rs) r[k] = rs[k];
+      r.download_detour = dl_detour;
       return r;
     });
   }
@@ -2348,16 +2407,75 @@ call: function() {
 let dir = '/usr/share/clashoo/config/singbox';
 system('mkdir -p ' + shell_quote(dir) + ' >/dev/null 2>&1');
 let active = uci_get('clashoo', 'config', 'singbox_active') || '';
+
+// 把 "211.98 GB" / "1000 MB" 之类解析成字节数；返回 0 表示无法识别
+let parse_size_bytes = function(num_str, unit_str) {
+  let n = +num_str;
+  if (n != n) return 0;  // NaN
+  let u = uc(unit_str || '');
+  let mul = 1;
+  if (u == 'KB' || u == 'K')      mul = 1024;
+  else if (u == 'MB' || u == 'M') mul = 1024 * 1024;
+  else if (u == 'GB' || u == 'G') mul = 1024 * 1024 * 1024;
+  else if (u == 'TB' || u == 'T') mul = 1024 * 1024 * 1024 * 1024;
+  return int(n * mul);
+};
+
+// busybox date 把 yyyy-mm-dd 转 unix ts；失败返回 0
+let ymd_to_ts = function(s) {
+  let p = popen('date -D %Y-%m-%d -d ' + shell_quote(s) + ' +%s 2>/dev/null');
+  if (!p) return 0;
+  let v = trim(p.read('all'));
+  p.close();
+  let n = +v;
+  return (n == n && n > 0) ? int(n) : 0;
+};
+
+// 从 sing-box config 的 outbounds tag 里抽出机场塞的流量/到期信息
+// 常见 tag："Traffic: 211.98 GB | 1000 GB"、"Expire: 2026-08-15"
+let extract_meta = function(path) {
+  let st = stat(path);
+  if (!st || st.size > 524288) return {};
+  let raw = readfile(path);
+  if (!raw) return {};
+  let obj = json(raw);
+  if (!obj || type(obj.outbounds) != 'array') return {};
+  let used = 0, total = 0, expire = 0;
+  for (let ob in obj.outbounds) {
+    let tag = (ob && ob.tag) ? ob.tag : '';
+    if (!tag) continue;
+    if (!total) {
+      let m = match(tag, /Traffic[：:]\s*([0-9.]+)\s*([KMGT]?B)\s*[|\/]\s*([0-9.]+)\s*([KMGT]?B)/);
+      if (m) {
+        used  = parse_size_bytes(m[1], m[2]);
+        total = parse_size_bytes(m[3], m[4]);
+      }
+    }
+    if (!expire) {
+      let m2 = match(tag, /Expire[：:]\s*([0-9]{4}-[0-9]{1,2}-[0-9]{1,2})/);
+      if (m2) expire = ymd_to_ts(m2[1]);
+    }
+    if (total && expire) break;
+  }
+  let r = {};
+  if (total) { r.sub_total = total; r.sub_used = used; }
+  if (expire) r.sub_expire = expire;
+  return r;
+};
+
 let files = [];
 for (let f in (glob(dir + '/*.json') || [])) {
   let name = replace(f, dir + '/', '');
   let fi = stat(f);
-  push(files, {
+  let entry = {
     name,
     mtime: fi ? ('' + fi.mtime) : null,
     size:  fi ? (int(fi.size / 1024) + ' KB') : null,
     active: name == active
-  });
+  };
+  let meta = extract_meta(f);
+  for (let k in meta) entry[k] = meta[k];
+  push(files, entry);
 }
 return { profiles: files, active };
 }
@@ -2660,6 +2778,9 @@ if (config_obj) {
     s = replace(s, /"/g, '\\"');
     return s;
   }
+  // 没拿到任何代理节点时给一个最小可启动骨架：
+  // 不依赖任何远程 rule_set（路由器纯净环境 DIRECT 拉 jsdelivr 会卡 → FATAL），
+  // 等用户在 LuCI 里替换/上传带节点的配置后再启用规则。
   content =
 '{\n' +
 '  "log": { "level": "info", "timestamp": true },\n' +
@@ -2671,12 +2792,10 @@ if (config_obj) {
 '      { "tag": "local",  "type": "udp",   "server": "223.5.5.5" }\n' +
 '    ],\n' +
 '    "rules": [\n' +
-'      { "outbound": "any",      "action": "route", "server": "local" },\n' +
 '      { "clash_mode": "Global", "action": "route", "server": "remote" },\n' +
-'      { "clash_mode": "Direct", "action": "route", "server": "local" },\n' +
-'      { "rule_set": "geosite-cn","action": "route", "server": "local" }\n' +
+'      { "clash_mode": "Direct", "action": "route", "server": "local" }\n' +
 '    ],\n' +
-'    "final": "remote"\n' +
+'    "final": "local"\n' +
 '  },\n' +
 '  "inbounds": [\n' +
 '    { "type": "tun", "tag": "tun-in",\n' +
@@ -2692,14 +2811,6 @@ if (config_obj) {
 '      { "action": "sniff" },\n' +
 '      { "protocol": "dns", "action": "hijack-dns" },\n' +
 '      { "clash_mode": "Direct", "outbound": "DIRECT" }\n' +
-'    ],\n' +
-'    "rule_set": [\n' +
-'      { "tag": "geosite-cn", "type": "remote", "format": "binary",\n' +
-'        "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-cn.srs",\n' +
-'        "download_detour": "DIRECT" },\n' +
-'      { "tag": "geoip-cn", "type": "remote", "format": "binary",\n' +
-'        "url": "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-cn.srs",\n' +
-'        "download_detour": "DIRECT" }\n' +
 '    ],\n' +
 '    "final": "DIRECT",\n' +
 '    "auto_detect_interface": true\n' +
