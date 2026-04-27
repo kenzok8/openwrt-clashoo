@@ -25,6 +25,8 @@
 		enhanced_mode=$(uci get clashoo.config.enhanced_mode 2>/dev/null)
 		mixed_port=$(uci get clashoo.config.mixed_port 2>/dev/null)
 		enable_ipv6=$(uci get clashoo.config.enable_ipv6 2>/dev/null)
+		[ "$enable_ipv6" = "1" ] && enable_ipv6="true" || enable_ipv6="false"
+		[ "$allow_lan" = "1" ] && allow_lan="true" || allow_lan="false"
 		# routing-mark 必须与 /usr/share/clashoo/net/fw4.sh:CORE_ROUTING_MARK (0x1a0a=6666) 一致。
 		# 不能复用 PROXY_FWMARK(0x162)：那个 mark 被 ip rule 吸到 lo（TPROXY 入站重定向用途），
 		# 复用会让核心出站 network unreachable。用户 uci bypass_fwmark 仅用于 nft 额外 bypass。
