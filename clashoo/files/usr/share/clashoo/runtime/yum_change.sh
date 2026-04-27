@@ -1,6 +1,92 @@
 #!/bin/sh
-. /lib/functions.sh 
+. /lib/functions.sh
 [ -f /usr/share/clashoo/runtime/dns_helpers.sh ] && . /usr/share/clashoo/runtime/dns_helpers.sh
+
+# 自定义/上传配置（config_type=2 上传, 3 自定义）跳过 yum_change.sh，
+# 保留 proxy-providers/proxies/rules 等完整不动。只添加运行时必需字段。
+_config_type=$(uci get clashoo.config.config_type 2>/dev/null)
+if [ "$_config_type" = "2" ] || [ "$_config_type" = "3" ]; then
+	CONFIG_YAML="/etc/clashoo/config.yaml"
+
+	_dash_port=$(uci get clashoo.config.dash_port 2>/dev/null)
+	[ -z "$_dash_port" ] && _dash_port=9090
+	_da_password=$(uci get clashoo.config.dash_pass 2>/dev/null)
+	_safe_password=$(printf '%s' "$_da_password" | sed 's/[\/&]/\\&/g')
+	_http_port=$(uci get clashoo.config.http_port 2>/dev/null)
+	[ -z "$_http_port" ] && _http_port=8080
+	_socks_port=$(uci get clashoo.config.socks_port 2>/dev/null)
+	[ -z "$_socks_port" ] && _socks_port=1080
+	_redir_port=$(uci get clashoo.config.redir_port 2>/dev/null)
+	[ -z "$_redir_port" ] && _redir_port=7891
+	_mixed_port=$(uci get clashoo.config.mixed_port 2>/dev/null)
+	[ -z "$_mixed_port" ] && _mixed_port=7890
+	_allow_lan=$(uci get clashoo.config.allow_lan 2>/dev/null)
+	[ "$_allow_lan" = "1" ] && _allow_lan=true || _allow_lan=false
+	[ -z "$_allow_lan" ] && _allow_lan=true
+	_mode=$(uci get clashoo.config.p_mode 2>/dev/null)
+	[ -z "$_mode" ] && _mode=rule
+	[ "$_mode" = "script" ] && _mode=rule
+	_log_level=$(uci get clashoo.config.level 2>/dev/null)
+	[ -z "$_log_level" ] && _log_level=info
+
+	# 仅有则替换，没有则 1i\ 插入首行（不破坏原始配置结构）
+	if grep -Eq '^port:' "$CONFIG_YAML"; then
+		sed -i "s@^port:.*@port: $_http_port@g" "$CONFIG_YAML" 2>/dev/null
+	else
+		sed -i "1i\port: $_http_port" "$CONFIG_YAML" 2>/dev/null
+	fi
+	if grep -Eq '^socks-port:' "$CONFIG_YAML"; then
+		sed -i "s@^socks-port:.*@socks-port: $_socks_port@g" "$CONFIG_YAML" 2>/dev/null
+	else
+		sed -i "1i\socks-port: $_socks_port" "$CONFIG_YAML" 2>/dev/null
+	fi
+	if grep -Eq '^redir-port:' "$CONFIG_YAML"; then
+		sed -i "s@^redir-port:.*@redir-port: $_redir_port@g" "$CONFIG_YAML" 2>/dev/null
+	else
+		sed -i "1i\redir-port: $_redir_port" "$CONFIG_YAML" 2>/dev/null
+	fi
+	if grep -Eq '^mixed-port:' "$CONFIG_YAML"; then
+		sed -i "s@^mixed-port:.*@mixed-port: $_mixed_port@g" "$CONFIG_YAML" 2>/dev/null
+	else
+		sed -i "1i\mixed-port: $_mixed_port" "$CONFIG_YAML" 2>/dev/null
+	fi
+	if grep -Eq '^allow-lan:' "$CONFIG_YAML"; then
+		sed -i "s@^allow-lan:.*@allow-lan: $_allow_lan@g" "$CONFIG_YAML" 2>/dev/null
+	else
+		sed -i "1i\allow-lan: $_allow_lan" "$CONFIG_YAML" 2>/dev/null
+	fi
+	if grep -Eq '^mode:' "$CONFIG_YAML"; then
+		sed -i "s@^mode:.*@mode: $_mode@g" "$CONFIG_YAML" 2>/dev/null
+	else
+		sed -i "1i\mode: $_mode" "$CONFIG_YAML" 2>/dev/null
+	fi
+	if grep -Eq '^log-level:' "$CONFIG_YAML"; then
+		sed -i "s@^log-level:.*@log-level: $_log_level@g" "$CONFIG_YAML" 2>/dev/null
+	else
+		sed -i "1i\log-level: $_log_level" "$CONFIG_YAML" 2>/dev/null
+	fi
+	if grep -Eq '^external-controller:' "$CONFIG_YAML"; then
+		sed -i "s@^external-controller:.*@external-controller: 0.0.0.0:$_dash_port@g" "$CONFIG_YAML" 2>/dev/null
+	else
+		sed -i "1i\external-controller: 0.0.0.0:$_dash_port" "$CONFIG_YAML" 2>/dev/null
+	fi
+	if grep -Eq '^secret:' "$CONFIG_YAML"; then
+		sed -i 's@^secret:.*@secret: "'"$_safe_password"'"@g' "$CONFIG_YAML" 2>/dev/null
+	else
+		sed -i "1i\secret: \"$_safe_password\"" "$CONFIG_YAML" 2>/dev/null
+	fi
+	if grep -Eq '^external-ui:' "$CONFIG_YAML"; then
+		sed -i 's@^external-ui:.*@external-ui: "./dashboard"@g' "$CONFIG_YAML" 2>/dev/null
+	else
+		sed -i '1i\external-ui: "./dashboard"' "$CONFIG_YAML" 2>/dev/null
+	fi
+	if grep -Eq '^routing-mark:' "$CONFIG_YAML"; then
+		sed -i 's@^routing-mark:.*@routing-mark: 6666@g' "$CONFIG_YAML" 2>/dev/null
+	else
+		sed -i '1i\routing-mark: 6666' "$CONFIG_YAML" 2>/dev/null
+	fi
+	exit 0
+fi
 
 		lang=$(uci get luci.main.lang 2>/dev/null)
 		REAL_LOG="/usr/share/clashoo/clashoo_real.txt"
@@ -402,10 +488,10 @@ rm -rf /tmp/tun.yaml /tmp/enable_dns.yaml /tmp/fallback.yaml /tmp/nameservers.ya
 		elif [ "${enable_dns}" == "1" ];then
 		
 
-			if [ ! -z "$(grep "^proxies:" "$CONFIG_YAML")" ]; then
+			if [ ! -z "$(grep "^proxy-providers:" "$CONFIG_YAML")" ]; then
+			  sed -i "/^proxy-providers:/i\#clash-openwrt" $CONFIG_YAML 2>/dev/null
+			elif [ ! -z "$(grep "^proxies:" "$CONFIG_YAML")" ]; then
 			  sed -i "/^proxies:/i\#clash-openwrt" $CONFIG_YAML 2>/dev/null
-			elif [ ! -z "$(grep "^proxy-providers:" "$CONFIG_YAML")" ]; then
-			  sed -i "/proxy-providers:/i\#clash-openwrt" $CONFIG_YAML 2>/dev/null
 			fi
 		
 			sed -i "/#clash-openwrt/a\#=============" $CONFIG_YAML 2>/dev/null
