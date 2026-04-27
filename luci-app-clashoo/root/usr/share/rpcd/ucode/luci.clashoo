@@ -1653,13 +1653,14 @@ let api = get_clash_api_auth();
 	let slash = rindex(conf_path, '/');
 	let conf_name = slash >= 0 ? substr(conf_path, slash + 1) : conf_path;
 	if (configured_core == 'singbox' && config) conf_name = config;
+	let dcore = c.get('clashoo', 'config', 'dcore') || '2';
 
 let status_payload = { running, dash_port, dash_pass, proxy_mode, conf_path: conf_name, config,
                        panel_type, tcp_mode, udp_mode, stack,
                        effective_tcp_mode, effective_udp_mode,
 	                       runtime_degraded, runtime_degrade_reason,
 	                       health_status, health_detail, has_tun_device,
-	                       core_type: configured_core, local_ip };
+	                       core_type: configured_core, dcore, local_ip };
 
 	let stats_payload = { ok: false, running: running };
 	if (running) {
