@@ -301,6 +301,28 @@ function matcher_rule(matcher, server_tag) {
 
 function apply_dns_from_uci() {
 	cfg.dns = cfg.dns || {};
+	/* 清除 mihomo 风格 DNS 字段（如 enable/ipv6/listen/fake-ip-filter/nameserver
+	 * 等），这些字段可能从订阅 YAML 转换时混入 JSON，sing-box 不认识会导致 Fatal。 */
+	let _mihomo_dns_fields = ['enable', 'ipv6', 'listen', 'fake-ip-filter', 'fake-ip-range',
+	                'enhanced-mode', 'nameserver', 'fallback', 'fallback-filter',
+	                'use-hosts', 'default-nameserver', 'proxy-server-nameserver',
+	                'direct-nameserver', 'nameserver-policy'];
+	for (let _i = 0; _i < length(_mihomo_dns_fields); _i++)
+		delete cfg.dns[_mihomo_dns_fields[_i]];
+	/* 清除 mihomo 风格 experimental 字段 */
+	let _mihomo_exp = ['sniff-tls-sni', 'sniff', 'sniffer'];
+	for (let _me = 0; _me < length(_mihomo_exp); _me++)
+		if (cfg.experimental && cfg.experimental[_mihomo_exp[_me]] != null)
+			delete cfg.experimental[_mihomo_exp[_me]];
+	/* 清除 root 级别 mihomo 字段 */
+	let _mihomo_root = ['clash-for-android', 'cfw-bypass', 'sniffer', 'profile', 
+	                'geodata-mode', 'geodata-loader', 'geox-url', 'geo-auto-update',
+	                'geo-update-interval', 'tun', 'ipv6', 'interface-name',
+	                'port', 'socks-port', 'mixed-port', 'redir-port', 'tproxy-port', 'mode', 'allow-lan', 'log-level', 'external-controller', 'secret', 'bind-address', 'routing-mark', 'find-process-mode', 'tcp-concurrent', 'unified-delay',
+	                'keep-alive-interval', 'keep-alive-idle', 'disable-keep-alive'];
+	for (let _mr = 0; _mr < length(_mihomo_root); _mr++)
+		if (cfg[_mihomo_root[_mr]] != null)
+			delete cfg[_mihomo_root[_mr]];
 	let bootstrap = uci_list('default_nameserver');
 	if (!length(bootstrap))
 		bootstrap = uci_list('defaul_nameserver');
@@ -477,6 +499,23 @@ for (let ob in (cfg.outbounds || [])) {
 	let t = ob.type || '';
 	if (t == 'selector' || t == 'urltest' || t == 'fallback' || t == 'load_balance' || t == 'dns' || t == 'block')
 		continue;
+
+		/* plugin_opts 必须是字符串；订阅转换可能输出对象（如 {"mode":"http","host":"..."}），
+		 * sing-box 只接受 "obfs=http;obfs-host=..." 字符串格式。 */
+		/* 清除 sing-box 不支持的 plugin（如 obfs），否则 Fatal: plugin not found */
+		if (ob.plugin != null && ob.plugin != 'obfs-local' && ob.plugin != 'v2ray-plugin' && ob.plugin != 'shadow-tls') {
+			delete ob.plugin;
+			delete ob.plugin_opts;
+		}
+		if (ob.plugin_opts != null && type(ob.plugin_opts) == 'object') {
+			let _parts = [];
+			for (let _k in ob.plugin_opts) {
+				let _v = ob.plugin_opts[_k];
+				if (type(_v) == 'object' || type(_v) == 'array') continue;
+				push(_parts, _k + '=' + _v);
+			}
+			ob.plugin_opts = join(';', _parts);
+		}
 
 	if (ob.routing_mark == null)
 		ob.routing_mark = routing_mark;
