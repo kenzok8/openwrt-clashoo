@@ -145,7 +145,7 @@ prepare_singbox_runtime() {
 	if command -v ucode >/dev/null 2>&1; then
 		local has_tun_device dash_port dash_pass
 		has_tun_device=1
-		[ -e /dev/net/tun ] || has_tun_device=0
+		runtime_has_tun_device || has_tun_device=0
 		redir_port="$(uci -q get clashoo.config.redir_port 2>/dev/null)"
 		tproxy_port="$(uci -q get clashoo.config.tproxy_port 2>/dev/null)"
 		mixed_port="$(uci -q get clashoo.config.mixed_port 2>/dev/null)"
@@ -226,8 +226,9 @@ runtime_state_set() {
 }
 
 runtime_has_tun_device() {
-	[ -e /dev/net/tun ] && return 0
-	return 1
+	ip tuntap add mode tun name cotuntest >/dev/null 2>&1 || return 1
+	ip link del cotuntest >/dev/null 2>&1 || true
+	return 0
 }
 
 resolve_effective_tp_modes() {

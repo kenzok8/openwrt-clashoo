@@ -32,6 +32,12 @@ bool_enabled() {
 	esac
 }
 
+tun_available() {
+	ip tuntap add mode tun name cotuntest >/dev/null 2>&1 || return 1
+	ip link del cotuntest >/dev/null 2>&1 || true
+	return 0
+}
+
 config_redir_port() {
 	uci_get clashoo.config.redir_port
 }
@@ -244,7 +250,7 @@ apply_local_output_rule() {
 
 	# Keep local-output redirect usable when tun mode is selected but tun
 	# device is unavailable on the system.
-	if [ "$tcp_mode" = "tun" ] && [ ! -e /dev/net/tun ]; then
+	if [ "$tcp_mode" = "tun" ] && ! tun_available; then
 		tcp_mode="redirect"
 	fi
 
@@ -333,7 +339,7 @@ generate_rules() {
 	# When tun device is unavailable, fall back to non-tun transparent modes
 	# so routing rules still take effect for sing-box redirect/tproxy inbounds.
 	if [ "$tcp_mode" = "tun" ] || [ "$udp_mode" = "tun" ]; then
-		if [ ! -e /dev/net/tun ]; then
+		if ! tun_available; then
 			[ "$tcp_mode" = "tun" ] && tcp_mode="redirect"
 			[ "$udp_mode" = "tun" ] && udp_mode="tproxy"
 		fi

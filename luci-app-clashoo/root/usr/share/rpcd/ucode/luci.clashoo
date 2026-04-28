@@ -184,7 +184,7 @@ if (system('command -v ucode >/dev/null 2>&1') == 0) {
 	let dns_port = uci_get('clashoo', 'config', 'listen_port') || '1053';
 	let dash_port = uci_get('clashoo', 'config', 'dash_port') || '9090';
 	let dash_pass = uci_get('clashoo', 'config', 'dash_pass') || '';
-	let has_tun = access('/dev/net/tun', 'r') ? '1' : '0';
+	let has_tun = system('(ip tuntap add mode tun name cotuntest >/dev/null 2>&1 && ip link del cotuntest >/dev/null 2>&1)') == 0 ? '1' : '0';
 	let normalize_cmd = 'ucode /usr/share/clashoo/lib/normalize_singbox_config.uc ' +
 		shell_quote('/etc/sing-box/config.json') + ' ' +
 		shell_quote(redir_port) + ' ' +
@@ -2627,6 +2627,9 @@ writefile(tmp_url, sub_url);
 
 let config_obj = null;
 let downloaded_yaml = '';
+let preferred_yaml = uci_get('clashoo', 'config', 'use_config') || '';
+let prefer_template = (preferred_yaml && access(preferred_yaml, 'r') && match(preferred_yaml, /\.(yaml|yml)$/)) ||
+  match(sub_url, /flag=Clash/i) || match(sub_url, /format=clash/i);
 
 function has_proxy_outbounds(obj) {
   if (!obj || type(obj) !== 'object' || type(obj.outbounds) !== 'array')
@@ -2648,15 +2651,17 @@ if (match(sub_url, /flag=Clash/i))
 else if (match(sub_url, /format=clash/i))
   push(try_urls, replace(sub_url, /format=clash/i, 'format=singbox'));
 
-for (let try_url in try_urls) {
-  let p0 = popen('curl -sL --max-time 12 ' + shell_quote(try_url) + ' 2>/dev/null');
-  let raw0 = p0 ? trim(p0.read('all')) : '';
-  if (p0) p0.close();
-  if (length(raw0) > 50 && substr(raw0, 0, 1) === '{') {
-    let obj = json(raw0);
-    if (has_proxy_outbounds(obj)) {
-      config_obj = obj;
-      break;
+if (!prefer_template) {
+  for (let try_url in try_urls) {
+    let p0 = popen('curl -sL --max-time 12 ' + shell_quote(try_url) + ' 2>/dev/null');
+    let raw0 = p0 ? trim(p0.read('all')) : '';
+    if (p0) p0.close();
+    if (length(raw0) > 50 && substr(raw0, 0, 1) === '{') {
+      let obj = json(raw0);
+      if (has_proxy_outbounds(obj)) {
+        config_obj = obj;
+        break;
+      }
     }
   }
 }
@@ -2666,7 +2671,7 @@ for (let try_url in try_urls) {
 if (!config_obj && system('command -v ucode >/dev/null 2>&1') == 0 &&
     access('/usr/share/clashoo/lib/yaml2singbox.uc', 'r') &&
     access('/usr/share/clashoo/lib/templates/default.json', 'r')) {
-  let yaml_src = uci_get('clashoo', 'config', 'use_config') || '';
+  let yaml_src = preferred_yaml;
   if (!(yaml_src && access(yaml_src, 'r') && match(yaml_src, /\.(yaml|yml)$/))) {
     let tmp_yaml = '/tmp/clashoo_sb_sub.yaml';
     let dl_cmd = '(curl -fL --connect-timeout 8 --max-time 20 ' + shell_quote(sub_url)

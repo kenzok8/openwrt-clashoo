@@ -8,15 +8,9 @@ let path = ARGV[0] || '';
 let redir_port = +(ARGV[1] || '7891');
 let tproxy_port = +(ARGV[2] || '7982');
 let mixed_port = +(ARGV[3] || '7890');
-let has_tun_device = (ARGV[4] || '1') == '1' && access('/dev/net/tun', 'r');
-/* 验证 TUN 是否真的可用（LXC 容器可能可读但不可用） */
-if (has_tun_device) {
-	let tmpf = '/tmp/.clashoo_tun_test';
-	system('(cat /dev/net/tun >/dev/null 2>&1) & P=0; sleep 0.3 2>/dev/null; kill  2>/dev/null; wait  2>/dev/null; echo 0 > ' + tmpf + ' 2>/dev/null');
-	let ec = trim_s(readfile(tmpf) || '');
-	system('rm -f ' + tmpf + ' 2>/dev/null');
-	if (ec != '0') has_tun_device = false;
-}
+let has_tun_device = (ARGV[4] || '1') == '1';
+if (has_tun_device && system('(ip tuntap add mode tun name cotuntest >/dev/null 2>&1 && ip link del cotuntest >/dev/null 2>&1)') != 0)
+	has_tun_device = false;
 
 // 默认 6666 必须与 /usr/share/clashoo/net/fw4.sh:CORE_ROUTING_MARK (0x1a0a) 一致；
 // 不能用 354 (=0x162=PROXY_FWMARK)，那个会被 ip rule 吸到 lo 导致出站不可达。
@@ -302,7 +296,7 @@ function local_rule_set_path(tag) {
 
 function keep_remote_rule_set(rs) {
 	let tag = rs ? (rs.tag || '') : '';
-	return tag == 'geolocation-cn' || tag == 'cn' || tag == 'private-ip' || tag == 'cn-ip';
+	return tag == 'geolocation-cn' || tag == 'geolocation-!cn' || tag == 'cn' || tag == 'private-ip' || tag == 'cn-ip';
 }
 
 function normalize_rule_set_url(url) {
@@ -315,6 +309,26 @@ function normalize_rule_set_url(url) {
 	if (m)
 		return 'https://cdn.jsdelivr.net/gh/' + m[1] + '/' + m[2] + '@' + m[3] + '/' + m[4];
 	return url;
+}
+
+function has_route_rule_set(tag) {
+	for (let rs in (cfg.route || {}).rule_set || [])
+		if (rs && rs.tag == tag)
+			return true;
+	return false;
+}
+
+function add_remote_rule_set(tag, url) {
+	cfg.route = cfg.route || {};
+	cfg.route.rule_set = cfg.route.rule_set || [];
+	if (has_route_rule_set(tag))
+		return;
+	push(cfg.route.rule_set, {
+		tag: tag,
+		type: 'remote',
+		format: 'binary',
+		url: url
+	});
 }
 
 function matcher_rule(matcher, server_tag) {
@@ -418,6 +432,8 @@ let has_tproxy = false;
 let has_mixed = false;
 let has_tun = false;
 let has_dns_in = false;
+let wants_tun = has_tun_device && (uci_opt('tcp_mode', '') == 'tun' || uci_opt('udp_mode', '') == 'tun');
+let tun_stack = uci_opt('stack', 'mixed') || 'mixed';
 
 for (let ib in inbounds) {
 	if (!ib)
@@ -428,6 +444,12 @@ for (let ib in inbounds) {
 		if (has_tun_device && !has_tun) {
 			ib.type = 'tun';
 			ib.tag = ib.tag || 'tun-in';
+			if (!ib.address)
+				ib.address = [ '172.19.0.1/30', 'fdfe:dcba:9876::1/126' ];
+			ib.auto_route = true;
+			ib.strict_route = true;
+			if (!ib.stack)
+				ib.stack = tun_stack;
 			push(normalized, ib);
 			has_tun = true;
 		}
@@ -501,6 +523,17 @@ if (!has_mixed) {
 		tag: 'mixed-in',
 		listen: '0.0.0.0',
 		listen_port: mixed_port
+	});
+}
+
+if (wants_tun && !has_tun) {
+	push(normalized, {
+		type: 'tun',
+		tag: 'tun-in',
+		address: [ '172.19.0.1/30', 'fdfe:dcba:9876::1/126' ],
+		auto_route: true,
+		strict_route: true,
+		stack: tun_stack
 	});
 }
 
@@ -595,6 +628,11 @@ if (!has_dns_hijack) {
 }
 cfg.route.auto_detect_interface = true;
 apply_dns_from_uci();
+
+if (uci_opt('enhanced_mode', 'fake-ip') == 'fake-ip') {
+	add_remote_rule_set('geolocation-!cn',
+		'https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/sing/geo/geosite/geolocation-!cn.srs');
+}
 
 /* 本地有 .srs 则转 local；剩余的 remote rule_set 必须保留/补 download_detour。
  * 大陆首启动死锁链：没 srs → 拉规则 → 走 ♻️ 自动选择 → urltest 测速要拨机场 →
