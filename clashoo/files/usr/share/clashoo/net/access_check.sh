@@ -2,7 +2,7 @@
 # clashoo access check
 # 用法: access_check.sh <url> [mode]
 #   mode = direct | proxy（默认 proxy）
-#     direct: 经 252 主干直连，不走任何代理
+#     direct: 经 openwrt 主干直连，不走任何代理
 #     proxy:  走 clashoo 本地代理端口，验证核心出站
 
 url="$1"
