@@ -351,6 +351,35 @@ function expand_node_placeholder(outbounds, node_tags) {
 	return outbounds;
 }
 
+/* ---------- proxy-providers 解析 ---------- */
+function resolve_providers(yaml) {
+	if (type(yaml['proxy-providers']) !== 'object')
+		return [];
+	const all = [];
+	for (let name in yaml['proxy-providers']) {
+		const p = yaml['proxy-providers'][name];
+		if (p.type !== 'http' || !p.url) {
+			logerr(sprintf("provider '%s': skip (not http or no url)", name));
+			continue;
+		}
+		const cmd = sprintf("wget -q -O- --timeout=20 %s 2>/dev/null | yq -o=json eval . 2>/dev/null", quote_sh(p.url));
+		const h = popen(cmd, "r");
+		if (!h) { logerr(sprintf("provider '%s': download failed", name)); continue; }
+		let buf = "", chunk;
+		while ((chunk = h.read(65536))) buf += chunk;
+		h.close();
+		if (!length(buf)) { logerr(sprintf("provider '%s': empty response", name)); continue; }
+		const data = json(buf);
+		if (!data || type(data.proxies) !== 'array') {
+			logerr(sprintf("provider '%s': no proxies array in response", name));
+			continue;
+		}
+		logerr(sprintf("provider '%s': %d proxies", name, length(data.proxies)));
+		for (let px in data.proxies) push(all, px);
+	}
+	return all;
+}
+
 /* ---------- main ---------- */
 const yaml_path = ARGV[0];
 const tpl_path  = ARGV[1] || TPL_DEFAULT;
@@ -360,8 +389,20 @@ if (!yaml_path)
 	die("usage: ucode yaml2singbox.uc <yaml-in> [template-json] [json-out]");
 
 const yaml = read_yaml_as_json(yaml_path);
-if (!yaml || type(yaml.proxies) !== 'array')
-	die(sprintf("no .proxies[] array in %s", yaml_path));
+
+let proxies = [];
+if (type(yaml.proxies) === 'array')
+	proxies = yaml.proxies;
+else
+	logerr("no inline proxies array, checking proxy-providers...");
+
+if (type(yaml['proxy-providers']) === 'object') {
+	const pproxies = resolve_providers(yaml);
+	for (let p in pproxies) push(proxies, p);
+}
+
+if (!length(proxies))
+	die(sprintf("no proxies found in %s (inline or via providers)", yaml_path));
 
 const tpl_raw = readfile(tpl_path);
 if (!tpl_raw)
@@ -373,14 +414,14 @@ if (!tpl || type(tpl.outbounds) !== 'array')
 /* 转换节点 */
 const nodes = [];
 let skipped = 0;
-for (let p in yaml.proxies) {
+for (let p in proxies) {
 	const o = convert_proxy(p);
 	if (o) push(nodes, o); else skipped++;
 }
 dedupe_tags(nodes);
 
 if (!length(nodes))
-	die(sprintf("no usable nodes converted from %d proxies (skipped=%d)", length(yaml.proxies), skipped));
+	die(sprintf("no usable nodes converted from %d proxies (skipped=%d)", length(proxies), skipped));
 
 logerr(sprintf("converted=%d skipped=%d", length(nodes), skipped));
 
