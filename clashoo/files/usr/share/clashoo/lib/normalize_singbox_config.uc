@@ -284,6 +284,32 @@ function first_or(arr, fallback) {
 	return length(arr) ? arr[0] : fallback;
 }
 
+function local_rule_set_path(tag) {
+	if (!s_len(tag))
+		return '';
+	let path = '/usr/share/clashoo/ruleset/' + tag + '.srs';
+	if (access(path, 'r'))
+		return path;
+	return '';
+}
+
+function keep_remote_rule_set(rs) {
+	let tag = rs ? (rs.tag || '') : '';
+	return tag == 'geolocation-cn' || tag == 'cn' || tag == 'private-ip' || tag == 'cn-ip';
+}
+
+function normalize_rule_set_url(url) {
+	url = url || '';
+	url = replace(url, /^https:\/\/gh-proxy\.com\//, '');
+	let m = match(url, /^https:\/\/raw\.githubusercontent\.com\/([^\/]+)\/([^\/]+)\/([^\/]+)\/(.+)$/);
+	if (m)
+		return 'https://cdn.jsdelivr.net/gh/' + m[1] + '/' + m[2] + '@' + m[3] + '/' + m[4];
+	m = match(url, /^https:\/\/github\.com\/([^\/]+)\/([^\/]+)\/raw\/refs\/heads\/([^\/]+)\/(.+)$/);
+	if (m)
+		return 'https://cdn.jsdelivr.net/gh/' + m[1] + '/' + m[2] + '@' + m[3] + '/' + m[4];
+	return url;
+}
+
 function matcher_rule(matcher, server_tag) {
 	let r = { server: server_tag };
 	if (starts_with(matcher, 'geosite:'))
@@ -580,9 +606,14 @@ let _dl_detour = _pick_dl_detour();
 for (let rs in (cfg.route || {}).rule_set || []) {
 	if (!rs) continue;
 	if (rs.type != 'remote') { delete rs.download_detour; continue; }
-	let path = '/usr/share/clashoo/ruleset/' + (rs.tag || '') + '.srs';
+	let path = local_rule_set_path(rs.tag || '');
 	if (rs.tag && access(path, 'r')) {
 		delete rs.url; delete rs.download_detour; rs.type = 'local'; rs.path = path;
+		continue;
+	}
+	if (keep_remote_rule_set(rs) && rs.url) {
+		rs.url = normalize_rule_set_url(rs.url);
+		rs.download_detour = _dl_detour;
 		continue;
 	}
 	/* 没有本地缓存 → 跳过该远程规则集。防止下载失败阻塞 sing-box 启动。
@@ -596,9 +627,16 @@ for (let _rsi = 0; _rsi < length(cfg.route.rule_set); _rsi++) {
 	let _rs = cfg.route.rule_set[_rsi];
 	if (!_rs) continue;
 	if (_rs.type == 'remote' && _rs.url != null) {
-		let _local_path = '/usr/share/clashoo/ruleset/' + (_rs.tag || '') + '.srs';
+		let _local_path = local_rule_set_path(_rs.tag || '');
 		if (!_rs.tag || !access(_local_path, 'r'))
-			continue; /* 无本地缓存 → 不加入最终列表 */
+			if (keep_remote_rule_set(_rs) && _rs.url) {
+				_rs.url = normalize_rule_set_url(_rs.url);
+				_rs.download_detour = _dl_detour;
+				push(_clean_rs, _rs);
+				continue;
+			} else {
+				continue; /* 无本地缓存 → 不加入最终列表 */
+			}
 		/* 有本地缓存 → 转 local */
 		delete _rs.url; delete _rs.download_detour; _rs.type = 'local'; _rs.path = _local_path;
 	}

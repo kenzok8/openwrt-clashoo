@@ -22,7 +22,15 @@ cat > "$tmp/config.json" <<'JSON'
     "final": "old",
     "independent_cache": true
   },
-  "route": { "rules": [] },
+  "route": {
+    "rule_set": [
+      { "tag": "geolocation-cn", "type": "remote", "format": "binary", "url": "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/geolocation-cn.srs", "download_detour": "DIRECT" },
+      { "tag": "cn", "type": "remote", "format": "binary", "url": "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/cn.srs", "download_detour": "DIRECT" }
+    ],
+    "rules": [
+      { "rule_set": ["geolocation-cn", "cn"], "outbound": "DIRECT" }
+    ]
+  },
   "inbounds": [],
   "outbounds": []
 }
@@ -49,11 +57,6 @@ config dnsservers
   option protocol 'tls://'
   option ser_port '853'
 
-config dns_policy
-  option enabled '1'
-  option policy_type 'nameserver-policy'
-  option matcher 'geosite:cn'
-  list nameserver 'udp://223.5.5.5'
 UCI
 
 ucode "$UCODE" "$tmp/config.json" 7891 7982 7890 1 6666 1053 9191 secret "$tmp/clashoo" >/dev/null
@@ -62,7 +65,9 @@ grep -q '\"client_subnet\": \"223.5.5.0/24\"' "$tmp/config.json"
 ! grep -q '\"independent_cache\"' "$tmp/config.json"
 grep -q '\"tag\": \"dns_direct\"' "$tmp/config.json"
 grep -q '\"type\": \"tls\", \"tag\": \"dns_proxy\", \"server\": \"1.1.1.1\", \"server_port\": 853' "$tmp/config.json"
-grep -q '\"server\": \"dns_policy_1\", \"action\": \"route\", \"rule_set\": \"cn\"' "$tmp/config.json"
 grep -q '\"inbound\": \"dns-in\", \"action\": \"hijack-dns\"' "$tmp/config.json"
+grep -q '\"tag\": \"geolocation-cn\", \"type\": \"remote\", \"format\": \"binary\", \"url\": \"https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/geolocation-cn.srs\", \"download_detour\": \"DIRECT\"' "$tmp/config.json"
+grep -q '\"tag\": \"cn\", \"type\": \"remote\", \"format\": \"binary\", \"url\": \"https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/cn.srs\", \"download_detour\": \"DIRECT\"' "$tmp/config.json"
+grep -q '\"rule_set\": \[ \"geolocation-cn\", \"cn\" \], \"outbound\": \"DIRECT\"' "$tmp/config.json"
 
 printf 'sing-box DNS normalize tests passed\n'
