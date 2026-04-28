@@ -211,6 +211,13 @@ function normalize_dns_uri(address, protocol, port) {
 	return protocol + address + (s_len(port) ? ':' + port : '');
 }
 
+function direct_outbound_tag() {
+	for (let ob in (cfg.outbounds || []))
+		if (ob && ob.type == 'direct' && s_len(ob.tag || ''))
+			return ob.tag;
+	return 'DIRECT';
+}
+
 function dns_server_obj(uri, tag, fallback_type) {
 	uri = normalize_dns_uri(uri || '', '', '');
 	if (!s_len(uri))
@@ -262,7 +269,7 @@ function dns_server_obj(uri, tag, fallback_type) {
 	 * 机场要解析自己 server 域名又走 dns_resolver → 死循环 → "lookup ... deadline exceeded" → 国外全 out。
 	 * 直连/解析类 server 一律强制走 DIRECT；只有 dns_proxy 这种"解析国外用"才允许走代理。 */
 	if (tag == 'dns_resolver' || tag == 'dns_direct' || tag == 'dns_foreign')
-		obj.detour = 'DIRECT';
+		obj.detour = direct_outbound_tag();
 	return obj;
 }
 

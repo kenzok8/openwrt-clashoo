@@ -32,7 +32,9 @@ cat > "$tmp/config.json" <<'JSON'
     ]
   },
   "inbounds": [],
-  "outbounds": []
+  "outbounds": [
+    { "type": "direct", "tag": "direct" }
+  ]
 }
 JSON
 
@@ -66,8 +68,9 @@ grep -q '\"client_subnet\": \"223.5.5.0/24\"' "$tmp/config.json"
 grep -q '\"tag\": \"dns_direct\"' "$tmp/config.json"
 grep -q '\"type\": \"tls\", \"tag\": \"dns_proxy\", \"server\": \"1.1.1.1\", \"server_port\": 853' "$tmp/config.json"
 grep -q '\"inbound\": \"dns-in\", \"action\": \"hijack-dns\"' "$tmp/config.json"
-grep -q '\"tag\": \"geolocation-cn\", \"type\": \"remote\", \"format\": \"binary\", \"url\": \"https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/geolocation-cn.srs\", \"download_detour\": \"DIRECT\"' "$tmp/config.json"
-grep -q '\"tag\": \"cn\", \"type\": \"remote\", \"format\": \"binary\", \"url\": \"https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/cn.srs\", \"download_detour\": \"DIRECT\"' "$tmp/config.json"
+grep -q '\"tag\": \"dns_resolver\", \"server\": \"223.5.5.5\", \"detour\": \"direct\"' "$tmp/config.json"
+grep -q '\"tag\": \"geolocation-cn\", \"type\": \"remote\", \"format\": \"binary\", \"url\": \"https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/geolocation-cn.srs\", \"download_detour\": \"direct\"' "$tmp/config.json"
+grep -q '\"tag\": \"cn\", \"type\": \"remote\", \"format\": \"binary\", \"url\": \"https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/cn.srs\", \"download_detour\": \"direct\"' "$tmp/config.json"
 grep -q '\"rule_set\": \[ \"geolocation-cn\", \"cn\" \], \"outbound\": \"DIRECT\"' "$tmp/config.json"
 
 printf 'sing-box DNS normalize tests passed\n'
