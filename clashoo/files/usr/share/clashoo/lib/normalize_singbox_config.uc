@@ -13,7 +13,6 @@ if (has_tun_device && system('(ip tuntap add mode tun name cotuntest >/dev/null 
 	has_tun_device = false;
 
 // 默认 6666 必须与 /usr/share/clashoo/net/fw4.sh:CORE_ROUTING_MARK (0x1a0a) 一致；
-// 不能用 354 (=0x162=PROXY_FWMARK)，那个会被 ip rule 吸到 lo 导致出站不可达。
 let routing_mark = +(ARGV[5] || '6666');
 let dns_port = +(ARGV[6] || '1053');
 let dash_port = +(ARGV[7] || '9090');
