@@ -585,11 +585,51 @@ for (let rs in (cfg.route || {}).rule_set || []) {
 		delete rs.url; delete rs.download_detour; rs.type = 'local'; rs.path = path;
 		continue;
 	}
-	/* 无条件覆盖：subconverter 常输出 download_detour="♻️ 自动选择"，会跟首启动死锁。
-	 * 见 _pick_dl_detour 注释 —— srs URL 是 gh-proxy.com 大陆直连可达，必须走 DIRECT。 */
-	rs.download_detour = _dl_detour;
+	/* 没有本地缓存 → 跳过该远程规则集。防止下载失败阻塞 sing-box 启动。
+	 * 规则集在有代理后通过后台脚本下载到 /usr/share/clashoo/ruleset/。 */
+	continue;
+
 }
-cfg.experimental = cfg.experimental || {};
+/* 过滤掉 type=remote 且无本地缓存的规则集 */
+let _clean_rs = [];
+for (let _rsi = 0; _rsi < length(cfg.route.rule_set); _rsi++) {
+	let _rs = cfg.route.rule_set[_rsi];
+	if (!_rs) continue;
+	if (_rs.type == 'remote' && _rs.url != null) {
+		let _local_path = '/usr/share/clashoo/ruleset/' + (_rs.tag || '') + '.srs';
+		if (!_rs.tag || !access(_local_path, 'r'))
+			continue; /* 无本地缓存 → 不加入最终列表 */
+		/* 有本地缓存 → 转 local */
+		delete _rs.url; delete _rs.download_detour; _rs.type = 'local'; _rs.path = _local_path;
+	}
+	push(_clean_rs, _rs);
+}
+cfg.route.rule_set = _clean_rs;
+
+	/* 删除引用了已移除 rule_set 的 DNS/路由规则，否则 sing-box FATAL: rule-set not found */
+	let _existing_tags = {};
+	for (let _rs in cfg.route.rule_set || []) if (_rs && _rs.tag) _existing_tags[_rs.tag] = true;
+	let _rule_has_ref = function(_r) {
+		if (!_r || type(_r) != 'object') return false;
+		if (_r.rule_set) {
+			if (type(_r.rule_set) == 'array') { for (let _t in _r.rule_set) if (!_existing_tags[_t]) return false; }
+			else if (!_existing_tags[_r.rule_set]) return false;
+		}
+		return true;
+	};
+	/* 清理 dns.rules */
+	if (cfg.dns && type(cfg.dns.rules) == 'array') {
+		let _clean_dns_rules = [];
+		for (let _dr in cfg.dns.rules) if (_rule_has_ref(_dr)) push(_clean_dns_rules, _dr);
+		cfg.dns.rules = _clean_dns_rules;
+	}
+	/* 清理 route.rules */
+	if (cfg.route && type(cfg.route.rules) == 'array') {
+		let _clean_rt_rules = [];
+		for (let _rr in cfg.route.rules) if (_rule_has_ref(_rr)) push(_clean_rt_rules, _rr);
+		cfg.route.rules = _clean_rt_rules;
+	}
+	cfg.experimental = cfg.experimental || {};
 cfg.experimental.clash_api = cfg.experimental.clash_api || {};
 cfg.experimental.clash_api.external_controller = '0.0.0.0:' + dash_port;
 cfg.experimental.clash_api.external_ui = '/etc/clashoo/dashboard';
