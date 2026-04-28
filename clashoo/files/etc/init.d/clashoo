@@ -759,6 +759,24 @@ yml_change() {
 		else
 			sed -i '/^mode:/a\routing-mark: 6666' "$CONFIG_YAML" 2>/dev/null
 		fi
+		# 注入 fallback-filter: geoip: false — 防止 mihomo 启动时因 nameserver
+		# 无法引导 GeoIP 下载而 FATAL（订阅 nameserver 可能是 IP 直连 DoH）。
+		# 等代理启动后，后台 GeoIP 更新会走代理下载。
+		if ! grep -Eq '^[[:space:]]+fallback-filter:' "$CONFIG_YAML" 2>/dev/null; then
+			awk '
+			/^dns:/ { dns=1; print; next }
+			dns && /^[a-zA-Z]/ {
+				if (!inserted) {
+					print "  fallback-filter:"
+					print "    geoip: false"
+					inserted=1
+				}
+				dns=0; print; next
+			}
+			{ print }
+			END { if (dns && !inserted) { print "  fallback-filter:"; print "    geoip: false" } }
+		' "$CONFIG_YAML" > /tmp/_clashoo_fb.yaml && mv /tmp/_clashoo_fb.yaml "$CONFIG_YAML"
+		fi
 		return 0
 	fi
 	sh /usr/share/clashoo/runtime/yum_change.sh 2>/dev/null
@@ -1303,8 +1321,27 @@ _start_prepare_config() {
 	_prepare_geo_bootstrap_mode
 
 	if ! _has_valid_local_mmdb; then
-		_strip_yaml_child_block '^[[:space:]]*fallback-filter:[[:space:]]*$'
-		_force_dns_fallback_geoip_false
+		# 确保 fallback-filter: geoip: false 存在于 dns 块内，
+		# 防止 mihomo 启动时因 nameserver 无法引导 GeoIP 下载而 FATAL。
+		# 订阅 nameserver 可能是 IP 直连 DoH（TLS 证书校验失败），
+		# default-nameserver 只用于解析 nameserver 域名，不用于 GeoIP 下载。
+		# 注入 geoip: false 后 mihomo 跳过 GeoIP 校验直接启动，
+		# 后台 GeoIP 更新通过代理下载。
+		if ! grep -Eq '^[[:space:]]+fallback-filter:' "$CONFIG_YAML" 2>/dev/null; then
+			awk '
+			/^dns:/ { dns=1; print; next }
+			dns && /^[a-zA-Z]/ {
+				if (!inserted) {
+					print "  fallback-filter:"
+					print "    geoip: false"
+					inserted=1
+				}
+				dns=0; print; next
+			}
+			{ print }
+			END { if (dns && !inserted) { print "  fallback-filter:"; print "    geoip: false" } }
+		' "$CONFIG_YAML" > /tmp/_clashoo_fb.yaml && mv /tmp/_clashoo_fb.yaml "$CONFIG_YAML"
+		fi
 	fi
 
 	if [ ! -f /etc/clashoo/config.yaml ];then

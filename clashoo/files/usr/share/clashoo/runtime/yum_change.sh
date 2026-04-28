@@ -311,7 +311,8 @@ sleep 1
 
 enable_dns=$(uci get clashoo.config.enable_dns 2>/dev/null) 
 
-if [ "${enable_dns:-0}" -eq 1 ] && [ "$has_dns_block" -eq 0 ];then
+# 无论订阅是否自带 dns: 块，UCI DNS 设置（nameserver/fallback）始终覆盖订阅值
+if [ "${enable_dns:-0}" -eq 1 ]; then
 
 
 cat >> "/tmp/enable_dns.yaml" <<-EOF
