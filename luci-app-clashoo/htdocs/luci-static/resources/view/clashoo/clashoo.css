@@ -1551,7 +1551,8 @@ html[data-bs-theme="dark"] .cl-wrap .cl-live-num {
   padding: 8px 12px !important;
 }
 
-.cl-wrap.cl-config-page #cl-panel-profiles .cl-json-editor {
+.cl-wrap.cl-config-page #cl-panel-profiles .cl-json-editor,
+.cl-wrap.cl-config-page #cl-panel-subs .cl-other-editor {
   min-height: 420px !important;
   height: auto !important;
   padding: 10px 14px !important;

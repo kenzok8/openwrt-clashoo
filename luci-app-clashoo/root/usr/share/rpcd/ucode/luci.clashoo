@@ -2370,6 +2370,23 @@ return { success: true };
 }
 },
 
+read_other_config: {
+args: { name: 'name', type: 'type' },
+call: function(req) {
+let name = req.args?.name || '';
+let type = req.args?.type || '2';
+if (!name || index(name, '/') >= 0 || index(name, '..') >= 0)
+  return { error: 'invalid name' };
+let dir = config_dir_by_type(type);
+if (!dir) return { error: 'invalid type' };
+let path = dir + '/' + name;
+if (!access(path, 'r')) return { error: 'not found' };
+let s = stat(path);
+if (s && s.size > 524288) return { error: 'too large' };
+return { content: readfile(path) || '', name };
+}
+},
+
 upload_config: {
 args: { name: 'name', content: 'content', type: 'type' },
 call: function(req) {

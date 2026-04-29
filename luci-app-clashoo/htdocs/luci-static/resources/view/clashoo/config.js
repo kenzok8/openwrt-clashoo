@@ -83,6 +83,7 @@ var callUpdateSub     = rpc.declare({ object: 'luci.clashoo', method: 'update_su
 var callSetConfig     = rpc.declare({ object: 'luci.clashoo', method: 'set_config',          params: ['name'], expect: {} });
 var callDeleteCfg     = rpc.declare({ object: 'luci.clashoo', method: 'delete_config',       params: ['name', 'type'], expect: {} });
 var callUploadConfig  = rpc.declare({ object: 'luci.clashoo', method: 'upload_config',       params: ['name', 'content', 'type'], expect: {} });
+var callReadOtherConfig = rpc.declare({ object: 'luci.clashoo', method: 'read_other_config',  params: ['name', 'type'], expect: {} });
 var callListTemplates = rpc.declare({ object: 'luci.clashoo', method: 'list_templates',      expect: {} });
 var callUploadTemplate= rpc.declare({ object: 'luci.clashoo', method: 'upload_template',     params: ['name', 'content'], expect: {} });
 var callApplyRewrite  = rpc.declare({ object: 'luci.clashoo', method: 'apply_rewrite',          params: ['base_type','base_name','rewrite_type','rewrite_name','output_name','set_active'], expect: {} });
@@ -492,6 +493,41 @@ return view.extend({
     };
 
     /* ── 其他配置文件（上传 + 自定义/复写输出）── */
+    var otherEditorTitle    = E('span', { 'class': 'cl-editor-hdr' }, '选择上方配置后可在此处编辑');
+    var otherTextarea       = E('textarea', { 'class': 'cl-json-editor cl-other-editor', placeholder: '选择配置文件后内容将显示在这里…' });
+    var otherSaveBtn        = E('button', {
+      'class': 'btn cbi-button-action cl-btn-sm',
+      disabled: '',
+      click: function () {
+        var meta = otherTextarea.dataset;
+        if (!meta.name) return;
+        L.resolveDefault(callUploadConfig(meta.name, otherTextarea.value, meta.type), {}).then(function (r) {
+          if (r && r.success) ui.addNotification(null, E('p', meta.name + ' 已保存'));
+          else ui.addNotification(null, E('p', '保存失败: ' + ((r && (r.message || r.error)) || '')));
+        });
+      }
+    }, '保存');
+
+    var otherEditorBox = E('div', { 'class': 'cl-section cl-card cl-sb-editor' }, [
+      otherEditorTitle,
+      otherTextarea,
+      E('div', { 'class': 'cl-actions cl-sb-row-actions cl-sb-editor-actions' }, [
+        otherSaveBtn,
+        E('span', { 'class': 'cl-hint' }, '编辑后点击保存；切换配置后服务将自动重启')
+      ])
+    ]);
+
+    function loadOtherEditor(name, type) {
+      otherEditorTitle.textContent = '编辑：' + name;
+      otherSaveBtn.removeAttribute('disabled');
+      otherTextarea.dataset.name = name;
+      otherTextarea.dataset.type = type;
+      otherTextarea.value = '加载中…';
+      L.resolveDefault(callReadOtherConfig(name, type), {}).then(function (r) {
+        otherTextarea.value = r.content || '';
+      });
+    }
+
     var makeOtherCards = function (files, type) {
       return files.map(function (f) {
         var nameNodes = [];
@@ -504,6 +540,10 @@ return view.extend({
             E('div', { 'class': 'cl-file-size' }, safeText(f.size))
           ]),
           E('div', { 'class': 'cl-file-actions' }, [
+            E('button', {
+              'class': 'btn cbi-button cl-btn-sm',
+              click: function () { loadOtherEditor(f.name, type); }
+            }, '编辑'),
             E('button', {
               'class': 'btn cbi-button cl-btn-sm cl-btn-switch',
               click: function () {
@@ -551,17 +591,15 @@ return view.extend({
       ])
     ];
 
-    var middleSection = '';
     if (otherFiles.length) {
-      middleSection = E('div', { 'class': 'cl-section cl-card' }, [
+      sections.push(E('div', { 'class': 'cl-section cl-card' }, [
         E('h4', {}, '其他配置文件（上传 / 复写输出）'),
         E('div', { 'class': 'cl-fixed-600' }, [
           E('div', { 'class': 'cl-file-list' }, otherCards)
         ])
-      ]);
+      ]));
+      sections.push(otherEditorBox);
     }
-    if (middleSection !== '')
-      sections.push(middleSection);
 
     sections.push(
       E('div', { 'class': 'cl-section cl-card' }, [
