@@ -1166,8 +1166,7 @@ return view.extend({
           ])
         ]),
         E('p', { 'class': 'cl-sb-note' },
-          '将 Clash/mihomo YAML 订阅转换为 sing-box JSON，生成的配置包含 TUN 透明代理、geoip/geosite 大陆直连规则。\n' +
-          '同名文件会直接覆盖，更新订阅时留空文件名或填相同名称即可，不会重复堆积文件。'
+          '将 YAML 订阅转换为 sing-box JSON，自动注入 TUN 透明代理与大陆直连规则。同名文件直接覆盖，更新时填相同名称即可。'
         )
       ])
     ];
