@@ -36,5 +36,10 @@ check_absent 'read_config_file:' "luci-app-clashoo/root/usr/share/rpcd/ucode/luc
 check_absent 'write_config_file:' "luci-app-clashoo/root/usr/share/rpcd/ucode/luci.clashoo" "unused legacy /usr/share/clash/config write RPC should not exist"
 check_absent '^docs/$' ".gitignore" ".gitignore must not ignore the repository docs directory"
 
+check_present '健康检查失败' "luci-app-clashoo/htdocs/luci-static/resources/view/clashoo/overview.js" "overview must surface health check failures"
+check_present 'cl-status-note-fail' "luci-app-clashoo/htdocs/luci-static/resources/view/clashoo/clashoo.css" "health check failure note must have warning styling"
+check_present 'cl-mode-degraded' "luci-app-clashoo/htdocs/luci-static/resources/view/clashoo/overview.js" "transparent proxy card must render degraded mode hint"
+check_present '降级运行' "luci-app-clashoo/htdocs/luci-static/resources/view/clashoo/overview.js" "transparent proxy degraded hint must use the agreed text"
+
 [ "$fail" -eq 0 ] || exit 1
 echo "PASS: repository hygiene checks passed"

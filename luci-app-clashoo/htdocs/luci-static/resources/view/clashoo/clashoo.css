@@ -364,7 +364,8 @@ html[data-bs-theme="dark"] .cl-wrap .cl-status-kernel {
 .cl-wrap .cl-mode-degraded {
   font-size: 10px;
   line-height: 1.3;
-  color: var(--cl-warn-color);
+  color: #b56f00;
+  opacity: 0.92;
 }
 
 .cl-wrap .cl-mode-meta {
@@ -1415,6 +1416,18 @@ html[data-bs-theme="dark"] .cl-wrap .cl-live-num {
 .cl-wrap .cl-status-note,
 .cl-wrap .cl-check-updated {
   color: var(--text-color, inherit) !important;
+}
+
+.cl-wrap.cl-overview-page #cl-status-val .cl-status-note-fail,
+.cl-wrap.cl-overview-page #cl-status-val .cl-status-note-degraded,
+.cl-wrap.cl-overview-page .cl-card-mode .cl-mode-degraded {
+  color: #b56f00 !important;
+  opacity: 0.92 !important;
+}
+
+.cl-wrap.cl-overview-page #cl-status-val .cl-status-note-pass {
+  color: #4aa065 !important;
+  opacity: 0.92 !important;
 }
 
 .cl-wrap.cl-overview-page .cl-ctrl-row select,

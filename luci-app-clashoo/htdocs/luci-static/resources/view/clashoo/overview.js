@@ -725,6 +725,20 @@ return view.extend({
     };
   },
 
+  _isTpModeDegraded: function (st) {
+    if (!st)
+      return false;
+
+    if (st.runtime_degraded)
+      return true;
+
+    var tcp = String(st.tcp_mode || uci.get('clashoo', 'config', 'tcp_mode') || '').toLowerCase();
+    var udp = String(st.udp_mode || uci.get('clashoo', 'config', 'udp_mode') || tcp).toLowerCase();
+    var stack = String(st.stack || uci.get('clashoo', 'config', 'stack') || '').toLowerCase();
+    var wantsTun = tcp === 'tun' || udp === 'tun' || stack === 'mixed';
+    return wantsTun && String(st.has_tun_device) === '0';
+  },
+
   _renderTpMode: function (st) {
     var data = this._tpModeRows(st);
     var rows = data.rows.map(function (row) {
@@ -741,9 +755,10 @@ return view.extend({
         E('span', { 'class': 'cl-mode-suffix' }, '模式')
       ])
     );
-    return E('div', { id: 'cl-tpmode', 'class': 'cl-mode-stack' }, rows.concat([
-      E('div', { 'class': 'cl-mode-meta' }, st.runtime_degraded ? '运行中已触发自动降级' : '')
-    ]));
+    if (this._isTpModeDegraded(st))
+      rows.push(E('div', { 'class': 'cl-check-updated cl-mode-degraded' }, '降级运行'));
+
+    return E('div', { id: 'cl-tpmode', 'class': 'cl-mode-stack' }, rows);
   },
 
   _renderAccessRefresh: function (ac) {
