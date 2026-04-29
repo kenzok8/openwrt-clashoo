@@ -68,8 +68,8 @@ ipadd()
 }
 
 	
- config_load clash
- config_foreach ipadd "addtype"
+	 config_load "clashoo"
+	 config_foreach ipadd "addtype"
 
 
 if [ -f $CUSTOM_RULE_FILE ];then

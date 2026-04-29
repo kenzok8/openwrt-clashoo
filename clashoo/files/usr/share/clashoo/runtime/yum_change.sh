@@ -647,7 +647,7 @@ add_address(){
 	   config_get "server" "$section" "server" ""
 	   echo "$server" >>/tmp/server.conf
 	}
-	config_load clash
+	config_load "clashoo"
 	config_foreach servers_get "servers"
 
 	count=$(grep -c '' /tmp/server.conf)

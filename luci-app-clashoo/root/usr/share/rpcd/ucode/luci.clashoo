@@ -2349,27 +2349,6 @@ message: '远程复写文件已保存: ' + name
 }
 },
 
-read_config_file: {
-args: { path: 'path' },
-call: function(req) {
-let path = req.args?.path || '';
-if (!path || !match(path, /^\/usr\/share\/clash\/config\//)) return { error: 'invalid path' };
-if (!access(path, 'r')) return { error: 'not found' };
-return { content: readfile(path) || '' };
-}
-},
-
-write_config_file: {
-args: { path: 'path', content: 'content' },
-call: function(req) {
-let path    = req.args?.path    || '';
-let content = req.args?.content || '';
-if (!path || !match(path, /^\/usr\/share\/clash\/config\//)) return { error: 'invalid path' };
-writefile(path, content);
-return { success: true };
-}
-},
-
 read_other_config: {
 args: { name: 'name', type: 'type' },
 call: function(req) {

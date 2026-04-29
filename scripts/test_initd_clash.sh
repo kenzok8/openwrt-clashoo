@@ -2,7 +2,7 @@
 
 set -eu
 
-FILE="${1:-clashoo/files/etc/init.d/clash}"
+FILE="${1:-clashoo/files/etc/init.d/clashoo}"
 
 if [ ! -f "$FILE" ]; then
   echo "FAIL: file not found: $FILE" >&2
@@ -21,8 +21,8 @@ if awk '/^select_config\(\)/,/^}/ {print}' "$FILE" | grep -q 'exit 0'; then
   fail=1
 fi
 
-if ! awk '/^start\(\)/,/^}/ {print}' "$FILE" | grep -q 'if ! select_config >/dev/null 2>&1; then'; then
-  echo 'FAIL: start() must handle select_config failure explicitly' >&2
+if ! awk '/^start_service\(\)/,/^}/ {print}' "$FILE" | grep -q 'if ! select_config >/dev/null 2>&1; then'; then
+  echo 'FAIL: start_service() must handle select_config failure explicitly' >&2
   fail=1
 fi
 
