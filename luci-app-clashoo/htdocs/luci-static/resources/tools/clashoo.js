@@ -119,8 +119,11 @@ const callReadRealLog   = rpc.declare({ object: 'luci.clashoo', method: 'read_re
 const callClearLog      = rpc.declare({ object: 'luci.clashoo', method: 'clear_log',        expect: {} });
 const callReadUpdateLog = rpc.declare({ object: 'luci.clashoo', method: 'read_update_log',  expect: {} });
 const callClearUpdateLog= rpc.declare({ object: 'luci.clashoo', method: 'clear_update_log', expect: {} });
-const callReadGeoipLog  = rpc.declare({ object: 'luci.clashoo', method: 'read_geoip_log',   expect: {} });
-const callClearGeoipLog = rpc.declare({ object: 'luci.clashoo', method: 'clear_geoip_log',  expect: {} });
+const callReadGeoipLog         = rpc.declare({ object: 'luci.clashoo', method: 'read_geoip_log',          expect: {} });
+const callClearGeoipLog        = rpc.declare({ object: 'luci.clashoo', method: 'clear_geoip_log',         expect: {} });
+const callReadCoreLog          = rpc.declare({ object: 'luci.clashoo', method: 'read_core_log',           expect: {} });
+const callReadUpdateMergedLog  = rpc.declare({ object: 'luci.clashoo', method: 'read_update_merged_log',  expect: {} });
+const callClearUpdateMergedLog = rpc.declare({ object: 'luci.clashoo', method: 'clear_update_merged_log', expect: {} });
 const callGetCpuArch    = rpc.declare({ object: 'luci.clashoo', method: 'get_cpu_arch',     expect: {} });
 const callDownloadCore  = rpc.declare({ object: 'luci.clashoo', method: 'download_core',    expect: {} });
 const callUpdateGeoip   = rpc.declare({ object: 'luci.clashoo', method: 'update_geoip',     expect: {} });
@@ -165,6 +168,9 @@ return baseclass.extend({
     clearUpdateLog: function () { return L.resolveDefault(callClearUpdateLog(), {}); },
     readGeoipLog: function () { return L.resolveDefault(callReadGeoipLog(), { content: '' }).then(r => r.content || ''); },
     clearGeoipLog: function () { return L.resolveDefault(callClearGeoipLog(), {}); },
+    readCoreLog: function () { return L.resolveDefault(callReadCoreLog(), { content: '' }).then(r => r.content || ''); },
+    readUpdateMergedLog: function () { return L.resolveDefault(callReadUpdateMergedLog(), { content: '' }).then(r => r.content || ''); },
+    clearUpdateMergedLog: function () { return L.resolveDefault(callClearUpdateMergedLog(), {}); },
 
     getCpuArch: function () { return L.resolveDefault(callGetCpuArch(), { arch: '' }).then(r => r.arch || ''); },
     downloadCore: function () { return L.resolveDefault(callDownloadCore(), {}); },

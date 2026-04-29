@@ -174,7 +174,7 @@ function saveCommitApplyMaybeReload(m, runningMsg, stoppedMsg) {
 
 return view.extend({
   _tab:    'kernel',
-  _logTab: 'run',
+  _logTab: 'plugin',
 
   load: function () {
     return Promise.all([
@@ -464,9 +464,9 @@ return view.extend({
   _buildLogsPanel: function (runLog) {
     var self = this;
     var logTypes = [
-      { id: 'run',    label: '运行日志',   read: clashoo.readLog.bind(clashoo),        clear: clashoo.clearLog.bind(clashoo) },
-      { id: 'update', label: '更新日志',   read: clashoo.readUpdateLog.bind(clashoo),  clear: clashoo.clearUpdateLog.bind(clashoo) },
-      { id: 'geoip',  label: 'GeoIP 日志', read: clashoo.readGeoipLog.bind(clashoo),   clear: clashoo.clearGeoipLog.bind(clashoo) }
+      { id: 'plugin', label: '插件日志', read: clashoo.readLog.bind(clashoo),              clear: clashoo.clearLog.bind(clashoo) },
+      { id: 'core',   label: '核心日志', read: clashoo.readCoreLog.bind(clashoo),           clear: null },
+      { id: 'update', label: '更新日志', read: clashoo.readUpdateMergedLog.bind(clashoo),   clear: clashoo.clearUpdateMergedLog.bind(clashoo) }
     ];
 
     var logTabEls = {};
@@ -515,7 +515,9 @@ return view.extend({
         E('button', {
           'class': 'btn cbi-button-negative',
           click: function () {
-            currentType().clear().then(function () { logArea.textContent = ''; });
+            var ct = currentType();
+            if (!ct.clear) { ui.addNotification(null, E('p', '核心日志来自系统日志，无法清空')); return; }
+            ct.clear().then(function () { logArea.textContent = ''; });
           }
         }, '清空日志')
       ])
@@ -526,11 +528,11 @@ return view.extend({
     if (this._tab !== 'logs') return Promise.resolve();
     var self = this;
     var logFns = {
-      run:    clashoo.readLog.bind(clashoo),
-      update: clashoo.readUpdateLog.bind(clashoo),
-      geoip:  clashoo.readGeoipLog.bind(clashoo)
+      plugin: clashoo.readLog.bind(clashoo),
+      core:   clashoo.readCoreLog.bind(clashoo),
+      update: clashoo.readUpdateMergedLog.bind(clashoo)
     };
-    var readFn = logFns[this._logTab] || logFns.run;
+    var readFn = logFns[this._logTab] || logFns.plugin;
     return readFn().then(function (content) {
       var el = document.getElementById('cl-log-area');
       if (el) el.textContent = (content && content.trim()) ? content : '（空）';

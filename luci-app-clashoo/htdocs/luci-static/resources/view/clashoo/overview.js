@@ -1465,7 +1465,8 @@ return view.extend({
         if (opKey === 'stop') {
           done = st && st.running === false;
         } else {
-          done = st && ((st.health_status === 'fail') || (st.health_status === 'pass' && st.running === true));
+          /* 服务进程已起来即视为启动完成，健康检查在后台继续跑并更新徽标 */
+          done = st && ((st.health_status === 'fail') || st.running === true);
         }
 
         if (done) {

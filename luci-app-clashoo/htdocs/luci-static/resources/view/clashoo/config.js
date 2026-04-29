@@ -337,6 +337,7 @@ return view.extend({
             return uci.save();
           })
           .then(function () { return clashoo.commitConfig(); })
+          .then(function () { return clearClashooDirty(); })
           .then(function () { return L.resolveDefault(callDownloadSubs(), {}); })
           .then(function (r) {
             ui.addNotification(null, E('p', r.success ? '下载成功' : '下载失败: ' + (r.message || '')));

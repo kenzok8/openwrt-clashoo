@@ -185,6 +185,7 @@ start_singbox_service() {
 
 stop_singbox_service() {
 	/etc/init.d/sing-box stop >/dev/null 2>&1 || true
+	uci -q set sing-box.main.enabled='0' && uci -q commit sing-box >/dev/null 2>&1 || true
 }
 
 _log_runtime_error() {
@@ -325,7 +326,7 @@ runtime_run_health_check() {
 	if command_exists curl; then
 		explicit_state="fail"
 		for _try in 1 2 3; do
-			if curl -4 --proxy "http://127.0.0.1:${mixed_port}" --max-time 10 -sS https://api.ip.sb/ip >/dev/null 2>&1; then
+			if curl -4 --proxy "http://127.0.0.1:${mixed_port}" --max-time 5 -sS https://api.ip.sb/ip >/dev/null 2>&1; then
 				explicit_state="ok"
 				break
 			fi
@@ -334,7 +335,7 @@ runtime_run_health_check() {
 		transparent_state="fail"
 		for _url in https://www.google.com https://www.gstatic.com/generate_204 https://www.baidu.com; do
 			for _try in 1 2; do
-				if curl -4 -I --max-time 12 -sS "$_url" 2>/dev/null | grep -q '^HTTP/'; then
+				if curl -4 -I --max-time 6 -sS "$_url" 2>/dev/null | grep -q '^HTTP/'; then
 					transparent_state="ok"
 					break 2
 				fi
@@ -1407,6 +1408,8 @@ boot(){
 	# ClashOO should never claim the router automatically after a reboot.
 	# Users may run other proxy plugins; start is only triggered explicitly
 	# from LuCI or by manually calling /etc/init.d/clashoo start.
+	# Disable sing-box UCI so its init.d doesn't auto-start it either.
+	uci -q set sing-box.main.enabled='0' && uci -q commit sing-box >/dev/null 2>&1 || true
 	runtime_state_reset
 	runtime_state_set "health_status" "stopped"
 	runtime_state_set "health_detail" "boot_disabled"
@@ -1440,7 +1443,7 @@ start_service(){
 		runtime_state_record_preflight "$(selected_core_family)"
 		log_msg "Starting Clashoo" "启动 Clashoo"
 		if is_singbox_selected; then
-			stop_service >/dev/null 2>&1
+			if _core_running; then stop_service >/dev/null 2>&1; fi
 			resolve_effective_tp_modes
 			runtime_state_record_preflight "singbox"
 			if ! _require_runtime_network_stack; then

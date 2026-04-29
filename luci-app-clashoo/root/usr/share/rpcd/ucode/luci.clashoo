@@ -1528,6 +1528,42 @@ return { success: writefile('/tmp/geoip_update.txt', '') !== null };
 }
 },
 
+read_core_log: {
+call: function() {
+let family = running_core_family() || get_core_type();
+let tag = (family === 'singbox') ? 'sing-box' : 'mihomo';
+let p = popen("logread -e '" + tag + "' 2>/dev/null | tail -300");
+let content = '';
+if (p) { content = p.read('all'); p.close(); }
+if (!content) {
+let p2 = popen("logread 2>/dev/null | grep -E '(sing-box|mihomo|clashoo)' | tail -300");
+if (p2) { content = p2.read('all'); p2.close(); }
+}
+return { content };
+}
+},
+
+read_update_merged_log: {
+call: function() {
+let p1 = popen("tail -200 /tmp/clash_update.txt 2>/dev/null");
+let c1 = ''; if (p1) { c1 = trim(p1.read('all')); p1.close(); }
+let p2 = popen("tail -200 /tmp/geoip_update.txt 2>/dev/null");
+let c2 = ''; if (p2) { c2 = trim(p2.read('all')); p2.close(); }
+let parts = [];
+if (c1) parts.push('=== 内核/面板更新 ===\n' + c1);
+if (c2) parts.push('=== GeoIP 更新 ===\n' + c2);
+return { content: join('\n\n', parts) };
+}
+},
+
+clear_update_merged_log: {
+call: function() {
+writefile('/tmp/clash_update.txt', '');
+writefile('/tmp/geoip_update.txt', '');
+return { success: true };
+}
+},
+
 access_check: {
 call: function() {
 return get_access_payload();
