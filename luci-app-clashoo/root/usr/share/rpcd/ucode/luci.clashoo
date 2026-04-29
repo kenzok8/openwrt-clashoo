@@ -23,6 +23,7 @@ const LOG_PATHS = [
 '/var/log/clash/clash.log',
 '/tmp/clash.log'
 ];
+const CORE_LOG_PATH = '/var/log/clashoo/core.log';
 
 const CONFIG_DIRS = [
 { path: '/usr/share/clashoo/config/sub',    type: '1' },
@@ -258,6 +259,76 @@ if (c0) return c0;
 }
 }
 return '';
+}
+
+function format_core_log(content) {
+content = content || '';
+let out = ['=== 核心日志（精简，已过滤普通连接日志） ==='];
+let dropped = 0;
+let max_lines = 120;
+
+for (let line in split(content, '\n')) {
+line = replace(line || '', /\x1b\[[0-9;]*m/g, '');
+line = trim(line || '');
+if (!line) continue;
+
+let low = lc(line);
+let noisy =
+	index(low, 'level=debug') >= 0 ||
+	index(low, '[debug]') >= 0 ||
+	index(low, 'accepted ') >= 0 ||
+	index(low, 'closed ') >= 0 ||
+	index(low, 'connection closed') >= 0 ||
+	index(low, 'outbound connection to') >= 0 ||
+	index(low, 'outbound packet connection') >= 0 ||
+	index(low, 'inbound connection from') >= 0 ||
+	index(low, 'inbound connection to') >= 0 ||
+	index(low, 'inbound packet connection') >= 0 ||
+	index(low, 'inbound/mixed') >= 0 ||
+	index(low, 'inbound/tun') >= 0 ||
+	index(low, 'outbound/direct') >= 0 ||
+	index(low, 'outbound/selector') >= 0 ||
+	index(low, 'outbound/shadowsocks') >= 0 ||
+	index(low, 'outbound/trojan') >= 0 ||
+	index(low, 'outbound/vmess') >= 0 ||
+	index(low, 'outbound/vless') >= 0 ||
+	index(low, 'outbound/urltest') >= 0 ||
+	index(low, 'dns: exchanged') >= 0 ||
+	index(low, 'dns query') >= 0 ||
+	index(low, 'exchange ') >= 0 ||
+	index(low, 'download detour') >= 0;
+
+let important =
+	index(low, 'level=warning') >= 0 ||
+	index(low, 'level=error') >= 0 ||
+	index(low, 'level=fatal') >= 0 ||
+	index(low, '[warn]') >= 0 ||
+	index(low, '[error]') >= 0 ||
+	index(low, '[fatal]') >= 0 ||
+	index(low, 'fatal') >= 0 ||
+	index(low, 'error') >= 0 ||
+	index(low, 'warn') >= 0 ||
+	index(low, 'failed') >= 0 ||
+	index(low, 'timeout') >= 0 ||
+	index(low, 'refused') >= 0 ||
+	index(low, 'listen') >= 0 ||
+	index(low, 'server started') >= 0 ||
+	index(low, 'started (') >= 0 ||
+	index(low, 'restful api') >= 0 ||
+	index(low, 'updated default interface') >= 0 ||
+	index(low, 'deprecated') >= 0;
+
+if (noisy && !important) {
+	dropped++;
+	continue;
+}
+
+push(out, line);
+if (length(out) > max_lines + 1) shift(out);
+}
+
+if (dropped > 0) push(out, '--- 已过滤 ' + dropped + ' 行普通连接/调试日志 ---');
+return join('\n', out);
 }
 
 function list_config_files() {
@@ -1530,16 +1601,30 @@ return { success: writefile('/tmp/geoip_update.txt', '') !== null };
 
 read_core_log: {
 call: function() {
+if (access(CORE_LOG_PATH, 'r')) {
+	let p0 = popen("tail -400 '" + CORE_LOG_PATH + "' 2>/dev/null");
+	let c0 = '';
+	if (p0) { c0 = p0.read('all'); p0.close(); }
+	return { content: format_core_log(c0) };
+}
 let family = running_core_family() || get_core_type();
 let tag = (family === 'singbox') ? 'sing-box' : 'mihomo';
-let p = popen("logread -e '" + tag + "' 2>/dev/null | tail -300");
+let p = popen("logread -e '" + tag + "' 2>/dev/null | tail -400");
 let content = '';
 if (p) { content = p.read('all'); p.close(); }
 if (!content) {
-let p2 = popen("logread 2>/dev/null | grep -E '(sing-box|mihomo|clashoo)' | tail -300");
+let p2 = popen("logread 2>/dev/null | grep -E '(sing-box|mihomo|clashoo)' | tail -400");
 if (p2) { content = p2.read('all'); p2.close(); }
 }
-return { content };
+return { content: format_core_log(content) };
+}
+},
+
+clear_core_log: {
+call: function() {
+let dir = '/var/log/clashoo';
+system('mkdir -p ' + shell_quote(dir) + ' >/dev/null 2>&1');
+return { success: writefile(CORE_LOG_PATH, '') !== null };
 }
 },
 

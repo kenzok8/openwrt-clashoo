@@ -4,6 +4,8 @@ USE_PROCD=1
 START=99
 STOP=15
 
+CORE_LOG_PATH="/var/log/clashoo/core.log"
+
 command_exists() {
 	command -v "$1" >/dev/null 2>&1
 }
@@ -90,11 +92,15 @@ _core_running() {
 }
 
 _kill_core() {
+	local _found _name _pid
 	for _name in $(_core_names); do
+		_found=0
 		for _pid in $(pidof "$_name" 2>/dev/null); do
 			[ "$_pid" = "$$" ] && continue
 			kill "$_pid" >/dev/null 2>&1
+			_found=1
 		done
+		[ "$_found" = "0" ] && continue
 		sleep 1
 		for _pid in $(pidof "$_name" 2>/dev/null); do
 			[ "$_pid" = "$$" ] && continue
@@ -134,7 +140,7 @@ prepare_singbox_runtime() {
 	active="$(uci -q get clashoo.config.singbox_active 2>/dev/null)"
 	src="/usr/share/clashoo/config/singbox/${active}"
 
-	mkdir -p /etc/sing-box /usr/share/sing-box >/dev/null 2>&1
+	mkdir -p /etc/sing-box /usr/share/sing-box "$(dirname "$CORE_LOG_PATH")" >/dev/null 2>&1
 	if [ -n "$active" ] && [ -r "$src" ]; then
 		cp -f "$src" /etc/sing-box/config.json >/dev/null 2>&1 || return 1
 	elif [ ! -r /etc/sing-box/config.json ]; then
@@ -184,8 +190,16 @@ start_singbox_service() {
 }
 
 stop_singbox_service() {
-	/etc/init.d/sing-box stop >/dev/null 2>&1 || true
+	# Kill directly instead of /etc/init.d/sing-box stop (which uses ubus),
+	# because calling ubus from within a procd stop_service() callback deadlocks procd.
 	uci -q set sing-box.main.enabled='0' && uci -q commit sing-box >/dev/null 2>&1 || true
+	for _pid in $(pidof sing-box 2>/dev/null); do
+		kill "$_pid" >/dev/null 2>&1
+	done
+	sleep 1
+	for _pid in $(pidof sing-box 2>/dev/null); do
+		kill -9 "$_pid" >/dev/null 2>&1
+	done
 }
 
 _log_runtime_error() {
@@ -1278,8 +1292,6 @@ _start_validate_core() {
 _start_prepare_config() {
 	check >/dev/null 2>&1
 
-	sleep 1
-
 	enable_dns=$(uci get clashoo.config.enable_dns 2>/dev/null)
 
 	if [ -z "$(grep -E "^ {0,}listen:" /etc/clashoo/config.yaml)" ] || [ -z "$(grep -E "^ {0,}enhanced-mode:" /etc/clashoo/config.yaml)" ] || [ -z "$(grep -E "^ {0,}dns:" /etc/clashoo/config.yaml)" ];then
@@ -1312,7 +1324,6 @@ _start_prepare_config() {
 		uci set clashoo.config.p_mode="rule" && uci commit clashoo
 	fi
 
-	sleep 1
 	yml_change >/dev/null 2>&1
 	smart_inject >/dev/null 2>&1
 
@@ -1364,11 +1375,11 @@ _start_prepare_config() {
 
 _start_launch_core() {
 	disable_quic_gso=$(uci get clashoo.config.disable_quic_gso 2>/dev/null)
+	mkdir -p "$(dirname "$CORE_LOG_PATH")" >/dev/null 2>&1
+	touch "$CORE_LOG_PATH" >/dev/null 2>&1
 	procd_open_instance
-	procd_set_param command "$CLASH" -d "$CLASH_CONFIG"
+	procd_set_param command /bin/sh -c "$CLASH -d '$CLASH_CONFIG' >> '$CORE_LOG_PATH' 2>&1"
 	[ "$disable_quic_gso" = "1" ] && procd_set_param env QUIC_GO_DISABLE_GSO=1
-	procd_set_param stdout 1
-	procd_set_param stderr 1
 	procd_set_param respawn 3600 5 5
 	procd_close_instance
 	[ "$disable_quic_gso" = "1" ] && log_msg "Disable quic-go GSO support" "已启用：禁用 quic-go GSO 支持"
@@ -1383,25 +1394,23 @@ _start_launch_core() {
 	restore >/dev/null 2>&1
 	add_cron
 	echo "Clashoo" > "$REAL_LOG"
-	core_wait=0
-	while [ "$core_wait" -lt 15 ]; do
-		if _core_running; then
-			break
-		fi
-		sleep 1
-		core_wait=$((core_wait + 1))
-	done
-
-	if ! _core_running; then
-		# 内核 15 秒内未起来 — 标记 fail，但保留 fw4 规则和进程交给 procd respawn 自愈，
-		# 避免一次启动慢就把已下发的 nft / DNS 规则清掉，导致 LAN 流量裸出
+	# procd starts the core process only after start_service() returns, so we
+	# cannot block here waiting for it. Launch a background watcher instead.
+	(
+		exec 1000>&-
+		bg_wait=0
+		while [ "$bg_wait" -lt 30 ]; do
+			sleep 1
+			if _core_running; then
+				runtime_run_health_check >/dev/null 2>&1
+				exit 0
+			fi
+			bg_wait=$((bg_wait + 1))
+		done
 		runtime_state_record_health "fail" "start:core_not_running"
-		echo "  $(date "+%Y-%m-%d %H:%M:%S") - clashoo core not detected within 15s, leaving rules in place for procd to recover" >> /usr/share/clashoo/clashoo.txt
+		echo "  $(date "+%Y-%m-%d %H:%M:%S") - clashoo core not detected within 30s" >> /usr/share/clashoo/clashoo.txt
 		echo "Clashoo" > "$REAL_LOG"
-	else
-		# 健康检查含多次 curl，可能耗时 15-30 秒，放后台不阻塞主流程
-		(runtime_run_health_check >/dev/null 2>&1) &
-	fi
+	) &
 }
 
 boot(){
@@ -1464,7 +1473,7 @@ start_service(){
 			backend_apply_rules >/dev/null 2>&1
 			singbox_dns_change >/dev/null 2>&1
 			add_cron >/dev/null 2>&1
-			(runtime_run_health_check >/dev/null 2>&1) &
+			(exec 1000>&-; runtime_run_health_check >/dev/null 2>&1) &
 			echo "Clashoo" > "$REAL_LOG"
 			return 0
 		fi
@@ -1539,8 +1548,8 @@ stop_service(){
 
 			sh /usr/share/clashoo/runtime/backup.sh >/dev/null 2>&1
 
-			_kill_core
 			stop_singbox_service
+			_kill_core
 
 		rm -rf /www/luci-static/yacd 2>/dev/null
 

@@ -122,6 +122,7 @@ const callClearUpdateLog= rpc.declare({ object: 'luci.clashoo', method: 'clear_u
 const callReadGeoipLog         = rpc.declare({ object: 'luci.clashoo', method: 'read_geoip_log',          expect: {} });
 const callClearGeoipLog        = rpc.declare({ object: 'luci.clashoo', method: 'clear_geoip_log',         expect: {} });
 const callReadCoreLog          = rpc.declare({ object: 'luci.clashoo', method: 'read_core_log',           expect: {} });
+const callClearCoreLog         = rpc.declare({ object: 'luci.clashoo', method: 'clear_core_log',          expect: {} });
 const callReadUpdateMergedLog  = rpc.declare({ object: 'luci.clashoo', method: 'read_update_merged_log',  expect: {} });
 const callClearUpdateMergedLog = rpc.declare({ object: 'luci.clashoo', method: 'clear_update_merged_log', expect: {} });
 const callGetCpuArch    = rpc.declare({ object: 'luci.clashoo', method: 'get_cpu_arch',     expect: {} });
@@ -168,10 +169,11 @@ return baseclass.extend({
     clearLog: function () { return L.resolveDefault(callClearLog(), {}); },
     readUpdateLog: function () { return L.resolveDefault(callReadUpdateLog(), { content: '' }).then(r => r.content || ''); },
     clearUpdateLog: function () { return L.resolveDefault(callClearUpdateLog(), {}); },
-    readGeoipLog: function () { return L.resolveDefault(callReadGeoipLog(), { content: '' }).then(r => r.content || ''); },
-    clearGeoipLog: function () { return L.resolveDefault(callClearGeoipLog(), {}); },
-    readCoreLog: function () { return L.resolveDefault(callReadCoreLog(), { content: '' }).then(r => r.content || ''); },
-    readUpdateMergedLog: function () { return L.resolveDefault(callReadUpdateMergedLog(), { content: '' }).then(r => r.content || ''); },
+	    readGeoipLog: function () { return L.resolveDefault(callReadGeoipLog(), { content: '' }).then(r => r.content || ''); },
+	    clearGeoipLog: function () { return L.resolveDefault(callClearGeoipLog(), {}); },
+	    readCoreLog: function () { return L.resolveDefault(callReadCoreLog(), { content: '' }).then(r => r.content || ''); },
+	    clearCoreLog: function () { return L.resolveDefault(callClearCoreLog(), {}); },
+	    readUpdateMergedLog: function () { return L.resolveDefault(callReadUpdateMergedLog(), { content: '' }).then(r => r.content || ''); },
     clearUpdateMergedLog: function () { return L.resolveDefault(callClearUpdateMergedLog(), {}); },
 
     getCpuArch: function () { return L.resolveDefault(callGetCpuArch(), { arch: '' }).then(r => r.arch || ''); },

@@ -1467,10 +1467,10 @@ return view.extend({
     var self = this;
     self._op = opKey;
 
-    var startMsgs = ['校验配置文件', '构建网络分流', '配置智能 DNS', '优化本地解析', '服务已启动，节点同步中'];
-    var stopMsgs  = ['安全关闭服务', '重置网络环境', '恢复系统 DNS'];
+    var startMsgs = ['校验配置文件', '配置防火墙规则', '初始化 DNS'];
+    var stopMsgs  = ['关闭服务', '清理规则'];
     var msgs    = opKey === 'stop' ? stopMsgs : startMsgs;
-    var animMs  = opKey === 'stop' ? 4000 : 12000;
+    var animMs  = opKey === 'stop' ? 3000 : 8000;
     var maxWait = opKey === 'stop' ? 15000 : 35000;
 
     self._startMsgAnim(msgs, animMs);
