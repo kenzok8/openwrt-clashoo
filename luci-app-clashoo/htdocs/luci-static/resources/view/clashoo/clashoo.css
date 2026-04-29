@@ -1544,12 +1544,22 @@ html[data-bs-theme="dark"] .cl-wrap .cl-live-num {
 }
 
 .cl-wrap.cl-config-page #cl-panel-subs .cl-rewrite-wrap textarea,
-.cl-wrap.cl-config-page #cl-panel-profiles .cl-json-editor,
 .cl-wrap.cl-config-page #cl-panel-proxy .cbi-value-field textarea,
 .cl-wrap.cl-config-page #cl-panel-dns .cbi-value-field textarea {
   min-height: 84px !important;
   height: auto !important;
   padding: 8px 12px !important;
+}
+
+.cl-wrap.cl-config-page #cl-panel-profiles .cl-json-editor {
+  min-height: 420px !important;
+  height: auto !important;
+  padding: 10px 14px !important;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, monospace !important;
+  font-size: 12.5px !important;
+  line-height: 1.6 !important;
+  resize: vertical !important;
+  white-space: pre !important;
 }
 
 .cl-wrap.cl-config-page #cl-panel-subs .cl-file-item,
