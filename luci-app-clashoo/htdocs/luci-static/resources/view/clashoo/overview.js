@@ -642,9 +642,9 @@ return view.extend({
     ];
     if (st.runtime_degraded)
       statusChildren.push(E('span', { 'class': 'cl-status-note cl-status-note-degraded' }, '已降级运行'));
-    if (health === 'fail')
+    if (running && health === 'fail')
       statusChildren.push(E('span', { 'class': 'cl-status-note cl-status-note-fail' }, '健康检查失败'));
-    else if (health === 'pass')
+    else if (running && health === 'pass')
       statusChildren.push(E('span', { 'class': 'cl-status-note cl-status-note-pass' }, '健康检查通过'));
     var statusEl = E('span', { id: 'cl-status-val' }, statusChildren);
 
@@ -1460,78 +1460,59 @@ return view.extend({
     return '健康检查中…';
   },
 
-  /* 1s 轮询 status，直到运行状态稳定（pass / fail / 已停止） 或超时 */
-  _pollUntilOpDone: function (opKey, maxWaitMs) {
-    var self = this;
-    var t0 = Date.now();
-    var settle = function () {
-      self._busy = false;
-      self._op = null;
-      self._clearOpTimers();
-      self._pollStatus();
-    };
-    var poll = function () {
-      return clashoo.status().then(function (st) {
-        self._lastSt = st || {};
-        var msg = self._opPhase(opKey, st);
-        self._showOpMsg(msg);
-
-        var done = false;
-        if (opKey === 'stop') {
-          done = st && st.running === false;
-        } else {
-          /* 服务进程已起来即视为启动完成，健康检查在后台继续跑并更新徽标 */
-          done = st && ((st.health_status === 'fail') || st.running === true);
-        }
-
-        if (done) {
-          /* fail 立刻 settle：再等 1.5s，状态卡会被 _pollStatus 重画，
-           * 而 _opMsg 还停在旧文字上，视觉上会"反弹"一下；让 fail 走同一渲染路径。
-           * pass / stop 仍保留 1.5s，让"已就绪/已停止"留个尾巴。 */
-          if (st && st.health_status === 'fail') settle();
-          else                                   setTimeout(settle, 1500);
-          return;
-        }
-        if (Date.now() - t0 > maxWaitMs) {
-          self._showOpMsg('操作较慢，请到「系统 → 日志」查看');
-          settle();
-          return;
-        }
-        return new Promise(function (resolve) { setTimeout(resolve, 1000); }).then(poll);
-      }).catch(function () {
-        return new Promise(function (resolve) { setTimeout(resolve, 1000); }).then(poll);
-      });
-    };
-    return poll();
-  },
-
-  /* fn: 调用对应 RPC（fire-and-forget）；opKey: 'start'|'stop'|'restart'；maxWaitMs: 进度轮询最长等待 */
-  _svc: function (fn, opKey, maxWaitMs) {
+  /* fn: fire-and-forget RPC + 独立轮询直到状态到位 */
+  _svc: function (fn, opKey) {
     if (this._busy) return Promise.resolve();
     this._busy = true;
     var self = this;
-
     self._op = opKey;
-    self._showOpMsg(
-      opKey === 'start'   ? '启动中…' :
-      opKey === 'stop'    ? '停止中…' :
-                            '重启中…'
-    );
 
-    return fn().then(function () {
-      return self._pollUntilOpDone(opKey, maxWaitMs || 30000);
-    }).catch(function (e) {
-      self._busy = false;
-      self._op = null;
+    var startMsgs = ['校验配置文件', '构建网络分流', '配置智能 DNS', '优化本地解析', '服务已启动，节点同步中'];
+    var stopMsgs  = ['安全关闭服务', '重置网络环境', '恢复系统 DNS'];
+    var msgs    = opKey === 'stop' ? stopMsgs : startMsgs;
+    var animMs  = opKey === 'stop' ? 4000 : 12000;
+    var maxWait = opKey === 'stop' ? 15000 : 35000;
+
+    self._startMsgAnim(msgs, animMs);
+    fn().catch(function () {});   /* fire-and-forget；超时由下面的轮询兜底 */
+
+    var started   = Date.now();
+    var pollTimer = null;
+
+    function finish(finalMsg) {
+      if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
       self._clearOpTimers();
-      ui.addNotification(null, E('p', '操作失败: ' + (e.message || e)));
-      self._pollStatus();
-    });
+      if (finalMsg) self._showOpMsg(finalMsg);
+      setTimeout(function () {
+        self._busy = false;
+        self._op   = null;
+        self._pollOverview(true);
+      }, finalMsg ? 900 : 0);
+    }
+
+    function pollOnce() {
+      L.resolveDefault(clashoo.status(), {}).then(function (st) {
+        st = st || {};
+        var elapsed = Date.now() - started;
+        if (opKey === 'stop') {
+          if (st.running === false)          return finish('已停止 ⚪');
+        } else {
+          if (st.running === true)           return finish('运行中 🟢');
+          if (st.health_status === 'fail')   return finish(null);   /* 全量刷新展示具体错误 */
+        }
+        if (elapsed >= maxWait) return finish(null);
+        pollTimer = setTimeout(pollOnce, 1500);
+      }).catch(function () {
+        if (Date.now() - started < maxWait) pollTimer = setTimeout(pollOnce, 1500);
+        else finish(null);
+      });
+    }
+    pollTimer = setTimeout(pollOnce, 1200);
   },
 
-  _start:   function () { return this._svc(function () { return clashoo.start(); },   'start',   45000); },
-  _stop:    function () { return this._svc(function () { return clashoo.stop();  },   'stop',    20000); },
-  _restart: function () { return this._svc(function () { return clashoo.restart(); }, 'restart', 60000); },
+  _start:   function () { return this._svc(function () { return clashoo.start(); },   'start'); },
+  _stop:    function () { return this._svc(function () { return clashoo.stop();  },   'stop'); },
+  _restart: function () { return this._svc(function () { return clashoo.restart(); }, 'restart'); },
 
   _updSubs: function () {
     return L.resolveDefault(callDownloadSubs(), {}).then(function (r) {
