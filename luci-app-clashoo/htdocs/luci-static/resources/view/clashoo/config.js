@@ -953,6 +953,20 @@ return view.extend({
                   });
                 }
               }, '切换'),
+              p.sub_url ? E('button', {
+                'class': 'btn cbi-button cl-btn-sm cl-btn-sb-action',
+                click: function (ev) {
+                  var btn = ev.currentTarget;
+                  btn.disabled = true;
+                  btn.textContent = '更新中…';
+                  clashoo.updateSingboxNative(p.name).then(function (r) {
+                    btn.disabled = false;
+                    btn.textContent = '更新';
+                    ui.addNotification(null, E('p', r.success ? (r.message || p.name + ' 已更新') : ('更新失败: ' + (r.message || ''))));
+                    if (r.success) location.reload();
+                  });
+                }
+              }, '更新') : '',
               E('button', {
                 'class': 'btn cbi-button-negative cl-btn-sm cl-btn-sb-action cl-btn-sb-delete',
                 click: function () {
@@ -1068,9 +1082,82 @@ return view.extend({
     genBtn   = E('button', { 'class': 'btn cbi-button cl-btn-sm',        click: function () { doCreate(false); } }, '生成配置');
     applyBtn = E('button', { 'class': 'btn cbi-button-action cl-btn-sm', click: function () { doCreate(true);  } }, '应用配置');
 
+    /* ── native sing-box subscription card ── */
+    var nativeUrlInput = E('input', {
+      'class': 'cl-sub-url',
+      type: 'text',
+      placeholder: '粘贴原生 sing-box 订阅链接（直接返回 JSON 的链接）'
+    });
+    var nativeNameInput = E('input', {
+      'class': 'cl-sub-url',
+      type: 'text',
+      placeholder: '文件名（选填，留空自动命名）',
+      style: 'margin-top:0'
+    });
+
+    var fetchBtn, fetchApplyBtn;
+    function setNativeBusy(busy) {
+      [fetchBtn, fetchApplyBtn].forEach(function (b) {
+        if (!b) return;
+        b.disabled = busy ? '' : null;
+        if (busy) {
+          if (!b.dataset.label) b.dataset.label = b.textContent;
+          b.textContent = '拉取中…';
+        } else if (b.dataset.label) {
+          b.textContent = b.dataset.label;
+        }
+      });
+    }
+    function doFetchNative(setActive) {
+      var url = nativeUrlInput.value.trim();
+      if (!url) { ui.addNotification(null, E('p', '请填写订阅链接')); return; }
+      setNativeBusy(true);
+      clashoo.fetchSingboxNative(url, nativeNameInput.value.trim())
+        .then(function (r) {
+          setNativeBusy(false);
+          if (!r || typeof r.success === 'undefined') {
+            ui.addNotification(null, E('p', '拉取超时，请刷新页面查看结果'));
+            setTimeout(function () { location.reload(); }, 1500);
+            return;
+          }
+          if (!r.success) {
+            ui.addNotification(null, E('p', '拉取失败: ' + (r.message || '')));
+            return;
+          }
+          if (setActive) {
+            return clashoo.setSingboxProfile(r.name).then(function () {
+              ui.addNotification(null, E('p', r.message + '，已切换为活动配置'));
+              location.reload();
+            });
+          }
+          ui.addNotification(null, E('p', r.message));
+          location.reload();
+        }).catch(function (e) {
+          setNativeBusy(false);
+          ui.addNotification(null, E('p', '拉取异常: ' + (e && e.message || e)));
+        });
+    }
+
+    fetchBtn      = E('button', { 'class': 'btn cbi-button cl-btn-sm',        click: function () { doFetchNative(false); } }, '拉取配置');
+    fetchApplyBtn = E('button', { 'class': 'btn cbi-button-action cl-btn-sm', click: function () { doFetchNative(true);  } }, '拉取并应用');
+
     return [
       E('div', { 'class': 'cl-section cl-card cl-sb-card' }, [
-        E('h4', {}, '一键生成 sing-box 配置'),
+        E('h4', {}, '节点订阅'),
+        E('div', { 'class': 'cl-form-wrap cl-fixed-600 cl-sb-form' }, [
+          nativeUrlInput, nativeNameInput,
+          E('div', { 'class': 'cl-actions cl-sb-top-actions' }, [
+            fetchBtn,
+            fetchApplyBtn
+          ])
+        ]),
+        E('p', { 'class': 'cl-sb-note' },
+          '适用于机场直接提供 sing-box JSON 格式订阅、或已用外部工具转换好的链接。\n' +
+          '拉取后可在「配置文件」标签的对应条目点击「更新」按钮重新拉取最新配置。'
+        )
+      ]),
+      E('div', { 'class': 'cl-section cl-card cl-sb-card' }, [
+        E('h4', {}, 'YAML 订阅转换'),
         E('div', { 'class': 'cl-form-wrap cl-fixed-600 cl-sb-form' }, [
           urlInput, nameInput, secretInput,
           E('div', { 'class': 'cl-actions cl-sb-top-actions' }, [
@@ -1079,7 +1166,7 @@ return view.extend({
           ])
         ]),
         E('p', { 'class': 'cl-sb-note' },
-          '生成的配置包含 TUN 透明代理、geoip/geosite 大陆直连、自动延迟测速策略组。\n' +
+          '将 Clash/mihomo YAML 订阅转换为 sing-box JSON，生成的配置包含 TUN 透明代理、geoip/geosite 大陆直连规则。\n' +
           '同名文件会直接覆盖，更新订阅时留空文件名或填相同名称即可，不会重复堆积文件。'
         )
       ])

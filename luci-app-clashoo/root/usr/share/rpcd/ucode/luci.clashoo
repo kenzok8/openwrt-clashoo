@@ -2525,6 +2525,8 @@ for (let f in (glob(dir + '/*.json') || [])) {
   };
   let meta = extract_meta(f);
   for (let k in meta) entry[k] = meta[k];
+  let url_path = f + '.url';
+  if (access(url_path, 'r')) entry.sub_url = trim(readfile(url_path) || '');
   push(files, entry);
 }
 return { profiles: files, active };
@@ -2607,12 +2609,135 @@ let path = '/usr/share/clashoo/config/singbox/' + name;
 if (!access(path, 'r')) return { success: false, error: 'not found' };
 if (unlink(path) === null) return { success: false, error: 'delete_failed' };
 unlink(path + '.info');
+unlink(path + '.url');
 let c = cursor(); c.load('clashoo');
 if (c.get('clashoo', 'config', 'singbox_active') == name) {
   c.delete('clashoo', 'config', 'singbox_active');
   c.commit('clashoo');
 }
 return { success: true };
+}
+},
+
+fetch_singbox_native: {
+args: { url: 'url', name: 'name' },
+call: function(req) {
+let sub_url = trim(req.args?.url  || '');
+let name    = trim(req.args?.name || '');
+if (!sub_url || !match(sub_url, /^https?:\/\//))
+  return { success: false, message: '请输入有效的订阅链接（须以 http:// 或 https:// 开头）' };
+if (!name) name = 'singbox-native';
+name = replace(name, /\.json$/, '');
+name = replace(name, /[^A-Za-z0-9_.一-龥-]/g, '-');
+name = replace(name, /-+/g, '-');
+name = replace(name, /^[-.]|[-.]$/g, '') || 'singbox-native';
+let dir  = '/usr/share/clashoo/config/singbox';
+system('mkdir -p ' + shell_quote(dir) + ' >/dev/null 2>&1');
+let final_name = name + '.json';
+let path       = dir + '/' + final_name;
+let tmp_json   = '/tmp/clashoo_sb_native.json';
+let tmp_hdr    = '/tmp/clashoo_sb_native.hdr';
+system('rm -f ' + shell_quote(tmp_json) + ' ' + shell_quote(tmp_hdr) + ' >/dev/null 2>&1');
+let dl_cmd = 'curl -fsSL --connect-timeout 8 --max-time 20'
+  + ' -D ' + shell_quote(tmp_hdr)
+  + ' -A "ClashMeta/sing-box"'
+  + ' ' + shell_quote(sub_url)
+  + ' -o ' + shell_quote(tmp_json)
+  + ' >/dev/null 2>&1';
+if (system(dl_cmd) != 0 || !access(tmp_json, 'r')) {
+  system('rm -f ' + shell_quote(tmp_json) + ' ' + shell_quote(tmp_hdr) + ' >/dev/null 2>&1');
+  return { success: false, message: '下载失败，请检查链接是否可访问' };
+}
+let raw = readfile(tmp_json) || '';
+if (length(raw) < 10 || substr(trim(raw), 0, 1) !== '{') {
+  system('rm -f ' + shell_quote(tmp_json) + ' ' + shell_quote(tmp_hdr) + ' >/dev/null 2>&1');
+  return { success: false, message: '下载内容不是 JSON，该链接可能不返回原生 sing-box 配置' };
+}
+let cfg = json(raw);
+if (!cfg || type(cfg) !== 'object') {
+  system('rm -f ' + shell_quote(tmp_json) + ' ' + shell_quote(tmp_hdr) + ' >/dev/null 2>&1');
+  return { success: false, message: 'JSON 解析失败' };
+}
+if (type(cfg.outbounds) !== 'array' || length(cfg.outbounds) == 0) {
+  system('rm -f ' + shell_quote(tmp_json) + ' ' + shell_quote(tmp_hdr) + ' >/dev/null 2>&1');
+  return { success: false, message: '配置缺少 outbounds 字段，可能不是原生 sing-box 格式' };
+}
+if (writefile(path, raw) === null) {
+  system('rm -f ' + shell_quote(tmp_json) + ' ' + shell_quote(tmp_hdr) + ' >/dev/null 2>&1');
+  return { success: false, message: '保存失败' };
+}
+writefile(path + '.url', sub_url);
+if (access(tmp_hdr, 'r')) {
+  let hdr_raw = readfile(tmp_hdr) || '';
+  for (let line in split(hdr_raw, '\n')) {
+    let ll = lc(trim(line));
+    if (substr(ll, 0, 22) == 'subscription-userinfo:') {
+      let info_val = trim(substr(line, 22));
+      if (info_val) writefile(path + '.info', info_val);
+      break;
+    }
+  }
+}
+system('rm -f ' + shell_quote(tmp_json) + ' ' + shell_quote(tmp_hdr) + ' >/dev/null 2>&1');
+return { success: true, name: final_name, message: '已拉取 ' + final_name };
+}
+},
+
+update_singbox_native: {
+args: { name: 'name' },
+call: function(req) {
+let name = req.args?.name || '';
+if (!name || index(name, '/') >= 0 || index(name, '..') >= 0)
+  return { success: false, message: 'invalid name' };
+let dir  = '/usr/share/clashoo/config/singbox';
+let path = dir + '/' + name;
+if (!access(path + '.url', 'r'))
+  return { success: false, message: '该配置未记录订阅链接，无法更新' };
+let sub_url = trim(readfile(path + '.url') || '');
+if (!sub_url) return { success: false, message: '订阅链接为空' };
+let tmp_json = '/tmp/clashoo_sb_native_upd.json';
+let tmp_hdr  = '/tmp/clashoo_sb_native_upd.hdr';
+system('rm -f ' + shell_quote(tmp_json) + ' ' + shell_quote(tmp_hdr) + ' >/dev/null 2>&1');
+let dl_cmd = 'curl -fsSL --connect-timeout 8 --max-time 20'
+  + ' -D ' + shell_quote(tmp_hdr)
+  + ' -A "ClashMeta/sing-box"'
+  + ' ' + shell_quote(sub_url)
+  + ' -o ' + shell_quote(tmp_json)
+  + ' >/dev/null 2>&1';
+if (system(dl_cmd) != 0 || !access(tmp_json, 'r')) {
+  system('rm -f ' + shell_quote(tmp_json) + ' ' + shell_quote(tmp_hdr) + ' >/dev/null 2>&1');
+  return { success: false, message: '下载失败' };
+}
+let raw = readfile(tmp_json) || '';
+if (length(raw) < 10 || substr(trim(raw), 0, 1) !== '{') {
+  system('rm -f ' + shell_quote(tmp_json) + ' ' + shell_quote(tmp_hdr) + ' >/dev/null 2>&1');
+  return { success: false, message: '下载内容不是 JSON' };
+}
+let cfg = json(raw);
+if (!cfg || type(cfg.outbounds) !== 'array' || length(cfg.outbounds) == 0) {
+  system('rm -f ' + shell_quote(tmp_json) + ' ' + shell_quote(tmp_hdr) + ' >/dev/null 2>&1');
+  return { success: false, message: 'JSON 解析失败或缺少 outbounds' };
+}
+if (writefile(path, raw) === null) {
+  system('rm -f ' + shell_quote(tmp_json) + ' ' + shell_quote(tmp_hdr) + ' >/dev/null 2>&1');
+  return { success: false, message: '保存失败' };
+}
+if (access(tmp_hdr, 'r')) {
+  let hdr_raw = readfile(tmp_hdr) || '';
+  for (let line in split(hdr_raw, '\n')) {
+    let ll = lc(trim(line));
+    if (substr(ll, 0, 22) == 'subscription-userinfo:') {
+      let info_val = trim(substr(line, 22));
+      if (info_val) writefile(path + '.info', info_val);
+      break;
+    }
+  }
+}
+system('rm -f ' + shell_quote(tmp_json) + ' ' + shell_quote(tmp_hdr) + ' >/dev/null 2>&1');
+let active = uci_get('clashoo', 'config', 'singbox_active') || '';
+if (active === name)
+  system('cp -f ' + shell_quote(path) + ' /etc/sing-box/config.json >/dev/null 2>&1');
+return { success: true, message: name + ' 已更新' };
 }
 },
 
