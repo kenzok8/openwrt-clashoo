@@ -347,6 +347,9 @@ return view.extend({
         click: function () {
           clashoo.updateGeoip().then(function () {
             ui.addNotification(null, E('p', 'GeoIP 更新任务已启动'));
+            self._switchTab('logs');
+            if (self._activateLogTab)
+              self._activateLogTab('update');
           });
         }
       }, '立即更新 GeoIP');
@@ -438,7 +441,7 @@ return view.extend({
 
     s = m.section(form.NamedSection, 'config', 'clashoo', '自动化任务');
     s.addremove = false;
-    o = s.option(form.Flag,  'auto_update',   '定时更新 Clashoo 资源');
+    o = s.option(form.Flag,  'auto_update',   '定时更新规则数据');
     o = s.option(form.Value, 'auto_update_time',   '更新间隔（小时）');
     o = s.option(form.Flag,  'auto_clear_log',    '定时清理日志');
     o = s.option(form.Value, 'clear_time','清理间隔（小时）');
@@ -509,8 +512,8 @@ return view.extend({
       var canClear = !!ct.clear;
       clearBtn.disabled = !canClear;
       clearBtn.className = 'btn ' + (canClear ? 'cbi-button-negative' : 'cbi-button');
-      clearBtn.title = canClear ? '清空当前日志' : '当前日志不可清空';
-      clearBtn.textContent = canClear ? '清空日志' : '不可清空';
+      clearBtn.title = canClear ? '清空当前日志' : '';
+      clearBtn.textContent = '清空日志';
     }
 
     clearBtn = E('button', {

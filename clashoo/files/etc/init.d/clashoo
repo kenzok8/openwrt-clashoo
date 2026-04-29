@@ -586,7 +586,7 @@ config_type=$(uci get clashoo.config.config_type 2>/dev/null)
 		[ "$geoip_hour" -gt 23 ] && geoip_hour=3
 		echo "$geoip_interval" | grep -Eq '^[0-9]+$' || geoip_interval=7
 		[ "$geoip_interval" -lt 1 ] && geoip_interval=7
-		[ -z "$(grep -w "/usr/share/clashoo/update/geoip.sh" "$CRON_FILE")" ] && echo "0 $geoip_hour */$geoip_interval * * /usr/share/clashoo/update/geoip.sh" >> "$CRON_FILE"
+		[ -z "$(grep -w "/usr/share/clashoo/rpc/rpc_async.sh update_geoip" "$CRON_FILE")" ] && echo "0 $geoip_hour */$geoip_interval * * sh /usr/share/clashoo/rpc/rpc_async.sh update_geoip >/dev/null 2>&1" >> "$CRON_FILE"
 	fi
 	lgbm_auto=$(uci get clashoo.config.smart_lgbm_auto_update 2>/dev/null)
 	if [ "${lgbm_auto:-0}" -eq 1 ]; then
@@ -604,6 +604,7 @@ config_type=$(uci get clashoo.config.config_type 2>/dev/null)
 del_cron(){
 #=========================================================================================================================== 
 	sed -i '/update\/geoip.sh/d' "$CRON_FILE"
+	sed -i '/rpc_async.sh update_geoip/d' "$CRON_FILE"
 	sed -i '/\/usr\/share\/clash\/geoip.sh/d' "$CRON_FILE"
 	sed -i '/update\/update_all.sh/d' "$CRON_FILE"
 	sed -i '/\/usr\/share\/clash\/update_all.sh/d' "$CRON_FILE"

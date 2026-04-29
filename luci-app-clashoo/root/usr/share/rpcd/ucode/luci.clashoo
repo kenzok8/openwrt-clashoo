@@ -279,6 +279,10 @@ let noisy =
 	index(low, 'accepted ') >= 0 ||
 	index(low, 'closed ') >= 0 ||
 	index(low, 'connection closed') >= 0 ||
+	index(low, 'connection: open connection to') >= 0 ||
+	index(low, 'using outbound/') >= 0 ||
+	index(low, 'lookup ') >= 0 ||
+	index(low, 'context deadline exceeded') >= 0 ||
 	index(low, 'outbound connection to') >= 0 ||
 	index(low, 'outbound packet connection') >= 0 ||
 	index(low, 'inbound connection from') >= 0 ||
@@ -318,17 +322,19 @@ let important =
 	index(low, 'updated default interface') >= 0 ||
 	index(low, 'deprecated') >= 0;
 
-if (noisy && !important) {
-	dropped++;
-	continue;
-}
+	if (noisy) {
+		dropped++;
+		continue;
+	}
 
 push(out, line);
 if (length(out) > max_lines + 1) shift(out);
 }
 
-if (dropped > 0) push(out, '--- 已过滤 ' + dropped + ' 行普通连接/调试日志 ---');
-return join('\n', out);
+	if (length(out) == 1)
+		push(out, '暂无核心异常');
+	if (dropped > 0) push(out, '--- 已过滤 ' + dropped + ' 行普通连接/节点/DNS 日志 ---');
+	return join('\n', out);
 }
 
 function list_config_files() {
@@ -1523,8 +1529,7 @@ return { success: true, started: true };
 
 update_geoip: {
 call: function() {
-system('sh /usr/share/clashoo/update/geoip.sh >/tmp/geoip_update.txt 2>&1 &');
-return { success: true };
+return { success: system('sh /usr/share/clashoo/rpc/rpc_async.sh update_geoip >/dev/null 2>&1') == 0 };
 }
 },
 

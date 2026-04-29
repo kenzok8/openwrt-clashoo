@@ -60,6 +60,13 @@ check_present 'store_fakeip: true' "clashoo/files/usr/share/clashoo/lib/normaliz
 check_present 'store_fakeip' "luci-app-clashoo/root/usr/share/rpcd/ucode/luci.clashoo" "generated sing-box profiles should keep fake-ip cache support"
 check_absent '系统日志不可清空' "luci-app-clashoo/htdocs/luci-static/resources/view/clashoo/system.js" "core log clear action should remain usable"
 check_absent '核心日志来自系统日志，无法清空' "luci-app-clashoo/htdocs/luci-static/resources/view/clashoo/system.js" "core log clear action should not raise an error-like toast"
+check_absent '当前日志不可清空' "luci-app-clashoo/htdocs/luci-static/resources/view/clashoo/system.js" "log tabs should not show stale non-clearable wording"
+check_present '定时更新规则数据' "luci-app-clashoo/htdocs/luci-static/resources/view/clashoo/system.js" "scheduled resource update should be presented as rule data update"
+check_absent '自动更新订阅' "clashoo/files/usr/share/clashoo/update/update_all.sh" "scheduled resource update must not update subscriptions"
+check_present 'update_china_ip.sh' "clashoo/files/usr/share/clashoo/update/update_all.sh" "scheduled rule data update must refresh mainland whitelist"
+check_present 'geoip.sh' "clashoo/files/usr/share/clashoo/update/update_all.sh" "scheduled rule data update must refresh GeoIP and GeoSite data"
+check_present 'GeoIP 更新任务启动' "clashoo/files/usr/share/clashoo/update/geoip.sh" "GeoIP updater must write progress to the merged update log"
+check_present 'connection: open connection to' "luci-app-clashoo/root/usr/share/rpcd/ucode/luci.clashoo" "core log filter should drop node connection errors"
 
 [ "$fail" -eq 0 ] || exit 1
 echo "PASS: repository hygiene checks passed"

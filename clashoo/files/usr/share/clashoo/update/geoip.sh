@@ -89,6 +89,7 @@ mkdir -p "$TMP_DIR" /etc/clashoo >/dev/null 2>&1
 
 rm -f /var/run/geoip_down_complete >/dev/null 2>&1
 : > "$LOG_FILE"
+log "GeoIP 更新任务启动"
 
 mmdb_url=""
 geosite_url=""
