@@ -541,7 +541,7 @@ return view.extend({
           ]),
           E('div', { 'class': 'cl-file-actions' }, [
             E('button', {
-              'class': 'btn cbi-button cl-btn-sm',
+              'class': 'btn cbi-button cl-btn-sm cl-btn-edit',
               click: function () { loadOtherEditor(f.name, type); }
             }, '编辑'),
             E('button', {
