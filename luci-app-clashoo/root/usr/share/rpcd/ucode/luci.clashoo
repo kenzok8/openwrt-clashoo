@@ -3087,7 +3087,7 @@ if (config_obj) {
 '      "external_ui": "/etc/clashoo/dashboard",\n' +
 '      "secret": "' + je(secret) + '"\n' +
 '    },\n' +
-'    "cache_file": { "enabled": true }\n' +
+'    "cache_file": { "enabled": true, "store_fakeip": true }\n' +
 '  }\n' +
 '}\n';
 }

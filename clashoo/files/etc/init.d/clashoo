@@ -141,6 +141,7 @@ prepare_singbox_runtime() {
 	src="/usr/share/clashoo/config/singbox/${active}"
 
 	mkdir -p /etc/sing-box /usr/share/sing-box "$(dirname "$CORE_LOG_PATH")" >/dev/null 2>&1
+	rm -f /usr/share/sing-box/cache.db >/dev/null 2>&1
 	if [ -n "$active" ] && [ -r "$src" ]; then
 		cp -f "$src" /etc/sing-box/config.json >/dev/null 2>&1 || return 1
 	elif [ ! -r /etc/sing-box/config.json ]; then
@@ -339,15 +340,17 @@ runtime_run_health_check() {
 	[ -z "$mixed_port" ] && mixed_port="7890"
 	if command_exists curl; then
 		explicit_state="fail"
-		for _try in 1 2 3; do
-			if curl -4 --proxy "http://127.0.0.1:${mixed_port}" --max-time 5 -sS https://api.ip.sb/ip >/dev/null 2>&1; then
-				explicit_state="ok"
-				break
-			fi
-			sleep 2
+		for _url in https://www.google.com/generate_204 https://www.gstatic.com/generate_204; do
+			for _try in 1 2; do
+				if curl -4 --proxy "http://127.0.0.1:${mixed_port}" -I --max-time 6 -sS "$_url" 2>/dev/null | grep -q '^HTTP/'; then
+					explicit_state="ok"
+					break 2
+				fi
+				sleep 1
+			done
 		done
 		transparent_state="fail"
-		for _url in https://www.google.com https://www.gstatic.com/generate_204 https://www.baidu.com; do
+		for _url in https://www.google.com https://www.gstatic.com/generate_204; do
 			for _try in 1 2; do
 				if curl -4 -I --max-time 6 -sS "$_url" 2>/dev/null | grep -q '^HTTP/'; then
 					transparent_state="ok"

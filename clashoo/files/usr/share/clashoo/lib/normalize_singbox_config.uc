@@ -290,12 +290,16 @@ function local_rule_set_path(tag) {
 	let path = '/usr/share/clashoo/ruleset/' + tag + '.srs';
 	if (access(path, 'r'))
 		return path;
+	if (tag == 'geolocation-cn' || tag == 'cn') {
+		path = '/usr/share/clashoo/ruleset/geosite-cn.srs';
+		if (access(path, 'r'))
+			return path;
+	}
 	return '';
 }
 
 function keep_remote_rule_set(rs) {
-	let tag = rs ? (rs.tag || '') : '';
-	return tag == 'geolocation-cn' || tag == 'geolocation-!cn' || tag == 'cn' || tag == 'private-ip' || tag == 'cn-ip';
+	return false;
 }
 
 function normalize_rule_set_url(url) {
@@ -716,6 +720,16 @@ cfg.experimental.clash_api = cfg.experimental.clash_api || {};
 cfg.experimental.clash_api.external_controller = '0.0.0.0:' + dash_port;
 cfg.experimental.clash_api.external_ui = '/etc/clashoo/dashboard';
 cfg.experimental.clash_api.secret = dash_secret;
+
+cfg.experimental.cache_file = {
+	enabled: true,
+	store_fakeip: true
+};
+
+cfg.log = cfg.log || {};
+cfg.log.output = '/var/log/clashoo/core.log';
+if (!cfg.log.level)
+	cfg.log.level = 'info';
 
 if (writefile(path, sprintf('%J', cfg)) === null) {
 	print("write failed\n");

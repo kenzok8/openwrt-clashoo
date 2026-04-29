@@ -465,12 +465,13 @@ return view.extend({
     var self = this;
     var logTypes = [
       { id: 'plugin', label: '插件日志', read: clashoo.readLog.bind(clashoo),              clear: clashoo.clearLog.bind(clashoo) },
-      { id: 'core',   label: '核心日志', read: clashoo.readCoreLog.bind(clashoo),           clear: null },
+      { id: 'core',   label: '核心日志', read: clashoo.readCoreLog.bind(clashoo),           clear: clashoo.clearCoreLog.bind(clashoo) },
       { id: 'update', label: '更新日志', read: clashoo.readUpdateMergedLog.bind(clashoo),   clear: clashoo.clearUpdateMergedLog.bind(clashoo) }
     ];
 
     var logTabEls = {};
     var logArea = E('div', { 'class': 'cl-log-area', id: 'cl-log-area' }, runLog || '（空）');
+    var clearBtn = null;
 
     function activateLogTab(id) {
       var logType = logTypes.find(function (lt) { return lt.id === id; }) || logTypes[0];
@@ -478,6 +479,7 @@ return view.extend({
         logTabEls[k].className = 'cl-log-tab' + (k === logType.id ? ' active' : '');
       });
       self._logTab = logType.id;
+      syncClearButton();
       return logType.read().then(function (content) {
         logArea.textContent = (content && content.trim()) ? content : '（空）';
       });
@@ -501,6 +503,26 @@ return view.extend({
       return logTypes.find(function (lt) { return lt.id === self._logTab; }) || logTypes[0];
     };
 
+    function syncClearButton() {
+      if (!clearBtn) return;
+      var ct = currentType();
+      var canClear = !!ct.clear;
+      clearBtn.disabled = !canClear;
+      clearBtn.className = 'btn ' + (canClear ? 'cbi-button-negative' : 'cbi-button');
+      clearBtn.title = canClear ? '清空当前日志' : '当前日志不可清空';
+      clearBtn.textContent = canClear ? '清空日志' : '不可清空';
+    }
+
+    clearBtn = E('button', {
+      'class': 'btn cbi-button-negative',
+      click: function () {
+        var ct = currentType();
+        if (!ct.clear) return;
+        ct.clear().then(function () { logArea.textContent = ''; });
+      }
+    }, '清空日志');
+    syncClearButton();
+
     return E('div', { 'class': 'cl-section cl-card cl-log-card' }, [
       E('h4', {}, '日志'),
       logTabBar,
@@ -512,14 +534,7 @@ return view.extend({
             logArea.scrollTop = logArea.scrollHeight;
           }
         }, '滚动到底部'),
-        E('button', {
-          'class': 'btn cbi-button-negative',
-          click: function () {
-            var ct = currentType();
-            if (!ct.clear) { ui.addNotification(null, E('p', '核心日志来自系统日志，无法清空')); return; }
-            ct.clear().then(function () { logArea.textContent = ''; });
-          }
-        }, '清空日志')
+        clearBtn
       ])
     ]);
   },
