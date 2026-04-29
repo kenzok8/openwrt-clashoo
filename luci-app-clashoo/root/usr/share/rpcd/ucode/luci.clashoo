@@ -2468,9 +2468,22 @@ let ymd_to_ts = function(s) {
   return (n == n && n > 0) ? int(n) : 0;
 };
 
-// 从 sing-box config 的 outbounds tag 里抽出机场塞的流量/到期信息
+// 优先读 .info 文件（Subscription-Userinfo 响应头），其次从 outbound tag 提取
 // 常见 tag："Traffic: 211.98 GB | 1000 GB"、"Expire: 2026-08-15"
 let extract_meta = function(path) {
+  // Primary: .info file saved during download (same format as mihomo)
+  let info_path = path + '.info';
+  if (access(info_path, 'r')) {
+    let raw_info = trim(readfile(info_path) || '');
+    if (raw_info) {
+      let ui = parse_sub_userinfo(raw_info);
+      let r = {};
+      if (ui.total) { r.sub_total = ui.total; r.sub_used = ui.upload + ui.download; }
+      if (ui.expire) r.sub_expire = ui.expire;
+      if (r.sub_total || r.sub_expire) return r;
+    }
+  }
+  // Fallback: parse from outbound tags in JSON
   let st = stat(path);
   if (!st || st.size > 524288) return {};
   let raw = readfile(path);
@@ -2593,6 +2606,7 @@ if (!name || index(name, '/') >= 0 || index(name, '..') >= 0)
 let path = '/usr/share/clashoo/config/singbox/' + name;
 if (!access(path, 'r')) return { success: false, error: 'not found' };
 if (unlink(path) === null) return { success: false, error: 'delete_failed' };
+unlink(path + '.info');
 let c = cursor(); c.load('clashoo');
 if (c.get('clashoo', 'config', 'singbox_active') == name) {
   c.delete('clashoo', 'config', 'singbox_active');
@@ -2710,9 +2724,13 @@ if (!config_obj && system('command -v ucode >/dev/null 2>&1') == 0 &&
   let yaml_src = preferred_yaml;
   if (!(yaml_src && access(yaml_src, 'r') && match(yaml_src, /\.(yaml|yml)$/))) {
     let tmp_yaml = '/tmp/clashoo_sb_sub.yaml';
-    let dl_cmd = '(curl -fL --connect-timeout 8 --max-time 20 ' + shell_quote(sub_url)
+    let tmp_hdr  = '/tmp/clashoo_sb_sub.hdr';
+    system('rm -f ' + shell_quote(tmp_hdr) + ' >/dev/null 2>&1');
+    let dl_cmd = 'curl -fL --connect-timeout 8 --max-time 20 '
+      + ' -D ' + shell_quote(tmp_hdr)
+      + ' ' + shell_quote(sub_url)
       + ' -o ' + shell_quote(tmp_yaml)
-      + ' || wget -O ' + shell_quote(tmp_yaml) + ' ' + shell_quote(sub_url) + ') >/dev/null 2>&1';
+      + ' >/dev/null 2>&1 || wget -O ' + shell_quote(tmp_yaml) + ' ' + shell_quote(sub_url) + ' >/dev/null 2>&1';
     if (system(dl_cmd) == 0 && access(tmp_yaml, 'r')) {
       yaml_src = tmp_yaml;
       downloaded_yaml = tmp_yaml;
@@ -2871,6 +2889,21 @@ if (config_obj) {
 let path = dir + '/' + final_name;
 if (writefile(path, content) === null)
   return { success: false, error: 'write_failed', message: '写入配置文件失败' };
+
+// Save Subscription-Userinfo from captured HTTP headers as <name>.json.info
+let sb_hdr_file = '/tmp/clashoo_sb_sub.hdr';
+if (access(sb_hdr_file, 'r')) {
+  let hdr_raw = readfile(sb_hdr_file) || '';
+  for (let line in split(hdr_raw, '\n')) {
+    let ll = lc(trim(line));
+    if (substr(ll, 0, 22) == 'subscription-userinfo:') {
+      let info_val = trim(substr(line, 22));
+      if (info_val) writefile(path + '.info', info_val);
+      break;
+    }
+  }
+  system('rm -f ' + shell_quote(sb_hdr_file) + ' >/dev/null 2>&1');
+}
 
 let msg = from_converter
   ? '配置已从订阅生成: ' + final_name
