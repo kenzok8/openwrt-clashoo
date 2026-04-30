@@ -13,9 +13,9 @@ cfg_geoip_dat_url="$(uci -q get clashoo.config.geoip_dat_url 2>/dev/null)"
 cfg_geoip_asn_url="$(uci -q get clashoo.config.geoip_asn_url 2>/dev/null)"
 
 DEFAULT_MMDB_URL="https://raw.githubusercontent.com/Loyalsoldier/geoip/release/Country.mmdb"
-DEFAULT_GEOSITE_URL="https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geosite.dat"
-DEFAULT_GEOIP_DAT_URL="https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geoip.dat"
-DEFAULT_GEOIP_ASN_URL="https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/GeoLite2-ASN.mmdb"
+DEFAULT_GEOSITE_URL="https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/release/geosite.dat"
+DEFAULT_GEOIP_DAT_URL="https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/release/geoip.dat"
+DEFAULT_GEOIP_ASN_URL="https://github.com/xishang0128/geoip/releases/download/latest/GeoLite2-ASN.mmdb"
 
 OPENCLASH_MMDB_URL="https://raw.githubusercontent.com/Loyalsoldier/geoip/release/Country.mmdb"
 OPENCLASH_GEOSITE_URL="https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geosite.dat"
