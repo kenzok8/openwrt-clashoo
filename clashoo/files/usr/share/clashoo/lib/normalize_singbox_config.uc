@@ -459,8 +459,7 @@ for (let ib in inbounds) {
 			ib.auto_route = true;
 			ib.auto_redirect = true;
 			ib.strict_route = true;
-			if (!ib.stack)
-				ib.stack = tun_stack;
+			ib.stack = tun_stack;
 			push(normalized, ib);
 			has_tun = true;
 		}
