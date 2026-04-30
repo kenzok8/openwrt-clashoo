@@ -58,6 +58,13 @@ function trim_s(s) {
 	return s;
 }
 
+let default_interface = '';
+let _default_if_pipe = popen("ip -4 route show default 2>/dev/null | awk '{print $5; exit}'");
+if (_default_if_pipe) {
+	default_interface = trim_s(_default_if_pipe.read('all'));
+	_default_if_pipe.close();
+}
+
 function starts_with(s, prefix) {
 	return s_sub(s || '', 0, s_len(prefix)) == prefix;
 }
@@ -450,6 +457,7 @@ for (let ib in inbounds) {
 			if (!ib.address)
 				ib.address = [ '172.19.0.1/30', 'fdfe:dcba:9876::1/126' ];
 			ib.auto_route = true;
+			ib.auto_redirect = true;
 			ib.strict_route = true;
 			if (!ib.stack)
 				ib.stack = tun_stack;
@@ -535,6 +543,7 @@ if (wants_tun && !has_tun) {
 		tag: 'tun-in',
 		address: [ '172.19.0.1/30', 'fdfe:dcba:9876::1/126' ],
 		auto_route: true,
+		auto_redirect: true,
 		strict_route: true,
 		stack: tun_stack
 	});
@@ -586,9 +595,13 @@ for (let ob in (cfg.outbounds || [])) {
 			ob.plugin_opts = join(';', _parts);
 		}
 
-	if (ob.routing_mark == null)
-		ob.routing_mark = routing_mark;
-}
+		if (wants_tun) {
+			delete ob.routing_mark;
+			if (ob.type == 'direct' && ob.tag == 'DIRECT' && default_interface)
+				ob.bind_interface = ob.bind_interface || default_interface;
+		} else if (ob.routing_mark == null)
+			ob.routing_mark = routing_mark;
+	}
 
 /* 把机场塞的"伪节点"（Traffic:/Expire:/剩余流量/官网/QQ/套餐/续费 等）从 selector/urltest 列表中剔除。
  * 它们是真 SS/Vmess 配置（保留让 UI 抽流量到期），但服务端不真转发；放进 selector 后默认选第一个 / urltest 选最快，
