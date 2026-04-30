@@ -331,20 +331,54 @@ function is_pseudo_node_tag(tag) {
 	return false;
 }
 
-/* ---------- 把 __NODES__ 占位符替换为真实 tag（剔除伪节点） ---------- */
+/* ---------- 按节点名识别地区，返回 'HK'/'JP'/'US'/'SG'/'OTHER'/'' ---------- */
+function region_of(tag) {
+	if (!tag) return '';
+	const t = '' + tag;
+	if (match(t, /港|🇭🇰|HK[^A-Za-z]|[^A-Za-z]HK|^HK$|[Hh]ong[Kk]/)) return 'HK';
+	if (match(t, /日|🇯🇵|JP[^A-Za-z]|[^A-Za-z]JP|^JP$|[Jj]apan/)) return 'JP';
+	if (match(t, /美|🇺🇸|US[^A-Za-z]|[^A-Za-z]US|^US$|[Uu]nited.?[Ss]tates|[Aa]merica/)) return 'US';
+	if (match(t, /新加坡|🇸🇬|SG[^A-Za-z]|[^A-Za-z]SG|^SG$|[Ss]ingapore/)) return 'SG';
+	if (match(t, /台湾|台|🇹🇼|TW[^A-Za-z]|[^A-Za-z]TW|^TW$|[Tt]aiwan|韩国|韩|🇰🇷|KR[^A-Za-z]|[^A-Za-z]KR|^KR$|[Kk]orea/)) return 'OTHER';
+	return '';
+}
+
+/* ---------- 把 __NODES__/__NODES_XX__ 占位符替换为真实 tag（剔除伪节点） ---------- */
 function expand_node_placeholder(outbounds, node_tags) {
 	const real_tags = [];
 	for (let t in node_tags) if (!is_pseudo_node_tag(t)) push(real_tags, t);
+
+	/* 按地区分桶 */
+	let tags_hk = [], tags_jp = [], tags_us = [], tags_sg = [], tags_other = [];
+	for (let t in real_tags) {
+		const r = region_of(t);
+		if      (r === 'HK')    push(tags_hk,    t);
+		else if (r === 'JP')    push(tags_jp,    t);
+		else if (r === 'US')    push(tags_us,    t);
+		else if (r === 'SG')    push(tags_sg,    t);
+		else if (r === 'OTHER') push(tags_other, t);
+	}
+	/* 某地区无节点时回退到全量，避免 selector/urltest outbounds 为空 */
+	if (!length(tags_hk))    tags_hk    = real_tags;
+	if (!length(tags_jp))    tags_jp    = real_tags;
+	if (!length(tags_us))    tags_us    = real_tags;
+	if (!length(tags_sg))    tags_sg    = real_tags;
+	if (!length(tags_other)) tags_other = real_tags;
+
 	for (let ob in outbounds) {
 		if (ob.type !== 'selector' && ob.type !== 'urltest') continue;
 		if (!ob.outbounds || type(ob.outbounds) !== 'array') continue;
 		const expanded = [];
 		for (let item in ob.outbounds) {
-			if (item === '__NODES__') {
-				for (let t in real_tags) push(expanded, t);
-			} else {
-				push(expanded, item);
-			}
+			let list = null;
+			if      (item === '__NODES__')       list = real_tags;
+			else if (item === '__NODES_HK__')    list = tags_hk;
+			else if (item === '__NODES_JP__')    list = tags_jp;
+			else if (item === '__NODES_US__')    list = tags_us;
+			else if (item === '__NODES_SG__')    list = tags_sg;
+			else if (item === '__NODES_OTHER__') list = tags_other;
+			if (list !== null) { for (let t in list) push(expanded, t); }
+			else               { push(expanded, item); }
 		}
 		ob.outbounds = expanded;
 	}
