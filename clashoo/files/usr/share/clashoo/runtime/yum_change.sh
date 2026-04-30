@@ -29,6 +29,10 @@ if [ "$_config_type" = "2" ] || [ "$_config_type" = "3" ]; then
 	[ "$_mode" = "script" ] && _mode=rule
 	_log_level=$(uci get clashoo.config.level 2>/dev/null)
 	[ -z "$_log_level" ] && _log_level=info
+	_tun_mode=$(uci get clashoo.config.tun_mode 2>/dev/null)
+	_core_type=$(uci get clashoo.config.core_type 2>/dev/null)
+	_stack=$(uci get clashoo.config.stack 2>/dev/null)
+	[ -z "$_stack" ] && _stack=system
 
 	# 字段替换/前置（存在则 sed 替换，不存在则 1i\ 前置）
 	if grep -Eq '^port:' "$CONFIG_YAML"; then
@@ -85,6 +89,28 @@ if [ "$_config_type" = "2" ] || [ "$_config_type" = "3" ]; then
 		sed -i 's@^routing-mark:.*@routing-mark: 6666@g' "$CONFIG_YAML" 2>/dev/null
 	else
 		sed -i '1i\routing-mark: 6666' "$CONFIG_YAML" 2>/dev/null
+	fi
+
+	if [ "${_tun_mode:-0}" -eq 1 ] && [ "$_core_type" != "singbox" ]; then
+		awk '
+			/^tun:/ { skip=1; next }
+			skip && /^[^[:space:]#][^:]*:/ { skip=0 }
+			!skip { print }
+		' "$CONFIG_YAML" > /tmp/_clashoo_tun.yaml 2>/dev/null && mv /tmp/_clashoo_tun.yaml "$CONFIG_YAML"
+		cat >> "$CONFIG_YAML" <<-TUN_EOF
+
+		tun:
+		  enable: true
+		  stack: ${_stack}
+		  auto-route: true
+		  auto-redirect: true
+		  auto-detect-interface: true
+		  dns-hijack:
+		    - any:53
+		    - tcp://any:53
+		TUN_EOF
+	elif grep -Eq '^tun:' "$CONFIG_YAML"; then
+		awk '/^tun:/{f=1} f && /enable:/{sub(/enable:.*/, "enable: false"); f=0} {print}' "$CONFIG_YAML" > /tmp/_clashoo_tun.yaml 2>/dev/null && mv /tmp/_clashoo_tun.yaml "$CONFIG_YAML"
 	fi
 
 	# 提取 provider URL 域名 -> 构造 fake-ip-filter 条目
@@ -174,9 +200,11 @@ fi
 		routing_mark_dec=6666
 
 		core=$(uci get clashoo.config.core 2>/dev/null)
+		core_type=$(uci get clashoo.config.core_type 2>/dev/null)
 		interf_name=$(uci get clashoo.config.interf_name 2>/dev/null)
 		tun_mode=$(uci get clashoo.config.tun_mode 2>/dev/null)
 		stack=$(uci get clashoo.config.stack 2>/dev/null)
+		[ -z "$stack" ] && stack="system"
 		listen_port=$(uci get clashoo.config.listen_port 2>/dev/null)	
 		TEMP_FILE="/tmp/clashdns.yaml"
 		interf=$(uci get clashoo.config.interf 2>/dev/null)
@@ -257,14 +285,22 @@ sed -i -e "\$a " $TEMP_FILE 2>/dev/null
 
 
 
+rm -f /tmp/tun.yaml 2>/dev/null
+
 if [ "${tun_mode:-0}" -eq 1 ];then
 
-if [ "${core:-0}" -eq 4 ] || [ "${core:-0}" -eq 3 ];then
+if [ "$core_type" != "singbox" ];then
 
 cat >> "/tmp/tun.yaml" <<-EOF
 tun:
   enable: true 
-  stack: ${stack}  
+  stack: ${stack}
+  auto-route: true
+  auto-redirect: true
+  auto-detect-interface: true
+  dns-hijack:
+    - any:53
+    - tcp://any:53
 EOF
 
 

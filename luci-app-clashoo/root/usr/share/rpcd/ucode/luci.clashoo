@@ -134,9 +134,14 @@ return running_core_family() != '';
 }
 
 function get_local_ip() {
-let p = popen("ip route get 1.1.1.1 2>/dev/null | grep -o 'src [0-9.]*' | awk '{print $2}'");
+let p = popen("ip -4 addr show br-lan 2>/dev/null | awk '/inet /{sub(/\\/.*/,\"\",$2); print $2; exit}'");
 if (!p) return '';
 let ip = trim(p.read('all'));
+p.close();
+if (ip) return ip;
+p = popen("dev=$(ip -4 route show default 2>/dev/null | awk '{print $5; exit}'); [ -n \"$dev\" ] && ip -4 addr show dev \"$dev\" 2>/dev/null | awk '/inet /{sub(/\\/.*/,\"\",$2); print $2; exit}'");
+if (!p) return '';
+ip = trim(p.read('all'));
 p.close();
 return ip;
 }
@@ -1365,8 +1370,7 @@ let runtime_degrade_reason = runtime_state_get('degrade_reason') || '';
 let health_status = runtime_state_get('health_status') || (running ? 'unknown' : 'stopped');
 let health_detail = runtime_state_get('health_detail') || '';
 let has_tun_device = runtime_state_get('has_tun_device');
-let p2 = popen("ip route get 1.1.1.1 2>/dev/null | awk '/src/{print $(NF-2)}'");
-let local_ip = p2 ? trim(p2.read('all')) : ''; if (p2) p2.close();
+let local_ip = get_local_ip();
 let config = get_display_config_name(configured_core);
 let slash = rindex(conf_path, '/');
 let conf_name = slash >= 0 ? substr(conf_path, slash + 1) : conf_path;
@@ -1826,8 +1830,7 @@ let api = get_clash_api_auth();
 	let health_status = runtime_state_get('health_status') || (running ? 'unknown' : 'stopped');
 	let health_detail = runtime_state_get('health_detail') || '';
 	let has_tun_device = runtime_state_get('has_tun_device');
-	let p2 = popen("ip route get 1.1.1.1 2>/dev/null | awk '/src/{print $(NF-2)}'");
-	let local_ip = p2 ? trim(p2.read('all')) : ''; if (p2) p2.close();
+	let local_ip = get_local_ip();
 	let config = get_display_config_name(configured_core);
 	let slash = rindex(conf_path, '/');
 	let conf_name = slash >= 0 ? substr(conf_path, slash + 1) : conf_path;

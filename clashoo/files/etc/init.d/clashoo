@@ -767,7 +767,28 @@ yml_change() {
 		fi
 		# disable tun when not in tun mode
 		_tcp_mode=$(uci get clashoo.config.tcp_mode 2>/dev/null)
-		if [ "$_tcp_mode" != "tun" ]; then
+		_udp_mode=$(uci get clashoo.config.udp_mode 2>/dev/null)
+		_stack=$(uci get clashoo.config.stack 2>/dev/null)
+		[ -z "$_stack" ] && _stack="system"
+		if { [ "$_tcp_mode" = "tun" ] || [ "$_udp_mode" = "tun" ]; } && ! is_singbox_selected; then
+			awk '
+				/^tun:/ { skip=1; next }
+				skip && /^[^[:space:]#][^:]*:/ { skip=0 }
+				!skip { print }
+			' "$CONFIG_YAML" > /tmp/_cfg_tun.yaml 2>/dev/null && mv /tmp/_cfg_tun.yaml "$CONFIG_YAML"
+			cat >> "$CONFIG_YAML" <<-EOF
+
+			tun:
+			  enable: true
+			  stack: ${_stack}
+			  auto-route: true
+			  auto-redirect: true
+			  auto-detect-interface: true
+			  dns-hijack:
+			    - any:53
+			    - tcp://any:53
+			EOF
+		elif [ "$_tcp_mode" != "tun" ]; then
 			awk '/^tun:/{f=1} f && /enable:/{sub(/enable:.*/, "enable: false"); f=0} {print}' "$CONFIG_YAML" > /tmp/_cfg_tun.yaml && mv /tmp/_cfg_tun.yaml "$CONFIG_YAML"
 		fi
 
