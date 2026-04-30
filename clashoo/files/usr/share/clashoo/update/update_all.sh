@@ -1,6 +1,5 @@
 #!/bin/sh
 
-LIST_FILE="/usr/share/clashbackup/confit_list.conf"
 UPDATE_LOG="/tmp/clash_update.txt"
 
 log_update() {

@@ -30,6 +30,7 @@ case "$ACTION" in
     exit 0
     ;;
   update_geoip)
+    log_line "GeoIP 更新任务已触发"
     nohup /usr/share/clashoo/update/geoip.sh >/dev/null 2>&1 </dev/null &
     exit 0
     ;;

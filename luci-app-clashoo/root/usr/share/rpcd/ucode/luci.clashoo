@@ -92,7 +92,7 @@ return get_core_type() === 'singbox' ? 'sing-box' : get_mihomo_service_name();
 }
 
 function running_core_family() {
-let p = popen("if pidof sing-box >/dev/null 2>&1; then echo singbox; elif pidof mihomo clash-meta clash >/dev/null 2>&1; then echo mihomo; fi");
+let p = popen("if pidof sing-box >/dev/null 2>&1; then echo singbox; elif pidof mihomo clash-meta clash smart >/dev/null 2>&1; then echo mihomo; fi");
 if (!p) return '';
 let family = trim(p.read('all'));
 p.close();
@@ -241,6 +241,50 @@ if (length(profiles) > 0) break;
 return profiles;
 }
 
+function strip_log_dates(text) {
+return replace(text || '', /\d{4}-\d{2}-\d{2} /g, '');
+}
+
+function reformat_core_line(line) {
+if (match(line, /^(===|---)/)) return line;
+// Extract local time from syslog outer prefix "23:16:18 2026"
+let local_t = '';
+let syslog_tm = match(line, /(\d{2}:\d{2}:\d{2}) \d{4}/);
+if (syslog_tm) local_t = syslog_tm[1];
+// Strip syslog prefix "...process[pid]: "
+let msg = replace(line, /^.*?\[\d+\]:\s*/, '');
+if (msg === line) msg = line;
+// mihomo: time="...THH:MM:SS..." level=LEVEL msg="TEXT"
+let mm = match(msg, /^time="[^"]*T(\d{2}:\d{2}:\d{2})[^"]*"\s+level=(\w+)\s+msg="(.*)"\s*$/);
+if (mm) {
+    let t = local_t;
+    if (!t) { let h = +substr(mm[1], 0, 2); t = sprintf('%02d', (h + 8) % 24) + substr(mm[1], 2); }
+    if (mm[2] === 'info') return t + ' ' + mm[3];
+    return t + ' [' + mm[2] + '] ' + mm[3];
+}
+// sing-box ISO "T" format: "YYYY-MM-DDTHH:MM:SS... LEVEL message"
+let sm = match(msg, /^\d{4}-\d{2}-\d{2}T(\d{2}:\d{2}:\d{2})[^ ]* +(\w+) +(.*)/);
+if (sm) {
+    let t = local_t;
+    if (!t) { let h = +substr(sm[1], 0, 2); t = sprintf('%02d', (h + 8) % 24) + substr(sm[1], 2); }
+    let lvl = lc(sm[2]);
+    if (lvl === 'info') return t + ' ' + sm[3];
+    return t + ' [' + lvl + '] ' + sm[3];
+}
+// sing-box space format: "[+0000] YYYY-MM-DD HH:MM:SS LEVEL message"
+let ss = match(msg, /^[+-]\d{4} \d{4}-\d{2}-\d{2} (\d{2}:\d{2}:\d{2}) +(\w+) +(.*)/);
+if (ss) {
+    let t = local_t;
+    if (!t) { let h = +substr(ss[1], 0, 2); t = sprintf('%02d', (h + 8) % 24) + substr(ss[1], 2); }
+    let lvl = lc(ss[2]);
+    if (lvl === 'info') return t + ' ' + ss[3];
+    return t + ' [' + lvl + '] ' + ss[3];
+}
+// fallback: strip ISO timestamp, keep syslog time
+msg = replace(msg, /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[^ ]*\s*/, '');
+return (local_t ? local_t + ' ' : '') + trim(msg);
+}
+
 function get_log_content() {
 // 统一用 awk 脚本简化 mihomo 原生日志 + log_msg 行格式
 let formatter = "awk -f /usr/share/clashoo/net/log_format.awk 2>/dev/null";
@@ -263,7 +307,7 @@ return '';
 
 function format_core_log(content) {
 content = content || '';
-let out = ['=== 核心日志（精简，已过滤普通连接日志） ==='];
+let out = ['=== 核心日志 ==='];
 let dropped = 0;
 let max_lines = 120;
 
@@ -290,17 +334,25 @@ let noisy =
 	index(low, 'inbound packet connection') >= 0 ||
 	index(low, 'inbound/mixed') >= 0 ||
 	index(low, 'inbound/tun') >= 0 ||
+	index(low, 'inbound/tproxy') >= 0 ||
+	index(low, 'inbound/redirect') >= 0 ||
 	index(low, 'outbound/direct') >= 0 ||
 	index(low, 'outbound/selector') >= 0 ||
 	index(low, 'outbound/shadowsocks') >= 0 ||
 	index(low, 'outbound/trojan') >= 0 ||
 	index(low, 'outbound/vmess') >= 0 ||
 	index(low, 'outbound/vless') >= 0 ||
+	index(low, 'outbound/hysteria') >= 0 ||
 	index(low, 'outbound/urltest') >= 0 ||
 	index(low, 'dns: exchanged') >= 0 ||
 	index(low, 'dns query') >= 0 ||
 	index(low, 'exchange ') >= 0 ||
-	index(low, 'download detour') >= 0;
+	index(low, 'download detour') >= 0 ||
+	index(low, 'router: match') >= 0 ||
+	index(low, 'route: match') >= 0 ||
+	index(low, 'dial_parallel') >= 0 ||
+	index(low, 'msg="[tcp]') >= 0 ||
+	index(low, 'msg="[udp]') >= 0;
 
 let important =
 	index(low, 'level=warning') >= 0 ||
@@ -322,18 +374,18 @@ let important =
 	index(low, 'updated default interface') >= 0 ||
 	index(low, 'deprecated') >= 0;
 
-	if (noisy) {
+	if (noisy && !important) {
 		dropped++;
 		continue;
 	}
 
-push(out, line);
+push(out, reformat_core_line(line));
 if (length(out) > max_lines + 1) shift(out);
 }
 
 	if (length(out) == 1)
 		push(out, '暂无核心异常');
-	if (dropped > 0) push(out, '--- 已过滤 ' + dropped + ' 行普通连接/节点/DNS 日志 ---');
+	if (dropped > 0) push(out, '--- 已过滤 ' + dropped + ' 行 ---');
 	return join('\n', out);
 }
 
@@ -1294,7 +1346,7 @@ try {
 let c = cursor();
 c.load('clashoo');
 let configured_core = get_core_type();
-let p = popen("pidof mihomo clash-meta clash sing-box >/dev/null 2>&1; echo $?");
+let p = popen("pidof mihomo clash-meta clash sing-box smart >/dev/null 2>&1; echo $?");
 let r = p ? trim(p.read('all')) : '1'; if (p) p.close();
 let running = r === '0';
 let proxy_mode = c.get('clashoo', 'config', 'p_mode')         || 'rule';
@@ -1522,6 +1574,7 @@ download_core: {
 call: function() {
 if (access('/var/run/core_update', 'r'))
 return { success: true, started: false, running: true };
+system("printf '%s - 内核下载任务已触发\\n' \"$(date '+%Y-%m-%d %H:%M:%S')\" >>/tmp/clash_update.txt");
 system("nohup sh -c 'touch /var/run/core_update; sh /usr/share/clashoo/update/core_download.sh; rc=$?; rm -f /var/run/core_update; exit $rc' >/dev/null 2>&1 </dev/null &");
 return { success: true, started: true };
 }
@@ -1640,8 +1693,8 @@ let c1 = ''; if (p1) { c1 = trim(p1.read('all')); p1.close(); }
 let p2 = popen("tail -200 /tmp/geoip_update.txt 2>/dev/null");
 let c2 = ''; if (p2) { c2 = trim(p2.read('all')); p2.close(); }
 let parts = [];
-if (c1) parts.push('=== 内核/面板更新 ===\n' + c1);
-if (c2) parts.push('=== GeoIP 更新 ===\n' + c2);
+if (c1) push(parts, '=== 内核/面板更新 ===\n' + strip_log_dates(c1));
+if (c2) push(parts, '=== GeoIP 更新 ===\n' + strip_log_dates(c2));
 return { content: join('\n\n', parts) };
 }
 },
@@ -1673,7 +1726,7 @@ return { success: true, started: !updating };
 overview_stats: {
 call: function() {
 try {
-	let p = popen("pidof mihomo clash-meta clash sing-box >/dev/null 2>&1; echo $?");
+	let p = popen("pidof mihomo clash-meta clash sing-box smart >/dev/null 2>&1; echo $?");
 	let running = p ? (trim(p.read('all')) === '0') : false;
 	if (p) p.close();
 	if (!running)
@@ -1754,7 +1807,7 @@ try {
 	let c = cursor();
 	c.load('clashoo');
 	let configured_core = get_core_type();
-	let p = popen("pidof mihomo clash-meta clash sing-box >/dev/null 2>&1; echo $?");
+	let p = popen("pidof mihomo clash-meta clash sing-box smart >/dev/null 2>&1; echo $?");
 	let r = p ? trim(p.read('all')) : '1'; if (p) p.close();
 	let running = r === '0';
 	let proxy_mode = c.get('clashoo', 'config', 'p_mode')         || 'rule';

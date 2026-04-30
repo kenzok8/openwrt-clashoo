@@ -41,7 +41,7 @@ check_present 'cl-status-note-fail' "luci-app-clashoo/htdocs/luci-static/resourc
 check_present 'cl-mode-degraded' "luci-app-clashoo/htdocs/luci-static/resources/view/clashoo/overview.js" "transparent proxy card must render degraded mode hint"
 check_present '降级运行' "luci-app-clashoo/htdocs/luci-static/resources/view/clashoo/overview.js" "transparent proxy degraded hint must use the agreed text"
 check_present 'format_core_log' "luci-app-clashoo/root/usr/share/rpcd/ucode/luci.clashoo" "core log RPC must use simplified filtering"
-check_present '已过滤普通连接日志' "luci-app-clashoo/root/usr/share/rpcd/ucode/luci.clashoo" "core log output must explain that noisy connection logs are filtered"
+check_present "已过滤 ' \\+ dropped \\+ ' 行" "luci-app-clashoo/root/usr/share/rpcd/ucode/luci.clashoo" "core log output must show filtered noisy line count"
 check_present '任务已提交' "luci-app-clashoo/htdocs/luci-static/resources/view/clashoo/overview.js" "service actions should use submitted-state feedback"
 check_absent '_pollUntilOpDone' "luci-app-clashoo/htdocs/luci-static/resources/view/clashoo/overview.js" "service action buttons must not wait on long operation polling"
 check_present 'clear_core_log' "luci-app-clashoo/root/usr/share/rpcd/ucode/luci.clashoo" "core log should have an independent clear RPC"
