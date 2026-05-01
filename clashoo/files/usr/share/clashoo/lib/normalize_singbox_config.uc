@@ -450,8 +450,8 @@ for (let ib in inbounds) {
 		continue;
 
 	if (ib.type == 'tun' || ib.tag == 'tun-in') {
-		/* Keep tun inbound only when tun device exists. */
-		if (has_tun_device && !has_tun) {
+		/* Keep tun inbound only when the selected proxy mode actually uses TUN. */
+		if (wants_tun && !has_tun) {
 			ib.type = 'tun';
 			ib.tag = ib.tag || 'tun-in';
 			if (!ib.address)
