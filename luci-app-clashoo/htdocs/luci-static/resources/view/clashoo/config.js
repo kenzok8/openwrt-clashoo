@@ -664,9 +664,10 @@ return view.extend({
     o.description = '自动切换 Url-test、Load-balance 策略组到 Smart 策略组';
 
     o = s.option(form.Value, 'smart_policy_priority', 'Policy Priority（权重加成）');
+    o.default = 'Premium:0.9;SG:1.3';
     o.placeholder = 'Premium:0.9;SG:1.3';
     o.rmempty = true;
-    o.description = '节点权重加成，<1 表示较低优先级，>1 表示较高优先级，默认为 1，匹配模式支持 Regex 和字符串';
+    o.description = '节点权重加成，<1 表示较低优先级，>1 表示较高优先级；可按需修改，留空则不注入 policy-priority';
 
     o = s.option(form.Flag,  'smart_prefer_asn', 'ASN 优先');
     o.description = '选择节点时强制查找并优先使用目标的 ASN 信息，以获得更稳定的体验';
@@ -903,6 +904,13 @@ return view.extend({
   _buildSbProfilesPanel: function (profiles, activeProfile) {
     var self = this;
     var safeText = function (v) { return (v == null || v === 'null') ? '' : String(v); };
+    var formatJsonForEditor = function (content) {
+      try {
+        return JSON.stringify(JSON.parse(content || '{}'), null, 2) + '\n';
+      } catch (e) {
+        return content || '';
+      }
+    };
 
     /* ── JSON editor (initially hidden) ── */
     var editorTitle = E('span', { 'class': 'cl-editor-hdr' }, '选择上方配置后可在此处编辑');
@@ -913,7 +921,7 @@ return view.extend({
       click: function () {
         var name = textarea.dataset.name;
         if (!name) return;
-        clashoo.saveSingboxProfile(name, textarea.value).then(function (r) {
+        clashoo.saveSingboxProfile(name, formatJsonForEditor(textarea.value)).then(function (r) {
           if (r.success) ui.addNotification(null, E('p', name + ' 已保存'));
           else ui.addNotification(null, E('p', '保存失败: ' + (r.message || r.error || '')));
         });
@@ -931,7 +939,7 @@ return view.extend({
             var msg = r.changes && r.changes.length ? '已修复废弃字段: ' + r.changes.join(', ') : '配置已是最新，无需修复';
             ui.addNotification(null, E('p', msg));
             /* 重新加载编辑器内容 */
-            clashoo.getSingboxProfile(name).then(function (gr) { textarea.value = gr.content || ''; });
+            clashoo.getSingboxProfile(name).then(function (gr) { textarea.value = formatJsonForEditor(gr.content || ''); });
           } else {
             ui.addNotification(null, E('p', '修复失败: ' + ((r && r.message) || '')));
           }
@@ -956,7 +964,7 @@ return view.extend({
       textarea.dataset.name = name;
       textarea.value = '加载中…';
       clashoo.getSingboxProfile(name).then(function (r) {
-        textarea.value = r.content || '';
+        textarea.value = formatJsonForEditor(r.content || '');
       });
     }
 
@@ -978,10 +986,10 @@ return view.extend({
             E('td', { 'class': 'cl-sb-size' }, safeText(p.size) || '—'),
             E('td', {}, [
               E('div', { 'class': 'cl-sb-row-actions' }, [
-              E('button', {
+              p.source !== 'native' ? E('button', {
                 'class': 'btn cbi-button cl-btn-sm cl-btn-sb-action cl-btn-sb-edit',
                 click: function () { loadEditor(p.name); }
-              }, '编辑'),
+              }, '编辑') : '',
               E('button', {
                 'class': 'btn cbi-button-action cl-btn-sm cl-btn-sb-action cl-btn-sb-switch',
                 click: function () {
@@ -991,7 +999,7 @@ return view.extend({
                   });
                 }
               }, '切换'),
-              p.sub_url ? E('button', {
+              p.source === 'native' && p.sub_url ? E('button', {
                 'class': 'btn cbi-button cl-btn-sm cl-btn-sb-action',
                 click: function (ev) {
                   var btn = ev.currentTarget;
@@ -1191,7 +1199,7 @@ return view.extend({
         ]),
         E('p', { 'class': 'cl-sb-note' },
           '适用于机场直接提供 sing-box JSON 格式订阅、或已用外部工具转换好的链接。\n' +
-          '拉取后可在「配置文件」标签的对应条目点击「更新」按钮重新拉取最新配置。'
+          '拉取后可在「配置文件」标签的对应条目点击「更新」重新拉取最新配置。'
         )
       ]),
       E('div', { 'class': 'cl-section cl-card cl-sb-card' }, [

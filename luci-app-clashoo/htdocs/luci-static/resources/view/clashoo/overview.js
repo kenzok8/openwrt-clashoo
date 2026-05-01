@@ -634,10 +634,10 @@ return view.extend({
 
     var statusChildren = [
       !statusKnown
-        ? E('span', { 'class': 'cl-badge cl-badge-sync' }, '同步中')
+        ? E('span', { 'class': 'cl-status-state cl-status-state-sync' }, '同步中')
         : running
-        ? E('span', { 'class': 'cl-badge cl-badge-run' }, '运行中')
-        : E('span', { 'class': 'cl-badge cl-badge-stop' }, '已停止'),
+        ? E('span', { 'class': 'cl-status-state cl-status-state-run' }, '运行中 🟢')
+        : E('span', { 'class': 'cl-status-state cl-status-state-stop' }, '已停止 ⚪'),
       E('span', { 'class': 'cl-status-note cl-status-note-core' }, configuredCoreLabel)
     ];
     if (st.runtime_degraded)

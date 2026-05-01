@@ -250,6 +250,20 @@ function strip_log_dates(text) {
 return replace(text || '', /\d{4}-\d{2}-\d{2} /g, '');
 }
 
+function format_update_log(text) {
+let out = [];
+for (let line in split(strip_log_dates(text || ''), '\n')) {
+line = trim(line || '');
+if (!line) continue;
+if (index(line, '启动任务已触发') >= 0 ||
+    index(line, '停止任务已触发') >= 0 ||
+    index(line, '重启任务已触发') >= 0)
+	continue;
+push(out, line);
+}
+return join('\n', out);
+}
+
 function reformat_core_line(line) {
 if (match(line, /^(===|---)/)) return line;
 // Extract local time from syslog outer prefix "23:16:18 2026"
@@ -1697,8 +1711,8 @@ let c1 = ''; if (p1) { c1 = trim(p1.read('all')); p1.close(); }
 let p2 = popen("tail -200 /tmp/geoip_update.txt 2>/dev/null");
 let c2 = ''; if (p2) { c2 = trim(p2.read('all')); p2.close(); }
 let parts = [];
-if (c1) push(parts, '=== 内核/面板更新 ===\n' + strip_log_dates(c1));
-if (c2) push(parts, '=== GeoIP 更新 ===\n' + strip_log_dates(c2));
+if (c1) push(parts, '=== 内核/面板/订阅更新 ===\n' + format_update_log(c1));
+if (c2) push(parts, '=== GeoIP 更新 ===\n' + format_update_log(c2));
 return { content: join('\n\n', parts) };
 }
 },
@@ -2668,7 +2682,12 @@ for (let f in (glob(dir + '/*.json') || [])) {
   let meta = extract_meta(f);
   for (let k in meta) entry[k] = meta[k];
   let url_path = f + '.url';
-  if (access(url_path, 'r')) entry.sub_url = trim(readfile(url_path) || '');
+  if (access(url_path, 'r')) {
+    entry.sub_url = trim(readfile(url_path) || '');
+    entry.source = 'native';
+  } else {
+    entry.source = 'local';
+  }
   push(files, entry);
 }
 return { profiles: files, active };

@@ -9,18 +9,15 @@ log_line() {
 
 case "$ACTION" in
   start)
-    log_line "启动任务已触发"
     nohup /etc/init.d/clashoo start >/dev/null 2>&1 </dev/null &
     exit 0
     ;;
   stop)
-    log_line "停止任务已触发"
     nohup /etc/init.d/clashoo stop >/dev/null 2>&1 </dev/null &
     exit 0
     ;;
   restart)
     # Fire-and-forget restart used by LuCI RPC to avoid blocking UI apply flow.
-    log_line "重启任务已触发"
     nohup /etc/init.d/clashoo restart >/dev/null 2>&1 </dev/null &
     exit 0
     ;;
@@ -31,7 +28,7 @@ case "$ACTION" in
     ;;
   update_geoip)
     log_line "GeoIP 更新任务已触发"
-    nohup /usr/share/clashoo/update/geoip.sh >/dev/null 2>&1 </dev/null &
+    (exec 1000>&-; nohup /usr/share/clashoo/update/geoip.sh >/dev/null 2>&1 </dev/null &)
     exit 0
     ;;
   *)

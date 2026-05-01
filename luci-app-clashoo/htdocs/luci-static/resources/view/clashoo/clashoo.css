@@ -149,7 +149,7 @@
   border-color: transparent;
   color: var(--cl-primary);
   box-shadow: none !important;
-  font-weight: 700;
+  font-weight: 500;
   opacity: 1;
 }
 
@@ -1768,16 +1768,25 @@ html[data-bs-theme="dark"] .cl-wrap .cl-live-num {
   margin-left: 0 !important;
 }
 
-.cl-wrap.cl-overview-page .cl-badge-run {
-  color: #24945f !important;
-  border-color: rgba(36, 148, 95, 0.46) !important;
-  background: rgba(36, 148, 95, 0.08) !important;
+.cl-wrap.cl-overview-page .cl-status-state {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.35;
 }
 
-.cl-wrap.cl-overview-page .cl-badge-stop {
+.cl-wrap.cl-overview-page .cl-status-state-run {
+  color: #24945f !important;
+}
+
+.cl-wrap.cl-overview-page .cl-status-state-stop {
   color: rgba(128, 128, 128, 0.9) !important;
-  border-color: rgba(128, 128, 128, 0.36) !important;
-  background: rgba(128, 128, 128, 0.08) !important;
 }
 
 /* ─── Theme-override: force transparent bg on LuCI form elements ───

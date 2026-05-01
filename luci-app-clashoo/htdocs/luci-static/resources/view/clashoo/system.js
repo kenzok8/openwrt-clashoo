@@ -316,11 +316,9 @@ return view.extend({
               .then(function () { return clashoo.commitConfig(); })
               .then(function () { return clashoo.clearUpdateLog(); })
               .then(function () { return clashoo.downloadCore(); })
+              .then(function () { return clearClashooDirty(); })
               .then(function () {
-                dlStatus.textContent = '下载任务已启动，已切换到更新日志';
-                self._switchTab('logs');
-                if (self._activateLogTab)
-                  self._activateLogTab('update');
+                dlStatus.textContent = '下载任务已启动，可到日志查看进度';
               })
               .catch(function (e) {
                 dlStatus.textContent = '';
