@@ -7,18 +7,24 @@ log_line() {
 	printf '%s - %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1" >> "$LOG_FILE"
 }
 
+run_init_async() {
+	local action="$1"
+	mkdir -p /tmp/lock >/dev/null 2>&1
+	(flock /tmp/lock/clashoo_rpc_async.lock /etc/init.d/clashoo "$action" >/dev/null 2>&1 </dev/null &)
+}
+
 case "$ACTION" in
   start)
-    nohup /etc/init.d/clashoo start >/dev/null 2>&1 </dev/null &
+    run_init_async start
     exit 0
     ;;
   stop)
-    nohup /etc/init.d/clashoo stop >/dev/null 2>&1 </dev/null &
+    run_init_async stop
     exit 0
     ;;
   restart)
     # Fire-and-forget restart used by LuCI RPC to avoid blocking UI apply flow.
-    nohup /etc/init.d/clashoo restart >/dev/null 2>&1 </dev/null &
+    run_init_async restart
     exit 0
     ;;
   update_china_ip)

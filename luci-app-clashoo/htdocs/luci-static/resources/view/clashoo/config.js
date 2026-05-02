@@ -6,6 +6,29 @@
 'require rpc';
 'require tools.clashoo as clashoo';
 
+function getThemeClass() {
+  var h = document.documentElement;
+  // Bootstrap: explicit data-bs-theme attribute wins first
+  if (h.dataset.bsTheme === 'dark') return 'cl-theme-dark';
+  if (h.dataset.bsTheme === 'light') return 'cl-theme-light';
+  // Argon: explicit darkmode attribute
+  if (h.dataset.darkmode === 'true') return 'cl-theme-dark';
+  // Argon: dark.css loaded in document = dark mode active (most reliable)
+  var links = document.querySelectorAll('link[rel="stylesheet"]');
+  for (var i = 0; i < links.length; i++) {
+    if (links[i].href && links[i].href.indexOf('dark.css') !== -1) return 'cl-theme-dark';
+  }
+  // Generic: .dark class on root element
+  if (h.classList.contains('dark')) return 'cl-theme-dark';
+  // Body background luminance (skip transparent/rgba backgrounds)
+  var bg = window.getComputedStyle(document.body).backgroundColor;
+  if (bg && bg.indexOf('rgba') === -1 && bg.indexOf('rgb') !== -1) {
+    var m = bg.match(/\d+/g);
+    if (m && m.length >= 3 && (parseInt(m[0]) + parseInt(m[1]) + parseInt(m[2])) / 3 < 100) return 'cl-theme-dark';
+  }
+  return 'cl-theme-light';
+}
+
 var CSS = [
   '.cl-wrap{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif;--cl-card-border:rgba(128,128,128,.22);--cl-card-bg:rgba(128,128,128,.08);--cl-card-shadow:0 4px 12px rgba(0,0,0,.08);--cl-muted:rgba(92,102,120,.72);--cl-primary:rgba(0,122,255,.8);--cl-primary-border:rgba(0,122,255,.45);--cl-primary-soft:rgba(0,122,255,.08)}',
   '.cl-tabs{display:flex;border-bottom:2px solid rgba(128,128,128,.15);margin-bottom:18px}',
@@ -252,10 +275,10 @@ return view.extend({
       var link = document.createElement('link');
       link.id = 'cl-css-ext';
       link.rel = 'stylesheet';
-      link.href = L.resource('view/clashoo/clashoo.css') + '?v=20260425b1';
+      link.href = L.resource('view/clashoo/clashoo.css') + '?v=20260502b1';
       document.head.appendChild(link);
     } else {
-      document.getElementById('cl-css-ext').href = L.resource('view/clashoo/clashoo.css') + '?v=20260425b1';
+      document.getElementById('cl-css-ext').href = L.resource('view/clashoo/clashoo.css') + '?v=20260502b1';
     }
 
     if (coreType === 'singbox') return this._renderSingbox(sbData);
@@ -302,7 +325,7 @@ return view.extend({
     panelEls['dns'] = dnsPanel;
     this._buildDnsForm(dnsPanel);
 
-    return E('div', { 'class': 'cl-wrap clashoo-container cl-config-page cl-form-page' }, [tabBar, subPanel, proxyPanel, dnsPanel]);
+    return E('div', { 'class': 'cl-wrap clashoo-container cl-config-page cl-form-page ' + getThemeClass() }, [tabBar, subPanel, proxyPanel, dnsPanel]);
   },
 
   _buildSubsPanel: function (subsData, subFiles, upFiles, customFiles, tplFiles, uiData) {
@@ -717,7 +740,12 @@ return view.extend({
         if (h3 && h3.textContent.indexOf('Smart') >= 0) { smartSec = sections[i]; break; }
       }
       if (smartSec) {
-        var verText = modelStatus.has_model ? ('当前版本: ' + modelStatus.version) : '模型未安装';
+        var verEl = modelStatus.has_model
+          ? E('span', { 'class': 'cl-ver-tag' }, [
+              E('span', { 'class': 'cl-ver-label' }, '当前版本: '),
+              E('span', { 'class': 'cl-ver-value' }, modelStatus.version)
+            ])
+          : E('span', { 'class': 'cl-ver-tag cl-ver-label' }, '模型未安装');
         var upgBtn = E('button', { 'class': 'btn cbi-button-action', 'click': function () {
           upgBtn.disabled = true; upgBtn.textContent = '更新中...';
           callSmartUpgradeLgbm().then(function () {
@@ -728,8 +756,9 @@ return view.extend({
         smartSec.appendChild(E('div', { 'class': 'cbi-value' }, [
           E('label', { 'class': 'cbi-value-title' }, '更新模型'),
           E('div', { 'class': 'cbi-value-field' }, [
-            E('div', { 'class': 'cl-smart-action-row' }, [
-              upgBtn, E('span', { 'class': 'cl-hint' }, verText)
+            E('div', { 'class': 'cl-btn-ver-wrap' }, [
+              upgBtn,
+              verEl
             ])
           ])
         ]));
@@ -898,7 +927,7 @@ return view.extend({
       self._buildSbWizardPanel());
     panelEls['wizard'] = wizardPanel;
 
-    return E('div', { 'class': 'cl-wrap clashoo-container cl-config-page cl-form-page' }, [tabBar, profilesPanel, wizardPanel]);
+    return E('div', { 'class': 'cl-wrap clashoo-container cl-config-page cl-form-page ' + getThemeClass() }, [tabBar, profilesPanel, wizardPanel]);
   },
 
   _buildSbProfilesPanel: function (profiles, activeProfile) {

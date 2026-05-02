@@ -127,7 +127,8 @@ const callReadUpdateMergedLog  = rpc.declare({ object: 'luci.clashoo', method: '
 const callClearUpdateMergedLog = rpc.declare({ object: 'luci.clashoo', method: 'clear_update_merged_log', expect: {} });
 const callGetCpuArch    = rpc.declare({ object: 'luci.clashoo', method: 'get_cpu_arch',     expect: {} });
 const callDownloadCore  = rpc.declare({ object: 'luci.clashoo', method: 'download_core',    expect: {} });
-const callUpdateGeoip   = rpc.declare({ object: 'luci.clashoo', method: 'update_geoip',     expect: {} });
+const callUpdateGeoip      = rpc.declare({ object: 'luci.clashoo', method: 'update_geoip',      expect: {} });
+const callGetGeoipVersion  = rpc.declare({ object: 'luci.clashoo', method: 'get_geoip_version', expect: {} });
 const callUpdateChinaIp = rpc.declare({ object: 'luci.clashoo', method: 'update_china_ip',  expect: {} });
 const callGetLogStatus  = rpc.declare({ object: 'luci.clashoo', method: 'get_log_status',   expect: {} });
 const callAccessCheck       = rpc.declare({ object: 'luci.clashoo', method: 'access_check',       expect: {} });
@@ -178,7 +179,8 @@ return baseclass.extend({
 
     getCpuArch: function () { return L.resolveDefault(callGetCpuArch(), { arch: '' }).then(r => r.arch || ''); },
     downloadCore: function () { return L.resolveDefault(callDownloadCore(), {}); },
-    updateGeoip: function () { return L.resolveDefault(callUpdateGeoip(), {}); },
+    updateGeoip:      function () { return L.resolveDefault(callUpdateGeoip(),     {}); },
+    getGeoipVersion:  function () { return L.resolveDefault(callGetGeoipVersion(), { version: '' }); },
     updateChinaIp: function () { return L.resolveDefault(callUpdateChinaIp(), {}); },
     getLogStatus: function () { return L.resolveDefault(callGetLogStatus(), {}); },
     accessCheck:        function () { return L.resolveDefault(callAccessCheck(),      {}); },

@@ -7,6 +7,29 @@
 'require rpc';
 'require tools.clashoo as clashoo';
 
+function getThemeClass() {
+  var h = document.documentElement;
+  // Bootstrap: explicit data-bs-theme attribute wins first
+  if (h.dataset.bsTheme === 'dark') return 'cl-theme-dark';
+  if (h.dataset.bsTheme === 'light') return 'cl-theme-light';
+  // Argon: explicit darkmode attribute
+  if (h.dataset.darkmode === 'true') return 'cl-theme-dark';
+  // Argon: dark.css loaded in document = dark mode active (most reliable)
+  var links = document.querySelectorAll('link[rel="stylesheet"]');
+  for (var i = 0; i < links.length; i++) {
+    if (links[i].href && links[i].href.indexOf('dark.css') !== -1) return 'cl-theme-dark';
+  }
+  // Generic: .dark class on root element
+  if (h.classList.contains('dark')) return 'cl-theme-dark';
+  // Body background luminance (skip transparent/rgba backgrounds)
+  var bg = window.getComputedStyle(document.body).backgroundColor;
+  if (bg && bg.indexOf('rgba') === -1 && bg.indexOf('rgb') !== -1) {
+    var m = bg.match(/\d+/g);
+    if (m && m.length >= 3 && (parseInt(m[0]) + parseInt(m[1]) + parseInt(m[2])) / 3 < 100) return 'cl-theme-dark';
+  }
+  return 'cl-theme-light';
+}
+
 var callHostHints = rpc.declare({
   object: 'luci-rpc',
   method: 'getHostHints',
@@ -203,10 +226,10 @@ return view.extend({
       var link = document.createElement('link');
       link.id = 'cl-css-ext';
       link.rel = 'stylesheet';
-      link.href = L.resource('view/clashoo/clashoo.css') + '?v=20260425b1';
+      link.href = L.resource('view/clashoo/clashoo.css') + '?v=20260502b1';
       document.head.appendChild(link);
     } else {
-      document.getElementById('cl-css-ext').href = L.resource('view/clashoo/clashoo.css') + '?v=20260425b1';
+      document.getElementById('cl-css-ext').href = L.resource('view/clashoo/clashoo.css') + '?v=20260502b1';
     }
 
     var tabs = [
@@ -250,7 +273,7 @@ return view.extend({
     this._panelEls = panelEls;
     poll.add(L.bind(this._pollLogs, this), 8);
 
-    return E('div', { 'class': 'cl-wrap clashoo-container cl-system-page cl-form-page' }, [tabBar, kernelPanel, rulesPanel, logsPanel]);
+    return E('div', { 'class': 'cl-wrap clashoo-container cl-system-page cl-form-page ' + getThemeClass() }, [tabBar, kernelPanel, rulesPanel, logsPanel]);
   },
 
   _detectMihomoArch: function (raw) {
@@ -306,28 +329,31 @@ return view.extend({
     o.value('', 'GitHub 直连'); o.value('https://gh-proxy.com/', 'GHProxy');
     o = s.option(form.DummyValue, '_dl_btn', '');
     o.cfgvalue = function () {
-      var dlStatus = E('span', { style: 'font-size:12px;opacity:.65' }, '');
-      return E('div', { 'class': 'cl-actions', style: 'margin-top:0' }, [
-        E('button', {
-          'class': 'btn cbi-button-action',
-          click: function () {
-            dlStatus.textContent = '正在启动下载任务…';
-            m.save()
-              .then(function () { return clashoo.commitConfig(); })
-              .then(function () { return clashoo.clearUpdateLog(); })
-              .then(function () { return clashoo.downloadCore(); })
-              .then(function () { return clearClashooDirty(); })
-              .then(function () {
-                dlStatus.textContent = '下载任务已启动，可到日志查看进度';
-              })
-              .catch(function (e) {
-                dlStatus.textContent = '';
-                ui.addNotification(null, E('p', '启动下载失败: ' + (e.message || e)));
-              });
-          }
-        }, '下载内核'),
-        dlStatus
-      ]);
+      var dlStatus = E('span', { 'class': 'cl-ver-tag' }, '');
+      var dlBtn = E('button', {
+        'class': 'btn cbi-button-action',
+        click: function () {
+          dlBtn.disabled = true;
+          dlStatus.textContent = '正在启动下载任务…';
+          m.save()
+            .then(function () { return clashoo.commitConfig(); })
+            .then(function () { return clashoo.clearUpdateLog(); })
+            .then(function () { return clashoo.downloadCore(); })
+            .then(function () { return clearClashooDirty(); })
+            .then(function () {
+              dlBtn.disabled = false;
+              dlStatus.textContent = '下载已启动，正在跳转日志…';
+              self._switchTab('logs');
+              if (self._activateLogTab) self._activateLogTab('update');
+            })
+            .catch(function (e) {
+              dlBtn.disabled = false;
+              dlStatus.textContent = '';
+              ui.addNotification(null, E('p', '启动下载失败: ' + (e.message || e)));
+            });
+        }
+      }, '下载内核');
+      return E('div', { 'class': 'cl-btn-ver-wrap' }, [dlBtn, dlStatus]);
     };
     o.write = function () {};
 
@@ -340,17 +366,28 @@ return view.extend({
     o.value('2', 'GitHub'); o.value('4', '自定义');
     o = s.option(form.DummyValue, '_geo_btn', '');
     o.cfgvalue = function () {
-      return E('button', {
+      var verSpan = E('span', { 'class': 'cl-ver-tag' }, '');
+      clashoo.getGeoipVersion().then(function (r) {
+        if (r && r.version) {
+          verSpan.textContent = '';
+          verSpan.appendChild(E('span', { 'class': 'cl-ver-label' }, '当前版本: '));
+          verSpan.appendChild(E('span', { 'class': 'cl-ver-value' }, r.version));
+        }
+      });
+      var btn = E('button', {
         'class': 'btn cbi-button',
         click: function () {
+          btn.disabled = true;
           clashoo.updateGeoip().then(function () {
+            btn.disabled = false;
             ui.addNotification(null, E('p', 'GeoIP 更新任务已启动'));
             self._switchTab('logs');
             if (self._activateLogTab)
               self._activateLogTab('update');
-          });
+          }).catch(function () { btn.disabled = false; });
         }
       }, '立即更新 GeoIP');
+      return E('div', { 'class': 'cl-btn-ver-row' }, [btn, verSpan]);
     };
     o.write = function () {};
 

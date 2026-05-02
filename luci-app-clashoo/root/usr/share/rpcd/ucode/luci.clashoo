@@ -1464,7 +1464,7 @@ c.set('clashoo', 'config', 'enhanced_mode', 'fake-ip');
 }
 c.commit('clashoo');
 system('uci commit clashoo >/dev/null 2>&1');
-if (is_running()) system('service ' + get_service_name() + ' restart >/dev/null 2>&1');
+if (is_running()) system('sh /usr/share/clashoo/rpc/rpc_async.sh restart >/dev/null 2>&1');
 return { success: true };
 }
 },
@@ -1601,6 +1601,18 @@ return { success: true, started: true };
 update_geoip: {
 call: function() {
 return { success: system('sh /usr/share/clashoo/rpc/rpc_async.sh update_geoip >/dev/null 2>&1') == 0 };
+}
+},
+
+get_geoip_version: {
+call: function() {
+let f = '/etc/clashoo/Country.mmdb';
+let s = stat(f);
+if (!s) return { version: '' };
+let p = popen('date -d @' + s.mtime + ' "+%Y-%m-%d %H:%M:%S" 2>/dev/null || date -r ' + shell_quote(f) + ' "+%Y-%m-%d %H:%M:%S" 2>/dev/null');
+let ts = '';
+if (p) { ts = trim(p.read('all')); p.close(); }
+return { version: ts || ('' + s.mtime) };
 }
 },
 

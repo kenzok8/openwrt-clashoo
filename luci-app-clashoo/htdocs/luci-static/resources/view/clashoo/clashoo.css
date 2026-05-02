@@ -51,12 +51,12 @@
 }
 
 .cl-wrap.cl-theme-light {
-  --cl-card-bg: rgba(0, 0, 0, 0.02);
+  --cl-card-bg: #ffffff;
   --cl-card-border: rgba(0, 0, 0, 0.12);
   --cl-surface-border: rgba(0, 0, 0, 0.1);
-  --cl-control-bg: rgba(0, 0, 0, 0.02);
-  --cl-input-bg: rgba(0, 0, 0, 0.02);
-  --cl-input-border: rgba(0, 0, 0, 0.12);
+  --cl-control-bg: rgba(0, 0, 0, 0.03);
+  --cl-input-bg: #ffffff;
+  --cl-input-border: #c5c9d2;
   --cl-live-shell-bg: rgba(0, 0, 0, 0.02);
   --cl-live-card-bg: rgba(0, 0, 0, 0.03);
   --cl-live-border: rgba(0, 0, 0, 0.12);
@@ -1863,4 +1863,82 @@ html[data-bs-theme="dark"] .cl-wrap .cl-live-num {
     font-size: 12px;
     line-height: 1.4;
   }
+}
+
+/* 按钮 + 版本时间戳纵向堆叠（按钮上方，版本浅绿小字在下） */
+.cl-btn-ver-wrap {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.cl-ver-tag {
+  font-size: 12px;
+  word-break: break-word;
+}
+.cl-ver-label { color: rgba(128, 128, 128, 0.6); }
+.cl-ver-value { color: #4aa065; }
+
+/* GeoIP / 内核下载：按钮 + 版本文字横向同行 */
+.cl-btn-ver-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ══════════════════════════════════════════════════════════
+   浅色主题对比度修复 (Argon light / Bootstrap light)
+   - getThemeClass() 优先检测 dark.css 是否加载，返回 cl-theme-light
+   - overview 页面不在选择器内，不受影响
+   - 核心思路：表单容器灰色底，section 白卡片浮在上面
+   ══════════════════════════════════════════════════════════ */
+
+/* 1. CSS 变量覆盖 — 实色值取代半透明，确保白底上清晰可见 */
+.cl-wrap.cl-theme-light.cl-config-page,
+.cl-wrap.cl-theme-light.cl-system-page {
+  --cl-card-bg: #ffffff;
+  --cl-card-border: #d8dce6;
+  --cl-surface-border: #d8dce6;
+  --cl-card-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --cl-input-bg: #ffffff;
+  --cl-input-border: #c5c9d2;
+}
+
+/* 2. 表单容器灰色底：白卡片自然浮出 */
+.cl-wrap.cl-theme-light.cl-config-page .cbi-map,
+.cl-wrap.cl-theme-light.cl-system-page .cbi-map {
+  background: #e8eaf0 !important;
+  padding: 14px !important;
+  border-radius: 14px !important;
+  margin-top: 4px !important;
+}
+
+/* 3. Section 白底 — config & system 页面共用 */
+.cl-wrap.cl-theme-light.cl-config-page .cl-panel .cbi-section,
+.cl-wrap.cl-theme-light.cl-config-page .cl-section.cl-card,
+.cl-wrap.cl-theme-light.cl-config-page .cl-panel.cl-card,
+.cl-wrap.cl-theme-light.cl-system-page .cl-panel .cbi-section,
+.cl-wrap.cl-theme-light.cl-system-page .cl-section.cl-card,
+.cl-wrap.cl-theme-light.cl-system-page .cl-panel.cl-card {
+  background: #ffffff !important;
+  border: 1px solid #d8dce6 !important;
+  border-radius: 10px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07) !important;
+  padding: 14px 18px 18px !important;
+  margin-bottom: 12px !important;
+}
+
+/* 4. 输入框 / 下拉框 / 文本域 — 明确边框，白底文字清晰 */
+.cl-wrap.cl-theme-light.cl-config-page input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="file"]),
+.cl-wrap.cl-theme-light.cl-config-page select,
+.cl-wrap.cl-theme-light.cl-config-page textarea,
+.cl-wrap.cl-theme-light.cl-system-page input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="file"]),
+.cl-wrap.cl-theme-light.cl-system-page select,
+.cl-wrap.cl-theme-light.cl-system-page textarea {
+  background: #ffffff !important;
+  border: 1px solid #c5c9d2 !important;
+  border-radius: 6px !important;
+  color: inherit !important;
 }
