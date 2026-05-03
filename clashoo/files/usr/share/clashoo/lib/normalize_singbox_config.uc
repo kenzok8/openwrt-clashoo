@@ -641,46 +641,6 @@ if (!has_dns_hijack) {
 		action: 'hijack-dns'
 	});
 }
-
-// APNs 推送规则：Apple Push Notification 强制走代理
-{
-	let _apns_rules = [
-		{ "domain_suffix": "push.apple.com", "outbound": "📲 APNs 推送" },
-		{ "domain_keyword": "apple.com.edgekey.net", "outbound": "📲 APNs 推送" },
-		{ "ip_cidr": ["17.249.0.0/16", "17.252.0.0/16", "17.57.144.0/22", "17.188.128.0/18", "17.188.20.0/23", "2620:149:a44::/48", "2403:300:a42::/48", "2403:300:a51::/48", "2a01:b740:a42::/48"], "outbound": "📲 APNs 推送" }
-	];
-	// 避免重复注入（检查是否已有 push.apple.com 规则）
-	let _has_apns = false;
-	for (let _r in cfg.route.rules) {
-		if (_r && type(_r) == 'object' && _r.domain_suffix && type(_r.domain_suffix) == 'array') {
-			for (let _d in _r.domain_suffix) {
-				if (_d == 'push.apple.com') { _has_apns = true; break; }
-			}
-		}
-		if (_has_apns) break;
-	}
-	if (!_has_apns) {
-		// 添加 APNs 选择器出站（放在 📲 电报消息 与 🍏 苹果服务 之间）
-		{
-			let _apns_sel = { "type": "selector", "tag": "📲 APNs 推送", "outbounds": ["🚀 节点选择", "♻️ 自动选择", "DIRECT"] };
-			let _new_obs = [];
-			let _inserted = false;
-			for (let _ob = 0; _ob < length(cfg.outbounds); _ob++) {
-				push(_new_obs, cfg.outbounds[_ob]);
-				if (!_inserted && cfg.outbounds[_ob] && cfg.outbounds[_ob].tag == '📲 电报消息') {
-					push(_new_obs, _apns_sel);
-					_inserted = true;
-				}
-			}
-			if (!_inserted) push(_new_obs, _apns_sel);
-			cfg.outbounds = _new_obs;
-		}
-		// 插入 APNs 路由规则（最前面）
-		for (let _i = length(_apns_rules) - 1; _i >= 0; _i--)
-			unshift(cfg.route.rules, _apns_rules[_i]);
-	}
-}
-
 cfg.route.auto_detect_interface = true;
 apply_dns_from_uci();
 
