@@ -66,7 +66,7 @@ if [ -n "$TAG" ]; then
   if [ -n "$REL_HTML" ]; then
     # core
     F="$(printf '%s' "$REL_HTML" | grep -o "href=\"[^\"]*/download/${TAG}/clashoo[_-][^\"]*${ARCH}[^\"]*\.${EXT}\"" | sed 's/.*href="//;s/"//' | head -1)"
-    [ -n "$F" ] && CORE_URL="${GH_PROXY}/$(printf "%s" "$F" | sed "s/~/\./g")"
+    [ -n "$F" ] && CORE_URL="${GH_PROXY}/${F}"
     # luci
     if [ "$PM" = "opkg" ]; then
       F="$(printf '%s' "$REL_HTML" | grep -o "href=\"[^\"]*/download/${TAG}/luci-app-clashoo[^\"]*all\.${EXT}\"" | sed 's/.*href="//;s/"//' | head -1)"
