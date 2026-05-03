@@ -38,13 +38,9 @@ detect_arch() {
 }
 
 get_github_tag() {
-  # 通过重定向获取最新 Release tag（不依赖 JSON API）
-  if command -v curl >/dev/null 2>&1; then
-    LOCATION="$(curl -fsSL -o /dev/null -w '%{redirect_url}' "${GH_PROXY}/https://github.com/${GH_REPO}/releases/latest" 2>/dev/null || true)"
-  else
-    LOCATION="$(wget -qO- "${GH_PROXY}/https://github.com/${GH_REPO}/releases/latest" 2>/dev/null || true)"
-  fi
-  printf '%s' "$LOCATION" | sed 's/.*\/tag\///'
+  # 从仓库的 latest-release.txt 获取版本号（可通过 raw 正常访问）
+  TAG="$(fetch_text "${GH_PROXY}/https://raw.githubusercontent.com/${GH_REPO}/refs/heads/main/latest-release.txt" 2>/dev/null || true)"
+  printf '%s' "$TAG" | head -1 | tr -d ' \t\r\n'
 }
 
 PM="$(detect_pm)"
