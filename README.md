@@ -27,7 +27,7 @@
 ## 功能特性
 
 **双内核，一个界面**
-- **mihomo（Clash Meta）** — 稳定版 / Alpha 版 / **Smart 版**（[vernesong fork](https://github.com/vernesong/mihomo)，支持 `type: smart` 策略组）三选一，走 YAML 订阅
+- **mihomo（Clash Meta）** — 稳定版 / Alpha 版 / **Smart 版**（[openclash smart](https://github.com/vernesong/mihomo)，支持 `type: smart` 策略组）三选一，走 YAML 订阅
 - **sing-box** — 稳定版 / Alpha 版可切，走 JSON 配置文件
 - 内核切换无需重装，同一套 UCI 配置自动适配两端
 
@@ -211,7 +211,7 @@ wget -O - https://github.com/kenzok8/openwrt-clashoo/raw/refs/heads/main/scripts
 ## 致谢
 
 - [mihomo](https://github.com/MetaCubeX/mihomo) — Clash Meta 内核
-- [mihomo (vernesong fork)](https://github.com/vernesong/mihomo) — Smart 策略组支持
+- [openclash smart](https://github.com/vernesong/mihomo) — Smart 策略组支持
 - [sing-box](https://github.com/SagerNet/sing-box) — 通用代理平台
 - [fchomo](https://github.com/fcshark-org/openwrt-fchomo) — 参考实现
 - [nikki](https://github.com/nikkinikki-org/OpenWrt-nikki) — 参考实现
