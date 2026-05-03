@@ -1396,6 +1396,11 @@ _start_prepare_config() {
 	cp -f "$CONFIG_YAML" "${CLASH_CONFIG}/config.yaml" 2>/dev/null
 
 	ip_rules >/dev/null 2>&1
+
+	# normalise mihomo config (APNs injection, etc.)
+	if [ -x /usr/bin/ucode ] && [ -f /usr/share/clashoo/lib/normalize_mihomo_config.uc ]; then
+		ucode /usr/share/clashoo/lib/normalize_mihomo_config.uc "$CONFIG_YAML" >/dev/null 2>&1
+	fi
 }
 
 _start_launch_core() {
