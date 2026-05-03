@@ -4,7 +4,6 @@ set -eu
 
 GH_PROXY="https://ghfast.top"
 GH_REPO="kenzok8/openwrt-clashoo"
-B2_FEED_BASE_URL="https://kenzo111.s3.us-west-004.backblazeb2.com/clashoo"
 TMP_DIR="/tmp/clashoo-install"
 
 fetch_text() {
@@ -37,16 +36,6 @@ detect_arch() {
   fi
 }
 
-get_github_tag() {
-  # 通过重定向获取最新 Release tag（不依赖 JSON API）
-  if command -v curl >/dev/null 2>&1; then
-    LOCATION="$(curl -fsSL -o /dev/null -w '%{redirect_url}' "${GH_PROXY}/https://github.com/${GH_REPO}/releases/latest" 2>/dev/null || true)"
-  else
-    LOCATION="$(wget -qO- "${GH_PROXY}/https://github.com/${GH_REPO}/releases/latest" 2>/dev/null || true)"
-  fi
-  printf '%s' "$LOCATION" | sed 's/.*\/tag\///'
-}
-
 PM="$(detect_pm)"
 [ "$PM" = "unsupported" ] && { echo "Unsupported package manager"; exit 1; }
 
@@ -56,48 +45,52 @@ ARCH="$(detect_arch "$PM")"
 EXT="ipk"
 [ "$PM" = "apk" ] && EXT="apk"
 
-# ========== 从 GitHub Releases 拉取 ==========
-echo "Checking GitHub Releases..."
-TAG="$(get_github_tag)"
+# 获取最新 Release 的 tag（先 Pre-release，再 Latest）
+echo "Checking GitHub releases..."
+TAG=""
+
+# 方法1：从 releases 页面找 Pre-release
+REL_HTML="$(fetch_text "${GH_PROXY}/https://github.com/${GH_REPO}/releases" || true)"
+TAG="$(printf '%s' "$REL_HTML" | grep -B5 "Pre-release" | grep "/releases/tag/" | head -1 | sed 's/.*\/tag\/\([^"]*\).*/\1/')"
+
+# 方法2：没有 Pre-release，取 Latest
+if [ -z "$TAG" ]; then
+  if command -v curl >/dev/null 2>&1; then
+    LOCATION="$(curl -fsSL -o /dev/null -w '%{redirect_url}' "${GH_PROXY}/https://github.com/${GH_REPO}/releases/latest" 2>/dev/null || true)"
+  else
+    LOCATION="$(wget -qO- "${GH_PROXY}/https://github.com/${GH_REPO}/releases/latest" 2>/dev/null || true)"
+  fi
+  TAG="$(printf '%s' "$LOCATION" | sed 's/.*\/tag\///')"
+fi
+
+[ -z "$TAG" ] && { echo "Cannot find latest release"; exit 1; }
+echo "Release: ${TAG}"
+
+# 下载 Release 页面，提取文件链接
+REL_HTML="$(fetch_text "${GH_PROXY}/https://github.com/${GH_REPO}/releases/tag/${TAG}" || true)"
+[ -z "$REL_HTML" ] && { echo "Cannot fetch release page"; exit 1; }
+
 CORE_URL=""; LUCI_URL=""; I18N_URL=""
 
-if [ -n "$TAG" ]; then
-  echo "Release: ${TAG}"
+# core
+F="$(printf '%s' "$REL_HTML" | grep -o "href=\"[^\"]*/download/${TAG}/clashoo[_-][^\"]*${ARCH}[^\"]*\.${EXT}\"" | sed 's/.*href="//;s/"//' | head -1)"
+[ -n "$F" ] && CORE_URL="${GH_PROXY}/${F}"
 
-  # 下载 Release 页面提取文件链接
-  REL_HTML="$(fetch_text "${GH_PROXY}/https://github.com/${GH_REPO}/releases/tag/${TAG}" || true)"
-
-  if [ -n "$REL_HTML" ]; then
-    # core
-    F="$(printf '%s' "$REL_HTML" | grep -o "href=\"[^\"]*/download/${TAG}/clashoo[_-][^\"]*${ARCH}[^\"]*\.${EXT}\"" | sed 's/.*href="//;s/"//' | head -1)"
-    [ -n "$F" ] && CORE_URL="${GH_PROXY}/${F}"
-    # luci
-    if [ "$PM" = "opkg" ]; then
-      F="$(printf '%s' "$REL_HTML" | grep -o "href=\"[^\"]*/download/${TAG}/luci-app-clashoo[^\"]*all\.${EXT}\"" | sed 's/.*href="//;s/"//' | head -1)"
-      [ -n "$F" ] && LUCI_URL="${GH_PROXY}/${F}"
-      F="$(printf '%s' "$REL_HTML" | grep -o "href=\"[^\"]*/download/${TAG}/luci-i18n-clashoo-zh-cn[^\"]*all\.${EXT}\"" | sed 's/.*href="//;s/"//' | head -1)"
-      [ -n "$F" ] && I18N_URL="${GH_PROXY}/${F}"
-    fi
-  fi
+# luci-app
+if [ "$PM" = "opkg" ]; then
+  F="$(printf '%s' "$REL_HTML" | grep -o "href=\"[^\"]*/download/${TAG}/luci-app-clashoo[^\"]*all\.${EXT}\"" | sed 's/.*href="//;s/"//' | head -1)"
+  [ -n "$F" ] && LUCI_URL="${GH_PROXY}/${F}"
+  F="$(printf '%s' "$REL_HTML" | grep -o "href=\"[^\"]*/download/${TAG}/luci-i18n-clashoo-zh-cn[^\"]*all\.${EXT}\"" | sed 's/.*href="//;s/"//' | head -1)"
+  [ -n "$F" ] && I18N_URL="${GH_PROXY}/${F}"
+else
+  F="$(printf '%s' "$REL_HTML" | grep -o "href=\"[^\"]*/download/${TAG}/luci-app-clashoo[^\"]*${ARCH}[^\"]*\.${EXT}\"" | sed 's/.*href="//;s/"//' | head -1)"
+  [ -n "$F" ] && LUCI_URL="${GH_PROXY}/${F}"
+  F="$(printf '%s' "$REL_HTML" | grep -o "href=\"[^\"]*/download/${TAG}/luci-i18n-clashoo-zh-cn[^\"]*${ARCH}[^\"]*\.${EXT}\"" | sed 's/.*href="//;s/"//' | head -1)"
+  [ -n "$F" ] && I18N_URL="${GH_PROXY}/${F}"
 fi
 
-# ========== GitHub 失败则回退 B2 ==========
-if [ -z "$CORE_URL" ] || [ -z "$LUCI_URL" ]; then
-  echo "GitHub unavailable, falling back to B2 feed..."
-
-  for SDK in $(printf '%s\n' "$(sed -n "s/^DISTRIB_RELEASE=['\"]\([^'\"]*\)['\"]$/\1/p" /etc/openwrt_release | head -1 | grep -Eo '[0-9]+\.[0-9]+')" 24.10 23.05); do
-    # 尝试 manifest
-    M="$(fetch_text "${B2_FEED_BASE_URL}/${SDK}/${ARCH}/manifest.txt" || true)"
-    [ -n "$M" ] || continue
-    CORE_URL="${B2_FEED_BASE_URL}/${SDK}/${ARCH}/$(printf '%s' "$M" | sed -n 's/^core=//p')"
-    LUCI_URL="${B2_FEED_BASE_URL}/${SDK}/${ARCH}/$(printf '%s' "$M" | sed -n 's/^luci=//p')"
-    I18N_URL="${B2_FEED_BASE_URL}/${SDK}/${ARCH}/$(printf '%s' "$M" | sed -n 's/^i18n=//p')"
-    [ -n "$CORE_URL" ] && [ -n "$LUCI_URL" ] && break
-  done
-fi
-
-[ -z "$CORE_URL" ] && { echo "Cannot find core package"; exit 1; }
-[ -z "$LUCI_URL" ] && { echo "Cannot find luci package"; exit 1; }
+[ -z "$CORE_URL" ] && { echo "Cannot find core package for ${ARCH}"; exit 1; }
+[ -z "$LUCI_URL" ] && { echo "Cannot find luci package for ${ARCH}"; exit 1; }
 
 rm -rf "$TMP_DIR"
 mkdir -p "$TMP_DIR"
