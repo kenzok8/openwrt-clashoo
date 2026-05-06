@@ -502,6 +502,11 @@ return view.extend({
     if (self._coreSwitchBusy)
       return Promise.resolve();
 
+    if (targetCore === 'smart' && self._lastSt && self._lastSt.has_smart === false) {
+      ui.addNotification(null, E('p', '未检测到 Smart 内核。「更新模型」只更新 Smart 模型，不会安装 Smart 内核；请到「系统 → 内核更新」选择 mihomo Smart 版并下载。'));
+      return Promise.resolve();
+    }
+
     var currentEffective = self._effectiveCore(self._lastSt || {});
     if (targetCore === currentEffective)
       return Promise.resolve();
@@ -568,8 +573,10 @@ return view.extend({
 
     var mkBtn = function (core, label) {
       var active = core === effective;
+      var missingSmart = core === 'smart' && st && st.has_smart === false;
       return E('button', {
         type: 'button',
+        title: missingSmart ? '未检测到 Smart 内核；更新模型不会安装内核' : null,
         'class': 'cl-core-btn' + (active ? ' active' : ''),
         disabled: self._coreSwitchBusy ? '' : null,
         click: function (ev) {
