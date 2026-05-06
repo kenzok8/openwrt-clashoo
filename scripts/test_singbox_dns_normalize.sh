@@ -71,7 +71,7 @@ ucode "$UCODE" "$tmp/config.json" 7891 7982 7890 1 6666 1053 9191 secret "$tmp/c
 grep -q '\"client_subnet\": \"223.5.5.0/24\"' "$tmp/config.json"
 ! grep -q '\"independent_cache\"' "$tmp/config.json"
 grep -q '\"tag\": \"dns_direct\"' "$tmp/config.json"
-grep -q '\"final\": \"dns_proxy\"' "$tmp/config.json"
+grep -q '\"final\": \"dns_direct\"' "$tmp/config.json"
 grep -q '\"query_type\": \[ \"AAAA\" \], \"action\": \"reject\", \"method\": \"drop\"' "$tmp/config.json"
 grep -q '\"type\": \"tls\", \"tag\": \"dns_proxy\", \"server\": \"1.1.1.1\", \"server_port\": 853' "$tmp/config.json"
 grep -q '\"inbound\": \"dns-in\", \"action\": \"hijack-dns\"' "$tmp/config.json"
