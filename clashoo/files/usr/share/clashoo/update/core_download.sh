@@ -74,12 +74,12 @@ prefixed_url() {
 
 fetch_url_try() {
 	url="$1"
-	if command -v wget >/dev/null 2>&1; then
-		wget -qO- --timeout="$CONNECT_TIMEOUT" --tries=1 --no-check-certificate --user-agent="Clash/OpenWRT" "$url"
-		return $?
-	fi
 	if command -v curl >/dev/null 2>&1; then
 		curl -fsSL --connect-timeout "$CONNECT_TIMEOUT" --max-time "$REQUEST_TIMEOUT" -A "Clash/OpenWRT" "$url"
+		return $?
+	fi
+	if command -v wget >/dev/null 2>&1; then
+		wget -qO- --timeout="$CONNECT_TIMEOUT" --no-check-certificate --user-agent="Clash/OpenWRT" "$url"
 		return $?
 	fi
 	return 127
@@ -105,16 +105,21 @@ head_url_try() {
 		curl -fsSIL --connect-timeout "$CONNECT_TIMEOUT" --max-time "$REQUEST_TIMEOUT" -A "Clash/OpenWRT" "$url" >/dev/null 2>&1
 		return $?
 	fi
-	wget -q --spider --timeout="$CONNECT_TIMEOUT" --tries=1 --no-check-certificate --user-agent="Clash/OpenWRT" "$url"
+	wget -q --spider --timeout="$CONNECT_TIMEOUT" --no-check-certificate --user-agent="Clash/OpenWRT" "$url"
 }
 
 map_mihomo_arch() {
 	case "$1" in
-		x86_64) echo "linux-amd64" ;;
-		aarch64_cortex-a53|aarch64_generic) echo "linux-arm64" ;;
-		arm_cortex-a7_neon-vfpv4) echo "linux-armv7" ;;
-		mipsel_24kc) echo "linux-mipsle-softfloat" ;;
-		mips_24kc) echo "linux-mips-softfloat" ;;
+		amd64|x86_64) echo "linux-amd64" ;;
+		arm64|aarch64_cortex-a53|aarch64_generic) echo "linux-arm64" ;;
+		armv7|arm_cortex-a7_neon-vfpv4) echo "linux-armv7" ;;
+		armv6|arm_arm1176jzf-s_vfp) echo "linux-armv6" ;;
+		armv5|arm_arm926ej-s) echo "linux-armv5" ;;
+		386|i386_pentium4) echo "linux-386" ;;
+		mipsle|mipsel_24kc) echo "linux-mipsle-softfloat" ;;
+		mips|mips_24kc) echo "linux-mips-softfloat" ;;
+		mips64le|mips64el_mips64r2) echo "linux-mips64le" ;;
+		mips64|mips64_mips64r2) echo "linux-mips64" ;;
 		riscv64) echo "linux-riscv64" ;;
 		*) echo "linux-amd64" ;;
 	esac
@@ -356,7 +361,11 @@ fetch_latest_tag() {
 		i=1
 		while [ "$i" -le "$TAG_FETCH_RETRIES" ]; do
 			ensure_not_timed_out || return 1
-			tag="$(wget -S --spider --max-redirect=0 --timeout="$CONNECT_TIMEOUT" --tries=1 --no-check-certificate --user-agent="Clash/OpenWRT" "$u" 2>&1 | sed -n 's#^  Location: .*/releases/tag/\([^[:space:]]*\).*#\1#p' | head -n 1)"
+			if command -v curl >/dev/null 2>&1; then
+				tag="$(curl -fsSIL --connect-timeout "$CONNECT_TIMEOUT" --max-time "$REQUEST_TIMEOUT" -A "Clash/OpenWRT" "$u" 2>/dev/null | sed -n 's#^[Ll]ocation: .*/releases/tag/\([^[:space:]\r]*\).*#\1#p' | head -n 1)"
+			else
+				tag="$(wget -S --spider --timeout="$CONNECT_TIMEOUT" --no-check-certificate --user-agent="Clash/OpenWRT" "$u" 2>&1 | sed -n 's#^  Location: .*/releases/tag/\([^[:space:]]*\).*#\1#p' | head -n 1)"
+			fi
 			case "$tag" in
 				v*[-]*)
 					:
@@ -485,24 +494,30 @@ pick_mihomo_asset_by_url() {
 	ver="${tag#v}"
 	candidates=""
 
-	if [ "$channel" = "alpha" ]; then
+	if [ "$channel" = "alpha" ] || [ "$channel" = "smart" ]; then
 		if [ "$arch" = "linux-amd64" ]; then
-			candidates="mihomo-linux-amd64-alpha-*.gz mihomo-linux-amd64-compatible-alpha-*.gz"
+			if [ "$channel" = "smart" ]; then
+				candidates="mihomo-linux-amd64-alpha-smart-*.gz mihomo-linux-amd64-compatible-alpha-smart-*.gz"
+			else
+				candidates="mihomo-linux-amd64-alpha-*.gz mihomo-linux-amd64-compatible-alpha-*.gz"
+			fi
 		else
-			candidates="mihomo-${arch}-alpha-*.gz"
+			[ "$channel" = "smart" ] && candidates="mihomo-${arch}-alpha-smart-*.gz" || candidates="mihomo-${arch}-alpha-*.gz"
 		fi
 		assets_html="$(fetch_expanded_asset_names "$repo" "$tag")"
 		if [ -n "$assets_html" ]; then
 			for a in $(printf '%s\n' "$assets_html"); do
-				case "$a" in
-					mihomo-linux-amd64-alpha-*.gz|mihomo-linux-amd64-compatible-alpha-*.gz|mihomo-${arch}-alpha-*.gz)
+				for pat in $candidates; do
+					case "$a" in
+					$pat)
 						u="https://github.com/${repo}/releases/download/${tag}/${a}"
 						if pick_reachable_release_url "$u" >/dev/null 2>&1; then
 							echo "$a"
 							return 0
 						fi
 						;;
-				esac
+					esac
+				done
 			done
 		fi
 		return 1
@@ -571,12 +586,21 @@ pick_mihomo_asset() {
 	[ -z "$release_assets" ] && pick_mihomo_asset_by_url "$repo" "$tag" "$arch" "$channel" && return 0
 	[ -z "$release_assets" ] && return 1
 
-	if [ "$channel" = "alpha" ]; then
+	if [ "$channel" = "alpha" ] || [ "$channel" = "smart" ]; then
 		if [ "$arch" = "linux-amd64" ]; then
-			asset="$(printf '%s\n' "$release_assets" | sed -n 's#^\(mihomo-linux-amd64-alpha-[0-9a-fA-F]\{7,\}\.gz\)$#\1#p' | head -n 1)"
-			[ -z "$asset" ] && asset="$(printf '%s\n' "$release_assets" | sed -n 's#^\(mihomo-linux-amd64-compatible-alpha-[0-9a-fA-F]\{7,\}\.gz\)$#\1#p' | head -n 1)"
+			if [ "$channel" = "smart" ]; then
+				asset="$(printf '%s\n' "$release_assets" | sed -n 's#^\(mihomo-linux-amd64-alpha-smart-[0-9a-fA-F]\{7,\}\.gz\)$#\1#p' | head -n 1)"
+				[ -z "$asset" ] && asset="$(printf '%s\n' "$release_assets" | sed -n 's#^\(mihomo-linux-amd64-compatible-alpha-smart-[0-9a-fA-F]\{7,\}\.gz\)$#\1#p' | head -n 1)"
+			else
+				asset="$(printf '%s\n' "$release_assets" | sed -n 's#^\(mihomo-linux-amd64-alpha-[0-9a-fA-F]\{7,\}\.gz\)$#\1#p' | head -n 1)"
+				[ -z "$asset" ] && asset="$(printf '%s\n' "$release_assets" | sed -n 's#^\(mihomo-linux-amd64-compatible-alpha-[0-9a-fA-F]\{7,\}\.gz\)$#\1#p' | head -n 1)"
+			fi
 		else
-			asset="$(printf '%s\n' "$release_assets" | sed -n "s#^\\(mihomo-${arch}-alpha-[0-9a-fA-F]\\{7,\\}\\.gz\\)$#\\1#p" | head -n 1)"
+			if [ "$channel" = "smart" ]; then
+				asset="$(printf '%s\n' "$release_assets" | sed -n "s#^\\(mihomo-${arch}-alpha-smart-[0-9a-fA-F]\\{7,\\}\\.gz\\)$#\\1#p" | head -n 1)"
+			else
+				asset="$(printf '%s\n' "$release_assets" | sed -n "s#^\\(mihomo-${arch}-alpha-[0-9a-fA-F]\\{7,\\}\\.gz\\)$#\\1#p" | head -n 1)"
+			fi
 		fi
 		[ -n "$asset" ] && echo "$asset" && return 0
 		pick_mihomo_asset_by_url "$repo" "$tag" "$arch" "$channel"
@@ -768,16 +792,16 @@ if [ "$CORETYPE" = "1" ]; then
 	write_log "已选择内核通道：mihomo Smart 版（vernesong fork）"
 	TAG="Prerelease-Alpha"
 	write_log "正在获取 GitHub Release 信息..."
-	ASSET=$(pick_mihomo_asset "vernesong/mihomo" "$TAG" "$(map_mihomo_arch "$MODELTYPE")" "alpha")
+	ASSET=$(pick_mihomo_asset "vernesong/mihomo" "$TAG" "$(map_mihomo_arch "$MODELTYPE")" "smart")
 	if [ -z "$ASSET" ]; then
 		ALT_TAG=$(fetch_prerelease_tag "vernesong/mihomo")
 		[ -n "$ALT_TAG" ] && TAG="$ALT_TAG"
-		ASSET=$(pick_mihomo_asset "vernesong/mihomo" "$TAG" "$(map_mihomo_arch "$MODELTYPE")" "alpha")
+		ASSET=$(pick_mihomo_asset "vernesong/mihomo" "$TAG" "$(map_mihomo_arch "$MODELTYPE")" "smart")
 	fi
 	URL="https://github.com/vernesong/mihomo/releases/download/${TAG}/${ASSET}"
 	TARGET="/usr/bin/smart"
 	VERSION_FILE="/usr/share/clashoo/mihomo_version"
-	VERSION_VALUE="smart-$(printf '%s\n' "$ASSET" | sed -n 's#^mihomo-.*-alpha-\([0-9a-fA-F]\{7,\}\)\.gz$#\1#p' | head -n 1)"
+	VERSION_VALUE="smart-$(printf '%s\n' "$ASSET" | sed -n 's#^mihomo-.*-alpha-smart-\([0-9a-fA-F]\{7,\}\)\.gz$#\1#p' | head -n 1)"
 	[ "$VERSION_VALUE" = "smart-" ] && VERSION_VALUE="smart-${TAG}"
 elif [ "$CORETYPE" = "2" ]; then
 	write_log "已选择内核通道：稳定版"
