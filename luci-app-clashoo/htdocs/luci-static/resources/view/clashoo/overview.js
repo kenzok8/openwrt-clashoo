@@ -470,8 +470,8 @@ return view.extend({
     return f + ' ' + c;
   },
 
-  _configuredChannel: function (family) {
-    var dcore = uci.get('clashoo', 'config', 'dcore') || '2';
+  _configuredChannel: function (family, st) {
+    var dcore = (st && st.dcore) || uci.get('clashoo', 'config', 'dcore') || '2';
     if (family === 'singbox')
       return dcore === '5' ? 'alpha' : 'stable';
     if (dcore === '1') return 'smart';
@@ -506,7 +506,7 @@ return view.extend({
     if (targetCore === currentEffective)
       return Promise.resolve();
 
-    var currentDcore = uci.get('clashoo', 'config', 'dcore') || '2';
+    var currentDcore = (self._lastSt && self._lastSt.dcore) || uci.get('clashoo', 'config', 'dcore') || '2';
     var rpcCore, nextDcore, targetLabel;
     if (targetCore === 'smart') {
       rpcCore = 'mihomo'; nextDcore = '1'; targetLabel = 'Smart';
@@ -630,7 +630,7 @@ return view.extend({
     var statusKnown = st && typeof st.running === 'boolean';
     var running = statusKnown && st.running === true;
     var health = st.health_status || 'unknown';
-    var configuredCoreLabel = this._coreLabel(st.core_type, this._configuredChannel(st.core_type));
+    var configuredCoreLabel = this._coreLabel(st.core_type, this._configuredChannel(st.core_type, st));
 
     var statusChildren = [
       !statusKnown
