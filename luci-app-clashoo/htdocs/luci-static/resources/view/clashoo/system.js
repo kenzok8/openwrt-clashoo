@@ -50,6 +50,23 @@ var CSS = [
   '.cl-log-tabs{display:flex;gap:8px;margin-bottom:8px}',
   '.cl-log-tab{padding:4px 12px;border:1px solid rgba(128,128,128,.2);border-radius:20px;font-size:12px;cursor:pointer;opacity:.6}',
   '.cl-log-tab.active{opacity:1;font-weight:600;background:rgba(128,128,128,.1)}',
+  /* 诊断 tab */
+  '.cl-diag-row{display:flex;gap:10px;align-items:center;margin-bottom:6px;flex-wrap:wrap}',
+  '.cl-diag-input{flex:1;min-width:240px;max-width:480px;font-size:13px}',
+  '.cl-diag-hint{font-size:12px;opacity:.6}',
+  '.cl-diag-result{margin-top:14px}',
+  '.cl-diag-table{width:100%;border-collapse:collapse;font-size:12.5px}',
+  '.cl-diag-table th,.cl-diag-table td{text-align:left;padding:6px 10px;border-bottom:1px solid rgba(128,128,128,.12);vertical-align:top}',
+  '.cl-diag-table th{font-weight:600;color:var(--cl-label-muted,rgba(92,102,120,.72));width:90px;white-space:nowrap}',
+  '.cl-diag-mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}',
+  '.cl-diag-proxy{font-weight:600}',
+  '.cl-diag-empty{font-size:12.5px;opacity:.65;padding:6px 0}',
+  '.cl-diag-error{font-size:13px;color:var(--cl-danger,#d33);padding:6px 0}',
+  '.cl-diag-badge{display:inline-block;font-size:12px;padding:3px 10px;border-radius:12px;margin-bottom:8px}',
+  '.cl-diag-hit{background:rgba(46,160,67,.12);color:#1f7a37}',
+  '.cl-diag-warn{background:rgba(231,170,60,.18);color:#a86b00}',
+  '.cl-diag-note{font-size:12px;opacity:.75;margin-bottom:8px}',
+  '.cl-diag-tip{font-size:11.5px;opacity:.6;margin-top:8px;padding-top:8px;border-top:1px dashed rgba(128,128,128,.18)}',
   /* 统一 form.Map 字体大小与 config 页一致 */
   '.cl-panel .cbi-section>h3{font-size:13px !important;font-weight:600;margin-bottom:8px}',
   '.cl-panel .cbi-value-title{font-size:13px !important}',
@@ -233,9 +250,10 @@ return view.extend({
     }
 
     var tabs = [
-      { id: 'kernel', label: '内核与数据' },
-      { id: 'rules',  label: '规则与控制' },
-      { id: 'logs',   label: '日志' }
+      { id: 'kernel',   label: '内核与数据' },
+      { id: 'rules',    label: '规则与控制' },
+      { id: 'diagnose', label: '诊断' },
+      { id: 'logs',     label: '日志' }
     ];
     var tabEls = {}, panelEls = {};
 
@@ -264,6 +282,10 @@ return view.extend({
     panelEls['rules'] = rulesPanel;
     this._buildRulesForm(rulesPanel);
 
+    var diagnosePanel = E('div', { 'class': 'cl-panel' + (this._tab === 'diagnose' ? ' active' : ''), id: 'cl-panel-diagnose' });
+    panelEls['diagnose'] = diagnosePanel;
+    this._buildDiagnosePanel(diagnosePanel);
+
     var logsPanel = E('div', { 'class': 'cl-panel' + (this._tab === 'logs' ? ' active' : ''), id: 'cl-panel-logs' },
       this._buildLogsPanel(runLog)
     );
@@ -273,7 +295,7 @@ return view.extend({
     this._panelEls = panelEls;
     poll.add(L.bind(this._pollLogs, this), 8);
 
-    return E('div', { 'class': 'cl-wrap clashoo-container cl-system-page cl-form-page ' + getThemeClass() }, [tabBar, kernelPanel, rulesPanel, logsPanel]);
+    return E('div', { 'class': 'cl-wrap clashoo-container cl-system-page cl-form-page ' + getThemeClass() }, [tabBar, kernelPanel, rulesPanel, diagnosePanel, logsPanel]);
   },
 
   _detectMihomoArch: function (raw) {
@@ -497,6 +519,105 @@ return view.extend({
         }}, '应用配置')
       ]));
     });
+  },
+
+  _buildDiagnosePanel: function (container) {
+    var self = this;
+
+    var input = E('input', {
+      type: 'text',
+      placeholder: 'youtube.com',
+      'class': 'cbi-input-text cl-diag-input',
+      keydown: function (ev) { if (ev.keyCode === 13) { ev.preventDefault(); runBtn.click(); } }
+    });
+    var hint = E('div', { 'class': 'cl-diag-hint' }, '输入域名后点击查询，看 DNS 解析结果与首条命中规则。');
+    var resultBox = E('div', { 'class': 'cl-diag-result' });
+
+    var renderResult = function (res) {
+      resultBox.innerHTML = '';
+      if (!res || !res.success) {
+        resultBox.appendChild(E('div', { 'class': 'cl-diag-error' }, (res && res.message) || '查询失败'));
+        return;
+      }
+
+      // DNS card
+      var dnsBody;
+      if (!res.dns.ok) {
+        dnsBody = E('div', { 'class': 'cl-diag-empty' }, res.dns.error || '未取得 DNS 结果');
+      } else if (!res.dns.answers || !res.dns.answers.length) {
+        dnsBody = E('div', { 'class': 'cl-diag-empty' }, '无应答记录（域名不存在或被拦截）');
+      } else {
+        var rows = [E('tr', {}, [
+          E('th', {}, '类型'), E('th', {}, 'IP / 数据'), E('th', {}, 'TTL')
+        ])];
+        res.dns.answers.forEach(function (a) {
+          rows.push(E('tr', {}, [
+            E('td', {}, a.type), E('td', { 'class': 'cl-diag-mono' }, a.data), E('td', {}, String(a.ttl || 0) + 's')
+          ]));
+        });
+        dnsBody = E('table', { 'class': 'cl-diag-table' }, rows);
+      }
+      resultBox.appendChild(E('div', { 'class': 'cl-section cl-card' }, [
+        E('h4', {}, 'DNS 解析'), dnsBody
+      ]));
+
+      // Rule card
+      var ruleBody;
+      if (!res.rule.ok) {
+        ruleBody = E('div', { 'class': 'cl-diag-empty' }, res.rule.note || '未取得规则数据');
+      } else if (res.rule.matched && res.rule.hit) {
+        var h = res.rule.hit;
+        ruleBody = E('div', {}, [
+          E('div', { 'class': 'cl-diag-badge cl-diag-hit' }, '✓ 命中（静态分析）'),
+          E('table', { 'class': 'cl-diag-table' }, [
+            E('tr', {}, [E('th', {}, '位置'), E('td', {}, '#' + (h.index + 1) + ' / ' + res.rule.total)]),
+            E('tr', {}, [E('th', {}, '规则类型'), E('td', { 'class': 'cl-diag-mono' }, h.type)]),
+            E('tr', {}, [E('th', {}, '规则内容'), E('td', { 'class': 'cl-diag-mono' }, h.payload || '—')]),
+            E('tr', {}, [E('th', {}, '出站策略'), E('td', { 'class': 'cl-diag-mono cl-diag-proxy' }, h.proxy || '—')])
+          ])
+        ]);
+      } else if (res.rule.stopped_at) {
+        var s = res.rule.stopped_at;
+        ruleBody = E('div', {}, [
+          E('div', { 'class': 'cl-diag-badge cl-diag-warn' }, '⚠ 静态分析停在复杂规则'),
+          E('div', { 'class': 'cl-diag-note' }, res.rule.note || ''),
+          E('table', { 'class': 'cl-diag-table' }, [
+            E('tr', {}, [E('th', {}, '位置'), E('td', {}, '#' + (s.index + 1) + ' / ' + res.rule.total)]),
+            E('tr', {}, [E('th', {}, '规则类型'), E('td', { 'class': 'cl-diag-mono' }, s.type)]),
+            E('tr', {}, [E('th', {}, '规则内容'), E('td', { 'class': 'cl-diag-mono' }, s.payload || '—')]),
+            E('tr', {}, [E('th', {}, '出站策略'), E('td', { 'class': 'cl-diag-mono cl-diag-proxy' }, s.proxy || '—')])
+          ]),
+          E('div', { 'class': 'cl-diag-tip' }, '提示：GeoSite / Rule-Set 等需要内核运行时判定，下个迭代会加入实时连接探测。')
+        ]);
+      } else {
+        ruleBody = E('div', { 'class': 'cl-diag-empty' }, '走完全部 ' + res.rule.total + ' 条规则未命中（按 final 出站处理）');
+      }
+      resultBox.appendChild(E('div', { 'class': 'cl-section cl-card' }, [
+        E('h4', {}, '规则匹配'), ruleBody
+      ]));
+    };
+
+    var runBtn = E('button', {
+      'class': 'btn cbi-button-action',
+      click: function () {
+        var v = (input.value || '').trim();
+        if (!v) { input.focus(); return; }
+        runBtn.disabled = true;
+        var orig = runBtn.textContent;
+        runBtn.textContent = '查询中…';
+        clashoo.diagnoseDomain(v)
+          .then(function (res) { renderResult(res); })
+          .catch(function (e) { renderResult({ success: false, message: '请求失败：' + (e.message || e) }); })
+          .then(function () { runBtn.disabled = false; runBtn.textContent = orig; });
+      }
+    }, '查询');
+
+    container.appendChild(E('div', { 'class': 'cl-section cl-card' }, [
+      E('h4', {}, '域名诊断'),
+      E('div', { 'class': 'cl-diag-row' }, [input, runBtn]),
+      hint
+    ]));
+    container.appendChild(resultBox);
   },
 
   _buildLogsPanel: function (runLog) {

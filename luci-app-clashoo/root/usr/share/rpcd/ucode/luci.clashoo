@@ -1462,6 +1462,119 @@ return { success: rc === 0 };
 }
 },
 
+diagnose_domain: {
+args: { domain: 'string' },
+call: function(req) {
+let domain = trim(req.args?.domain || '');
+if (length(domain) === 0)
+return { success: false, message: '请输入域名或 IP' };
+
+/* 简单字符过滤，防止注入 */
+let safe = replace(domain, /[^A-Za-z0-9.\-_:]/g, '');
+if (length(safe) === 0)
+return { success: false, message: '域名格式无效' };
+
+if (!is_running())
+return { success: false, message: '代理服务未运行，请先启动 Clashoo 再试' };
+
+let lower = lc(safe);
+
+/* 1. DNS 解析 */
+let dns_out = { ok: false, answers: [], status: -1, error: '' };
+let dns_resp = clash_api_json('/dns/query?name=' + safe + '&type=A', 8);
+if (!dns_resp) {
+	dns_out.error = '调用 clash_api /dns/query 失败（请检查 dash_port 与 secret）';
+} else if (type(dns_resp.message) === 'string' && type(dns_resp.Answer) !== 'array') {
+	/* mihomo / sing-box 错误响应：{ "message": "context deadline exceeded" } 等 */
+	dns_out.error = '解析失败：' + dns_resp.message;
+} else {
+	dns_out.ok = true;
+	dns_out.status = (type(dns_resp.Status) === 'int') ? dns_resp.Status : 0;
+	if (type(dns_resp.Answer) === 'array') {
+		for (let a in dns_resp.Answer) {
+			let tnum = a.type;
+			let tname = (tnum === 1) ? 'A' : (tnum === 28) ? 'AAAA' : (tnum === 5) ? 'CNAME' : ('TYPE' + tnum);
+			push(dns_out.answers, {
+				name: a.name || safe,
+				type: tname,
+				ttl: a.TTL || 0,
+				data: a.data || ''
+			});
+		}
+	}
+}
+
+/* 2. 静态规则匹配：从上至下走 /rules */
+let rules_resp = clash_api_json('/rules', 4);
+let rule_out = {
+	ok: false,
+	matched: false,
+	hit: null,
+	stopped_at: null,
+	total: 0,
+	note: ''
+};
+
+if (!rules_resp || type(rules_resp.rules) !== 'array') {
+	rule_out.note = '调用 clash_api /rules 失败';
+} else {
+	rule_out.ok = true;
+	rule_out.total = length(rules_resp.rules);
+
+	function ends_with_dot(s, suffix) {
+		let dot_suf = '.' + suffix;
+		if (length(s) <= length(dot_suf)) return false;
+		return substr(s, length(s) - length(dot_suf)) === dot_suf;
+	}
+
+	for (let i = 0; i < length(rules_resp.rules); i++) {
+		let r = rules_resp.rules[i];
+		if (!r || !r.type) continue;
+		let t = lc(r.type);
+		let payload = r.payload || '';
+		let plow = lc(payload);
+
+		if (t === 'domain' && lower === plow) {
+			rule_out.matched = true;
+			rule_out.hit = { index: i, type: r.type, payload: payload, proxy: r.proxy || '' };
+			break;
+		}
+		if (t === 'domain-suffix' && (lower === plow || ends_with_dot(lower, plow))) {
+			rule_out.matched = true;
+			rule_out.hit = { index: i, type: r.type, payload: payload, proxy: r.proxy || '' };
+			break;
+		}
+		if (t === 'domain-keyword' && plow !== '' && index(lower, plow) >= 0) {
+			rule_out.matched = true;
+			rule_out.hit = { index: i, type: r.type, payload: payload, proxy: r.proxy || '' };
+			break;
+		}
+		if (t === 'match' || t === 'final') {
+			rule_out.matched = true;
+			rule_out.hit = { index: i, type: r.type, payload: payload || '*', proxy: r.proxy || '' };
+			break;
+		}
+
+		/* 复杂规则无法静态判定，停在第一条遇到的复杂规则 */
+		if (t === 'geosite' || t === 'rule-set' || t === 'ip-cidr' || t === 'ip-cidr6'
+			|| t === 'src-ip-cidr' || t === 'process-name' || t === 'and' || t === 'or' || t === 'not'
+			|| t === 'geoip' || t === 'src-geoip') {
+			rule_out.stopped_at = { index: i, type: r.type, payload: payload, proxy: r.proxy || '' };
+			rule_out.note = '遇到复杂规则（' + r.type + '），需运行时探测才能确定是否命中';
+			break;
+		}
+	}
+}
+
+return {
+	success: true,
+	domain: safe,
+	dns: dns_out,
+	rule: rule_out
+};
+}
+},
+
 dns_auto_setup: {
 call: function() {
 let running = is_running();

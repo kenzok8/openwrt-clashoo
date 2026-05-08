@@ -146,6 +146,7 @@ const callDeleteSingboxProfile  = rpc.declare({ object: 'luci.clashoo', method: 
 const callCreateSingboxConfig   = rpc.declare({ object: 'luci.clashoo', method: 'create_singbox_config',   params: ['sub_url', 'name', 'secret'], expect: {} });
 const callCommitConfig          = rpc.declare({ object: 'luci.clashoo', method: 'commit_config',            expect: {} });
 const callDnsAutoSetup          = rpc.declare({ object: 'luci.clashoo', method: 'dns_auto_setup',           expect: {} });
+const callDiagnoseDomain        = rpc.declare({ object: 'luci.clashoo', method: 'diagnose_domain',          params: ['domain'], expect: {} });
 const callFetchSingboxNative    = rpc.declare({ object: 'luci.clashoo', method: 'fetch_singbox_native',    params: ['url', 'name'],  expect: {} });
 const callUpdateSingboxNative   = rpc.declare({ object: 'luci.clashoo', method: 'update_singbox_native',   params: ['name'],         expect: {} });
 
@@ -207,6 +208,7 @@ return baseclass.extend({
     createSingboxConfig:  function (url, name, secret) { return L.resolveDefault(callCreateSingboxConfig(url, name, secret), {}); },
     commitConfig:         function ()               { return L.resolveDefault(callCommitConfig(),               { success: false }); },
     dnsAutoSetup:         function ()               { return L.resolveDefault(callDnsAutoSetup(),               { success: false }); },
+    diagnoseDomain:       function (domain)          { return L.resolveDefault(callDiagnoseDomain(domain),       { success: false }); },
     fetchSingboxNative:   function (url, name)      { return L.resolveDefault(callFetchSingboxNative(url, name), {}); },
     updateSingboxNative:  function (name)           { return L.resolveDefault(callUpdateSingboxNative(name),     {}); },
 

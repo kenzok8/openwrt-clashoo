@@ -1620,6 +1620,7 @@ html[data-bs-theme="dark"] .cl-wrap .cl-live-num {
 
 .cl-wrap.cl-system-page #cl-panel-kernel .cbi-section > h3,
 .cl-wrap.cl-system-page #cl-panel-rules .cbi-section > h3,
+.cl-wrap.cl-system-page #cl-panel-diagnose .cl-section > h4,
 .cl-wrap.cl-system-page #cl-panel-logs .cl-section > h4 {
   display: flex !important;
   align-items: center !important;
@@ -1636,6 +1637,7 @@ html[data-bs-theme="dark"] .cl-wrap .cl-live-num {
 
 .cl-wrap.cl-system-page #cl-panel-kernel .cbi-section > h3::before,
 .cl-wrap.cl-system-page #cl-panel-rules .cbi-section > h3::before,
+.cl-wrap.cl-system-page #cl-panel-diagnose .cl-section > h4::before,
 .cl-wrap.cl-system-page #cl-panel-logs .cl-section > h4::before {
   content: '' !important;
   width: 3px !important;
