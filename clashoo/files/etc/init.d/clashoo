@@ -83,11 +83,18 @@ _wait_core_alive() {
 _rollback_failed_start() {
 	log_msg "Rolling back failed start" "启动失败，正在回退防火墙与 DNS 配置"
 	backend_remove_rules >/dev/null 2>&1
+		cleanup_stale_core_nft >/dev/null 2>&1
 	revert_dns >/dev/null 2>&1
 	stop_singbox_service >/dev/null 2>&1
 	_kill_core >/dev/null 2>&1
 	rm -rf /www/luci-static/yacd 2>/dev/null
 	del_cron >/dev/null 2>&1
+}
+
+cleanup_stale_core_nft() {
+	for _nft_table in "inet mihomo" "inet sing-box"; do
+		nft delete table $_nft_table 2>/dev/null || true
+	done
 }
 
 _core_candidates() {
@@ -1478,6 +1485,7 @@ stop_service(){
 			log_msg "Stopping Clashoo" "正在停止 Clashoo"
 		log_msg "Removing firewall rules" "清理防火墙规则"
 		backend_remove_rules >/dev/null 2>&1
+		cleanup_stale_core_nft >/dev/null 2>&1
 		revert_dns >/dev/null 2>&1
 
 			sh /usr/share/clashoo/runtime/backup.sh >/dev/null 2>&1
