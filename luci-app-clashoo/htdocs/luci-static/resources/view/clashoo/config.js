@@ -66,8 +66,7 @@ var CSS = [
   '.cl-rewrite-wrap{max-width:760px;padding:0;border:0;background:transparent;box-shadow:none}',
   '.cl-rewrite-group{display:flex;flex-direction:column;gap:8px}',
   '.cl-rewrite-group-title{font-size:12px;font-weight:700;opacity:.68}',
-  '.cl-rw-divider{height:1px;background:rgba(128,128,128,.18);margin:10px 0}' +
-  '
+  '.cl-rw-divider{height:1px;background:rgba(128,128,128,.18);margin:10px 0}',
   '.cl-rewrite-wrap .cl-sub-url,.cl-rewrite-wrap .cbi-input-select{padding:8px 12px;border-radius:6px;width:100%;box-sizing:border-box;margin-bottom:0}',
   '.cl-rewrite-actions{margin-top:4px}',
   '.cl-actions{display:flex;gap:8px;flex-wrap:wrap}',
@@ -748,7 +747,8 @@ return view.extend({
             E('div', { 'class': 'cl-actions cl-rewrite-actions' }, [
               E('button', { 'class': 'btn cbi-button cl-btn-sm', click: function(){ rwApply(false); } }, '生成配置'),
               E('button', { 'class': 'btn cbi-button-action cl-btn-sm cl-btn-generate-switch', click: function(){ rwApply(true); } }, '应用配置')
-  
+            ])
+          ])
         ])
       ])
     );
