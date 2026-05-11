@@ -626,7 +626,6 @@ revert_dns() {
 }
 
 add_cron(){
-config_type=$(uci get clashoo.config.config_type 2>/dev/null)
 #===========================================================================================================================
 	clear=$(uci get clashoo.config.auto_clear_log 2>/dev/null)
 	if [ "${clear:-0}" -eq 1 ]; then

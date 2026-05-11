@@ -1670,7 +1670,7 @@ if (access('/var/run/core_update', 'r'))
 return { success: true, started: false, running: true };
 let dc = req.args?.dcore || '';
 let arch = req.args?.arch || '';
-if (dc) {
+if (dc && dc != '0' && match(dc, /^[1-5]$/)) {
 	let c = cursor(); c.load('clashoo');
 	c.set('clashoo', 'config', 'dcore', dc);
 	if (arch) c.set('clashoo', 'config', 'download_core', arch);
