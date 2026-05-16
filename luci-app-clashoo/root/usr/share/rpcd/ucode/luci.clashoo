@@ -60,6 +60,25 @@ function shell_quote(s) {
 return "'" + replace(s || '', /'/g, "'\\''") + "'";
 }
 
+function dashboard_panel_dir(name) {
+if (name == 'metacubexd') return '/etc/clashoo/dashboard-metacubexd';
+if (name == 'yacd') return '/etc/clashoo/dashboard-yacd';
+if (name == 'zashboard') return '/etc/clashoo/dashboard-zashboard';
+if (name == 'razord') return '/etc/clashoo/dashboard-razord';
+return '/etc/clashoo/dashboard-zashboard';
+}
+
+function activate_dashboard_panel(name) {
+let dir = dashboard_panel_dir(name);
+if (!access(dir + '/index.html', 'r'))
+return false;
+system('rm -rf /etc/clashoo/dashboard /www/luci-static/yacd >/dev/null 2>&1');
+system('ln -s ' + shell_quote(dir) + ' /etc/clashoo/dashboard >/dev/null 2>&1 || cp -a ' + shell_quote(dir) + ' /etc/clashoo/dashboard >/dev/null 2>&1');
+if (name == 'yacd')
+system('ln -s ' + shell_quote(dir) + ' /www/luci-static/yacd >/dev/null 2>&1');
+return true;
+}
+
 function get_core_type() {
 let core_type = uci_get('clashoo', 'config', 'core_type');
 if (core_type == 'singbox') return 'singbox';
@@ -1614,7 +1633,8 @@ let c = cursor(); c.load('clashoo');
 c.set('clashoo', 'config', 'dashboard_panel', name);
 c.commit('clashoo');
 system('uci commit clashoo >/dev/null 2>&1');
-return { success: true };
+let activated = activate_dashboard_panel(name);
+return { success: true, activated };
 }
 },
 
