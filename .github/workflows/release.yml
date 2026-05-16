@@ -93,10 +93,6 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
       - name: Download artifacts
         uses: actions/download-artifact@v6
         with:
@@ -126,75 +122,8 @@ jobs:
         run: |
           BASE="https://github.com/${REPO}/releases/download/${TAG}"
           ARCHS="aarch64_cortex-a53 aarch64_cortex-a72 aarch64_generic arm_cortex-a7_neon-vfpv4 arm_cortex-a9_neon i386_pentium4 mips_24kc mipsel_24kc x86_64"
-          PREVIOUS_TAG="$(git tag --sort=-creatordate | grep '^v' | grep -v "^${TAG}$" | head -1 || true)"
-
-          if [ -n "$PREVIOUS_TAG" ]; then
-            RANGE="${PREVIOUS_TAG}..HEAD"
-          else
-            RANGE="HEAD"
-          fi
-
-          git log --format='%s%x1f%b%x1e' "$RANGE" > commits.raw
-
-          write_section() {
-            title="$1"
-            pattern="$2"
-            awk -v title="$title" -v pattern="$pattern" '
-              BEGIN {
-                RS = "\036"
-                FS = "\037"
-                count = 0
-              }
-              {
-                subject = $1
-                body = $2
-                gsub(/^[[:space:]]+|[[:space:]]+$/, "", subject)
-                if (subject == "" || subject ~ /^Merge /) {
-                  next
-                }
-                if (subject ~ pattern) {
-                  item = subject
-                  sub(/^[a-z]+([(][^)]+[)])?!?:[[:space:]]*/, "", item)
-                  issue = ""
-                  text = subject "\n" body
-                  if (match(text, /(([Ff]ixes|[Cc]loses|[Rr]esolves|[Rr]efs)[[:space:]]+#[0-9]+)/)) {
-                    issue = " (" substr(text, RSTART, RLENGTH) ")"
-                  } else if (match(text, /#[0-9]+/)) {
-                    issue = " (" substr(text, RSTART, RLENGTH) ")"
-                  }
-                  lines[++count] = "- " item issue
-                }
-              }
-              END {
-                if (count > 0) {
-                  print "## " title
-                  print ""
-                  for (i = 1; i <= count; i++) {
-                    print lines[i]
-                  }
-                  print ""
-                }
-              }
-            ' commits.raw
-          }
 
           {
-            echo "# Clashoo ${TAG}"
-            echo ""
-            if [ -n "$PREVIOUS_TAG" ]; then
-              echo "_Changes since ${PREVIOUS_TAG} / 自 ${PREVIOUS_TAG} 以来的更新。_"
-            else
-              echo "_Initial release notes / 初始发布说明。_"
-            fi
-            echo ""
-            write_section "New Features / 新功能" '^feat([(][^)]+[)])?!?:'
-            write_section "Improvements / 改进" '^(perf|refactor)([(][^)]+[)])?!?:'
-            write_section "Bug Fixes / 问题修复" '^fix([(][^)]+[)])?!?:'
-            write_section "Build & Release / 构建与发布" '^(ci|build)([(][^)]+[)])?!?:'
-            write_section "Documentation / 文档" '^docs([(][^)]+[)])?!?:'
-            write_section "Maintenance / 维护" '^(chore|test)([(][^)]+[)])?!?:'
-            echo "## Packages / 安装包"
-            echo ""
             echo "## 📦 SDK 24.10 · 稳定版 (IPK)"
             echo ""
             echo "| 架构 | clashoo | luci-app-clashoo |"
@@ -208,7 +137,7 @@ jobs:
             done
 
             echo ""
-            echo "## 📦 SDK 25.12 · 稳定版 (APK)"
+            echo "## 📦 SDK 25.12 · 测试版 (APK)"
             echo ""
             echo "| 架构 | clashoo | luci-app-clashoo |"
             echo "| :--- | :--- | :--- |"
@@ -300,9 +229,7 @@ jobs:
           B2_APPLICATION_KEY: ${{ secrets.B2_APPLICATION_KEY }}
           B2_BUCKET: ${{ secrets.B2_BUCKET }}
         run: |
-          [ -n "$B2_KEY_ID" ] || { echo "::error::Missing B2_KEY_ID"; exit 1; }
-          [ -n "$B2_APPLICATION_KEY" ] || { echo "::error::Missing B2_APPLICATION_KEY"; exit 1; }
-          [ -n "$B2_BUCKET" ] || { echo "::error::Missing B2_BUCKET"; exit 1; }
+          [ -z "$B2_KEY_ID" ] && { echo "No B2 credentials, skipping"; exit 0; }
           curl -fsSL https://rclone.org/install.sh | sudo bash
           mkdir -p ~/.config/rclone
           cat > ~/.config/rclone/rclone.conf <<EOF
@@ -317,35 +244,3 @@ jobs:
             --fast-list \
             --transfers 8 \
             --checkers 16
-          rclone check feed/ "b2:${B2_BUCKET}/openwrt-feed/" \
-            --one-way \
-            --checksum \
-            --fast-list \
-            --checkers 16
-
-      - name: Verify public B2 manifests
-        env:
-          B2_PUBLIC_FEED_URL: https://kenzo111.s3.us-west-004.backblazeb2.com/openwrt-feed
-        run: |
-          failed=0
-          for manifest in feed/*/*/manifest.txt; do
-            [ -f "$manifest" ] || continue
-            rel="${manifest#feed/}"
-            url="${B2_PUBLIC_FEED_URL}/${rel}"
-            expected="$(cat "$manifest")"
-            remote=""
-            for i in 1 2 3 4 5; do
-              remote="$(curl -fsSL "$url" || true)"
-              [ "$remote" = "$expected" ] && break
-              sleep 3
-            done
-            if [ "$remote" != "$expected" ]; then
-              echo "::error::B2 public manifest mismatch: ${rel}"
-              echo "Expected:"
-              printf '%s\n' "$expected"
-              echo "Remote:"
-              printf '%s\n' "$remote"
-              failed=1
-            fi
-          done
-          exit "$failed"

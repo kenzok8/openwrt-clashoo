@@ -1,9 +1,0 @@
-blank_issues_enabled: false
-contact_links:
-  - name: README / 使用说明
-    url: https://github.com/kenzok8/openwrt-clashoo#readme
-    about: Read install and usage notes before opening an issue / 提交 Issue 前请先阅读安装与使用说明
-  - name: Releases / 版本发布
-    url: https://github.com/kenzok8/openwrt-clashoo/releases
-    about: Download packages and read changelogs / 下载安装包并查看更新日志
-
