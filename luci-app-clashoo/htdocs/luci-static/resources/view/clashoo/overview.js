@@ -70,6 +70,8 @@ var CSS = [
   '.cl-live-card.is-active .cl-live-num{color:var(--cl-live-main-color,rgba(84,96,116,.92))!important}',
   '.cl-live-card.is-zero .cl-live-num{font-size:16px;color:var(--cl-live-zero-color)!important;opacity:1;text-shadow:none}',
   '.cl-live-card.is-zero .cl-live-unit,.cl-live-card.is-zero .cl-live-foot{color:var(--cl-live-zero-color)!important;opacity:1}',
+  '.cl-live-card.is-zero .cl-live-bg-chart{opacity:0!important}',
+  '.cl-live-card.is-zero .cl-live-line,.cl-live-card.is-zero .cl-live-area{stroke:transparent!important;fill:transparent!important}',
   '.cl-card-access .val{font-size:11px;font-weight:500}',
   '.cl-check-modern{display:flex;flex-direction:column;gap:10px}',
   '.cl-check-group{display:flex;flex-direction:column;gap:6px}',
