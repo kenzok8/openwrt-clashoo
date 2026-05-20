@@ -51,9 +51,9 @@ var CSS = [
   '.cl-log-tab{padding:4px 12px;border:1px solid rgba(128,128,128,.2);border-radius:20px;font-size:12px;cursor:pointer;opacity:.6}',
   '.cl-log-tab.active{opacity:1;font-weight:600;background:rgba(128,128,128,.1)}',
   '.cl-dl-hint{margin-top:6px;font-size:12px;min-height:18px;line-height:1.4}',
-  '.cl-component-card{padding:16px;border:1px solid rgba(128,128,128,.16);border-radius:10px;background:rgba(255,255,255,.03);margin-bottom:18px}',
+  '.cl-component-card{padding:16px;border:1px solid rgba(128,128,128,.18);border-radius:10px;background:rgba(128,128,128,.05);margin-bottom:18px}',
   '.cl-component-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}',
-  '.cl-component-head h4{margin:0 0 4px;font-size:14px;font-weight:700;color:var(--title-color,inherit)}',
+  '.cl-component-head h4{margin:0 0 4px;font-size:14px;font-weight:700;color:var(--title-color,inherit);background:transparent !important;padding:0}',
   '.cl-component-sub{font-size:12px;color:rgba(120,130,150,.9);line-height:1.45}',
   '.cl-component-list{display:grid;gap:8px}',
   '.cl-component-row{display:grid;grid-template-columns:minmax(170px,1.1fr) minmax(180px,1.5fr) minmax(130px,.9fr) auto;align-items:center;gap:10px;padding:10px 12px;border:1px solid rgba(128,128,128,.14);border-radius:8px;background:rgba(128,128,128,.045)}',
@@ -74,7 +74,7 @@ var CSS = [
   '.cl-comp-var{font-size:11px;padding:2px 10px;border-radius:10px;border:1px solid rgba(128,128,128,.3);background:transparent;color:inherit;cursor:pointer}',
   '.cl-comp-var.on{background:rgba(var(--primary-rgb,0,122,255),.14);border-color:rgba(var(--primary-rgb,0,122,255),.5);font-weight:700}',
   '.cl-comp-updatable{font-size:10px;font-weight:700;color:#239b56;margin-left:2px}',
-  '@media(max-width:760px){.cl-component-head{display:block}.cl-component-head .btn{margin-top:10px}.cl-component-row{grid-template-columns:1fr}.cl-component-row .btn{width:100%}}',
+  '@media(max-width:760px){.cl-component-head{display:block}.cl-component-head .btn{margin-top:10px}.cl-component-row{grid-template-columns:1fr;gap:6px}.cl-component-row .btn{width:auto;justify-self:start;padding-left:18px;padding-right:18px}}',
   /* 统一 form.Map 字体大小与 config 页一致 */
   '.cl-panel .cbi-section>h3{font-size:13px !important;font-weight:600;margin-bottom:8px}',
   '.cl-panel .cbi-value-title{font-size:13px !important}',
@@ -323,22 +323,26 @@ return view.extend({
     this._compVariant = this._compVariant || {};
     this._compLatest = this._compLatest || {};
     var listEl = E('div', { 'class': 'cl-component-list' });
-    var logEl = E('div', { 'class': 'cl-component-log' }, '正在读取组件状态...');
+    var logEl = E('div', { 'class': 'cl-component-log', style: 'display:none' }, '');
+    this._compLogEl = logEl;
     var archWrap = E('div', { 'class': 'cl-component-arch' });
     this._compArchWrap = archWrap;
     var refreshBtn = E('button', {
       'class': 'btn cbi-button cbi-button-neutral',
       click: function (ev) {
         ev.preventDefault();
+        refreshBtn.disabled = true;
+        refreshBtn.textContent = '检查中…';
         self._refreshComponentUpdatePanel(listEl, logEl, true);
       }
-    }, '刷新');
+    }, '检查更新');
+    this._compRefreshBtn = refreshBtn;
 
-    container.appendChild(E('div', { 'class': 'cl-section cl-card cl-component-card' }, [
+    container.appendChild(E('div', { 'class': 'cl-component-card' }, [
       E('div', { 'class': 'cl-component-head' }, [
         E('div', {}, [
           E('h4', {}, '组件更新'),
-          E('div', { 'class': 'cl-component-sub' }, '按组件单独更新，便于定位失败。点「刷新」检查最新版本。')
+          E('div', { 'class': 'cl-component-sub' }, '按组件单独更新，便于定位失败。点「检查更新」获取最新版本。')
         ]),
         refreshBtn
       ]),
@@ -354,6 +358,33 @@ return view.extend({
     while (node.firstChild)
       node.removeChild(node.firstChild);
     children.forEach(function (child) { if (child) node.appendChild(child); });
+  },
+
+  /* 检查更新用的 latest map key：mihomo/sing-box 带变体，smart 固定，pkg 用 id */
+  _compLatestKey: function (comp, variant) {
+    if (comp.id === 'smart') return 'smart';
+    if (comp.variant) return comp.id + '_' + (variant || 'stable');
+    return comp.id;
+  },
+
+  _compNorm: function (s) {
+    return String(s || '').toLowerCase().replace(/^v/, '').replace(/~/g, '.');
+  },
+
+  _compVariantOf: function (comp) {
+    if (!comp.variant) return '';
+    if (this._compVariant[comp.id]) return this._compVariant[comp.id];
+    return /^v?[0-9]/.test(comp.installed_version || '') ? 'stable' : 'alpha';
+  },
+
+  /* 已装版与最新版不一致即视为可更新（alpha 按 hash 字符串差异判断）*/
+  _compUpdatable: function (comp, latestMap) {
+    if (!comp || comp.kind === 'data') return false;
+    var inst = comp.installed_version || '';
+    if (!inst || inst === '未安装' || inst === '未知') return false;
+    var latest = latestMap[this._compLatestKey(comp, this._compVariantOf(comp))];
+    if (!latest) return false;
+    return this._compNorm(latest) !== this._compNorm(inst);
   },
 
   _componentStatusText: function (comp, globalRunning) {
@@ -421,16 +452,10 @@ return view.extend({
       variantBox = E('div', { 'class': 'cl-comp-var-box' }, [mkV('stable', '稳定'), mkV('alpha', 'Alpha')]);
     }
 
-    /* 绿色「可更新」徽标：版本型组件，最新版与已装不同时显示。
-       两边去掉前导 v 再比（sing-box -v 不带 v，GitHub tag 带 v）*/
-    var badge = null;
-    var latest = latestMap[comp.id];
-    if (latest && inst && inst !== '未安装') {
-      var checkable = comp.kind === 'pkg' || (comp.variant && variant === 'stable' && instStable);
-      var norm = function (s) { return String(s).replace(/^v/i, ''); };
-      if (checkable && norm(latest) !== norm(inst))
-        badge = E('span', { 'class': 'cl-comp-updatable' }, '可更新');
-    }
+    /* 绿色「可更新」徽标：最新版与已装不一致时显示 */
+    var badge = this._compUpdatable(comp, latestMap)
+      ? E('span', { 'class': 'cl-comp-updatable' }, '可更新')
+      : null;
 
     var btn = E('button', {
       'class': 'btn cbi-button cbi-button-apply',
@@ -439,6 +464,7 @@ return view.extend({
         ev.preventDefault();
         btn.disabled = true;
         btn.textContent = '提交中';
+        if (self._compLogEl) self._compLogEl.style.display = '';
         clashoo.componentUpdate(comp.id, variant).then(function (res) {
           if (res && res.success)
             clashoo.toast('组件更新任务已提交', { kind: 'info' });
@@ -486,14 +512,44 @@ return view.extend({
       logEl.textContent = data.log || data.last_log || '暂无组件更新日志';
 
       if (data.running) {
+        /* 有任务运行：展开日志，取消收起计时 */
+        if (self._compLogHideTimer) {
+          clearTimeout(self._compLogHideTimer);
+          self._compLogHideTimer = null;
+        }
+        logEl.style.display = '';
         self._componentPollTimer = setTimeout(function () {
           self._refreshComponentUpdatePanel(listEl, logEl, false);
         }, 2000);
-      } else if (doCheck) {
-        clashoo.componentCheckUpdates().then(function (r) {
-          self._compLatest = (r && r.latest) || {};
-          paint();
-        });
+      } else {
+        /* 任务结束：日志若展开着，8 秒后自动收起 */
+        if (logEl.style.display !== 'none' && !self._compLogHideTimer) {
+          self._compLogHideTimer = setTimeout(function () {
+            logEl.style.display = 'none';
+            self._compLogHideTimer = null;
+          }, 8000);
+        }
+        if (doCheck) {
+          clashoo.componentCheckUpdates().then(function (r) {
+            self._compLatest = (r && r.latest) || {};
+            paint();
+            var n = comps.reduce(function (acc, c) {
+              return acc + (self._compUpdatable(c, self._compLatest) ? 1 : 0);
+            }, 0);
+            if (self._compRefreshBtn) {
+              self._compRefreshBtn.disabled = false;
+              self._compRefreshBtn.textContent = '检查更新';
+            }
+            clashoo.toast(n > 0 ? (n + ' 项可更新') : '所有组件已是最新',
+              { kind: n > 0 ? 'info' : 'success' });
+          }).catch(function () {
+            if (self._compRefreshBtn) {
+              self._compRefreshBtn.disabled = false;
+              self._compRefreshBtn.textContent = '检查更新';
+            }
+            clashoo.toast('检查更新失败，请检查网络', { kind: 'error' });
+          });
+        }
       }
     });
   },
@@ -510,88 +566,6 @@ return view.extend({
     o.value('mihomo', 'mihomo（Clash Meta 内核）');
     o.value('singbox', 'sing-box（需已安装并启用 clash_api）');
     o.description = '';
-
-    s = m.section(form.NamedSection, 'config', 'clashoo', 'GeoIP 与 GeoSite');
-    s.addremove = false;
-    o = s.option(form.Flag,  'auto_update_geoip',  '自动更新');
-    o = s.option(form.Value, 'auto_update_geoip_time',  '更新小时（0-23）');
-    o = s.option(form.Value, 'geoip_update_interval',   '更新间隔（天）');
-    o = s.option(form.ListValue, 'geoip_source', '数据源');
-    o.value('2', 'GitHub'); o.value('4', '自定义');
-    o = s.option(form.DummyValue, '_geo_btn', '');
-    o.cfgvalue = function () {
-      var verSpan = E('span', { 'class': 'cl-ver-tag' }, '');
-      function refreshVer() {
-        clashoo.getGeoipVersion().then(function (r) {
-          if (r && r.version) {
-            verSpan.textContent = '';
-            verSpan.appendChild(E('span', { 'class': 'cl-ver-label' }, '当前版本: '));
-            verSpan.appendChild(E('span', { 'class': 'cl-ver-value' }, r.version));
-          }
-        });
-      }
-      refreshVer();
-
-      var statusEl = E('div', { 'class': 'cl-update-status', style: 'margin-top:6px;font-size:12px;min-height:18px;line-height:1.4' });
-      var poller = null;
-      function stopPoller() { if (poller) { clearInterval(poller); poller = null; } }
-      function setStatus(text, tone) {
-        statusEl.textContent = text || '';
-        statusEl.style.color = tone === 'success' ? 'var(--success-color, #2e7d32)'
-                              : tone === 'error'   ? 'var(--error-color, #d32f2f)'
-                              : tone === 'progress'? 'var(--tip-color, #1976d2)'
-                              : '';
-      }
-      function pickLastLine(text) {
-        var lines = String(text || '').split('\n');
-        for (var i = lines.length - 1; i >= 0; i--) {
-          var t = lines[i].trim();
-          if (t) return t;
-        }
-        return '';
-      }
-      function pollGeoStatus() {
-        clashoo.getLogStatus().then(function (st) {
-          st = st || {};
-          var rawLast = pickLastLine(st.geoip_log);
-          var last = clashoo.localizeLogLine(rawLast);
-          if (st.geoip_updating) {
-            setStatus('⏳ ' + (last || '正在下载 GeoIP / GeoSite...'), 'progress');
-            return;
-          }
-          stopPoller();
-          btn.disabled = false;
-          var ok = /success|complete|done|完成|成功|已更新/i.test(rawLast + ' ' + last);
-          var failed = /fail|failed|invalid|incomplete|not found|empty|失败|错误|异常/i.test(rawLast + ' ' + last);
-          setStatus((ok ? '✓ ' : failed ? '✗ ' : 'ℹ ') + (last || (ok ? '更新成功' : failed ? '更新失败' : '更新已结束')),
-            ok ? 'success' : failed ? 'error' : '');
-          refreshVer();
-          setTimeout(function () { setStatus(''); }, 8000);
-        });
-      }
-
-      var btn = E('button', {
-        'class': 'btn cbi-button',
-        click: function () {
-          stopPoller();
-          btn.disabled = true;
-          setStatus('⏳ 正在启动 GeoIP 更新...', 'progress');
-          clashoo.updateGeoip().then(function () {
-            poller = setInterval(pollGeoStatus, 2000);
-            setTimeout(pollGeoStatus, 500);
-          }).catch(function () {
-            btn.disabled = false;
-            setStatus('✗ 启动失败', 'error');
-            setTimeout(function () { setStatus(''); }, 5000);
-          });
-        }
-      }, '立即更新 GeoIP');
-      return E('div', {}, [
-        E('div', { 'class': 'cl-btn-ver-row' }, [btn, verSpan]),
-        statusEl
-      ]);
-    };
-    o.write = function () {};
 
     s = m.section(form.NamedSection, 'config', 'clashoo', '管理面板配置');
     s.addremove = false;
@@ -682,6 +656,13 @@ return view.extend({
     o = s.option(form.Value, 'auto_update_time',   '更新间隔（小时）');
     o = s.option(form.Flag,  'auto_clear_log',    '定时清理日志');
     o = s.option(form.Value, 'clear_time','清理间隔（小时）');
+    o = s.option(form.Flag,  'auto_update_geoip',  '定时更新 GeoIP / GeoSite');
+    o = s.option(form.Value, 'auto_update_geoip_time', 'GeoIP 更新小时（0-23）');
+    o.depends('auto_update_geoip', '1');
+    o = s.option(form.Value, 'geoip_update_interval',  'GeoIP 更新间隔（天）');
+    o.depends('auto_update_geoip', '1');
+    o = s.option(form.ListValue, 'geoip_source', 'GeoIP 数据源');
+    o.value('2', 'GitHub'); o.value('4', '自定义');
 
     m.render().then(function (node) {
       decorateSystemForm(node);

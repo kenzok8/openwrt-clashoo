@@ -761,40 +761,81 @@ return '';
 
 const B2_FEED_BASE = 'https://kenzo111.s3.us-west-004.backblazeb2.com/openwrt-feed';
 
-// 走 releases/latest 的 302 重定向拿 tag —— 不碰 GitHub API，无速率限制
-function gh_latest_tag(repo) {
-let p = popen("curl -fsS -o /dev/null -w '%{redirect_url}' -m 8 " +
-	shell_quote('https://github.com/' + repo + '/releases/latest') + ' 2>/dev/null');
-if (!p) return '';
-let loc = trim(p.read('all'));
-p.close();
-let m = match(loc, /\/tag\/([^\/?#]+)/);
-return m ? m[1] : '';
+// Prerelease-Alpha 资源清单里抽版本 —— mihomo alpha / smart 是滚动版，
+// 比的是「最新发布的 hash 跟已装的是否不同」，不是比大小（同 OpenClash）
+function alpha_asset_ver(html, arch, kind) {
+if (!html) return '';
+for (let line in split(html, '\n')) {
+	if (index(line, 'mihomo-linux-' + arch + '-') < 0) continue;
+	let m = (kind == 'smart')
+		? match(line, /-(alpha-smart-[0-9A-Za-z]{6,})\.gz/)
+		: match(line, /-(alpha-[0-9a-f]{7,})\.gz/);
+	if (m) return m[1];
+}
+return '';
 }
 
-// 读 B2 manifest 取 clashoo / luci 最新版本（manifest 已含包文件名，文件名编码版本）
-function b2_latest_versions() {
-let out = {};
-let arch = trim(shell_read("opkg print-architecture 2>/dev/null | awk '/^arch /{print $2}' | tail -1") || '');
-if (!arch) arch = trim(shell_read('apk --print-arch 2>/dev/null') || '');
-if (!arch) return out;
-let sdk = trim(shell_read("grep '^DISTRIB_RELEASE' /etc/openwrt_release 2>/dev/null | grep -oE '[0-9]+[.][0-9]+' | head -1") || '');
-if (!sdk) return out;
-let txt = shell_read('curl -fsSL -m 8 ' + shell_quote(B2_FEED_BASE + '/' + sdk + '/' + arch + '/manifest.txt') + ' 2>/dev/null');
-if (!txt) return out;
-for (let line in split(txt, '\n')) {
-let kv = match(trim(line), /^(core|luci)=(.+)$/);
-if (!kv) continue;
-let f = kv[2], mv;
-if (kv[1] == 'core') {
-	mv = match(f, /^clashoo_(.+)_[^_]+\.ipk$/) || match(f, /^clashoo-(.+)-[^-]+\.apk$/);
-	if (mv) out.clashoo = mv[1];
-} else {
-	mv = match(f, /^luci-app-clashoo_(.+)_all\.ipk$/) || match(f, /^luci-app-clashoo-(.+)-all\.apk$/);
-	if (mv) out.luci = mv[1];
+// 并行抓取全部上游版本 —— 6+ 个 curl 串行会超 ubus 30s 上限，故全部
+// 后台并发，wait 后统一解析（总耗时 ≈ 最慢的单个请求）。
+// DISTRIB_RELEASE 可能是自定义串，不能当 SDK 版本；按包管理器试多个候选。
+function component_latest_versions() {
+let latest = {};
+let core_arch = uci_get('clashoo', 'config', 'download_core') || 'amd64';
+let pkg_arch = trim(shell_read("opkg print-architecture 2>/dev/null | awk '/^arch /{print $2}' | tail -1") || '');
+if (!pkg_arch) pkg_arch = trim(shell_read('apk --print-arch 2>/dev/null') || '');
+let is_apk = !!trim(shell_read('command -v apk 2>/dev/null') || '');
+let sdks = is_apk ? ['25.12', '24.10'] : ['24.10', '23.05', '22.03', '21.02'];
+
+let dir = trim(shell_read('mktemp -d 2>/dev/null') || '');
+if (!dir) return latest;
+
+let GH = 'https://github.com/';
+let cmd = '';
+cmd += "curl -fsS -o /dev/null -w '%{redirect_url}' -m 8 " + shell_quote(GH + 'MetaCubeX/mihomo/releases/latest')  + ' >' + shell_quote(dir + '/ms') + ' 2>/dev/null &\n';
+cmd += "curl -fsS -o /dev/null -w '%{redirect_url}' -m 8 " + shell_quote(GH + 'SagerNet/sing-box/releases/latest') + ' >' + shell_quote(dir + '/ss') + ' 2>/dev/null &\n';
+cmd += 'curl -fsSL -m 20 ' + shell_quote(GH + 'MetaCubeX/mihomo/releases/expanded_assets/Prerelease-Alpha') + ' >' + shell_quote(dir + '/ma') + ' 2>/dev/null &\n';
+cmd += 'curl -fsSL -m 20 ' + shell_quote(GH + 'vernesong/mihomo/releases/expanded_assets/Prerelease-Alpha') + ' >' + shell_quote(dir + '/sm') + ' 2>/dev/null &\n';
+cmd += 'curl -fsSL -m 12 ' + shell_quote(GH + 'SagerNet/sing-box/releases.atom') + ' >' + shell_quote(dir + '/sa') + ' 2>/dev/null &\n';
+if (pkg_arch)
+	for (let sdk in sdks)
+		cmd += 'curl -fsSL -m 8 ' + shell_quote(B2_FEED_BASE + '/' + sdk + '/' + pkg_arch + '/manifest.txt') + ' >' + shell_quote(dir + '/b_' + sdk) + ' 2>/dev/null &\n';
+cmd += 'wait\n';
+let pp = popen(cmd);
+if (pp) { pp.read('all'); pp.close(); }
+
+let m;
+// 稳定版 tag —— releases/latest 302 重定向
+m = match(readfile(dir + '/ms') || '', /\/tag\/([^\/?#\s]+)/); if (m) latest.mihomo_stable  = m[1];
+m = match(readfile(dir + '/ss') || '', /\/tag\/([^\/?#\s]+)/); if (m) latest.singbox_stable = m[1];
+// sing-box alpha —— atom feed 第一个 entry
+m = match(readfile(dir + '/sa') || '', /\/releases\/tag\/([^"?#]+)/); if (m) latest.singbox_alpha = m[1];
+// mihomo alpha / smart —— Prerelease-Alpha 资源清单的 hash
+let v;
+v = alpha_asset_ver(readfile(dir + '/ma') || '', core_arch, 'alpha'); if (v) latest.mihomo_alpha = v;
+v = alpha_asset_ver(readfile(dir + '/sm') || '', core_arch, 'smart'); if (v) latest.smart = v;
+// clashoo / luci —— B2 manifest，按 SDK 候选顺序取第一个命中
+if (pkg_arch)
+for (let sdk in sdks) {
+	let txt = readfile(dir + '/b_' + sdk);
+	if (!txt) continue;
+	let hit = false;
+	for (let line in split(txt, '\n')) {
+		let kv = match(trim(line), /^(core|luci)=(.+)$/);
+		if (!kv) continue;
+		let f = kv[2], mv;
+		if (kv[1] == 'core') {
+			mv = match(f, /^clashoo_(.+)_[^.]+\.ipk$/) || match(f, /^clashoo-(.+)\.apk$/);
+			if (mv) { latest.clashoo = mv[1]; hit = true; }
+		} else {
+			mv = match(f, /^luci-app-clashoo_(.+)_[^.]+\.ipk$/) || match(f, /^luci-app-clashoo-(.+)\.apk$/);
+			if (mv) latest.luci = mv[1];
+		}
+	}
+	if (hit) break;
 }
-}
-return out;
+
+let rp = popen('rm -rf ' + shell_quote(dir)); if (rp) rp.close();
+return latest;
 }
 
 function component_defs() {
@@ -2029,19 +2070,12 @@ return { success: rc == 0, started: rc == 0, running: rc == 0 };
 }
 },
 
-// 点「刷新」时调用：查 mihomo/sing-box 稳定版（GitHub 重定向）与
-// clashoo/客户端（B2 manifest）最新版本，前端据此显示「可更新」
+// 点「检查更新」时调用：稳定版走 releases/latest 重定向，alpha/smart 走
+// Prerelease-Alpha 资源清单，clashoo/客户端走 B2 manifest —— 均不碰
+// GitHub API。返回按变体分键，前端按当前选的 stable/alpha 比对。
 component_check_updates: {
 call: function() {
-let latest = {};
-let mi = gh_latest_tag('MetaCubeX/mihomo');
-if (mi) latest.mihomo = mi;
-let sb = gh_latest_tag('SagerNet/sing-box');
-if (sb) latest.singbox = sb;
-let b2 = b2_latest_versions();
-if (b2.clashoo) latest.clashoo = b2.clashoo;
-if (b2.luci) latest.luci = b2.luci;
-return { ok: true, latest };
+return { ok: true, latest: component_latest_versions() };
 }
 },
 
