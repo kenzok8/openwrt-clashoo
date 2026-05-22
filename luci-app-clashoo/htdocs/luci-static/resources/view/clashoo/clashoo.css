@@ -613,6 +613,26 @@ html[data-darkmode="true"] .cl-wrap .cl-mode-tag {
   color: rgba(190, 62, 62, 0.92) !important;
 }
 
+/* 中性按钮（检查更新 / 导出备份 / 导入还原）：浅灰描边，
+   避免落到主题原生深灰填充（Argon 浅色下尤为突兀）。明暗自适应。 */
+.cl-wrap.cl-config-page .cbi-button-neutral,
+.cl-wrap.cl-config-page .btn.cbi-button-neutral,
+.cl-wrap.cl-system-page .cbi-button-neutral,
+.cl-wrap.cl-system-page .btn.cbi-button-neutral {
+  background: rgba(128, 128, 128, 0.1) !important;
+  border: 1px solid rgba(128, 128, 128, 0.24) !important;
+  color: var(--cl-label-muted) !important;
+  box-shadow: none !important;
+}
+
+.cl-wrap.cl-config-page .cbi-button-neutral:hover,
+.cl-wrap.cl-config-page .btn.cbi-button-neutral:hover,
+.cl-wrap.cl-system-page .cbi-button-neutral:hover,
+.cl-wrap.cl-system-page .btn.cbi-button-neutral:hover {
+  background: rgba(128, 128, 128, 0.18) !important;
+  border-color: rgba(128, 128, 128, 0.32) !important;
+}
+
 /* Config page de-colorization: keep primary accents only */
 .cl-wrap.cl-config-page .cbi-button-action,
 .cl-wrap.cl-config-page .btn.cbi-button-action,
