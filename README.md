@@ -20,6 +20,8 @@
     <img alt="GitHub commit" src="https://img.shields.io/github/commit-activity/m/kenzok8/openwrt-clashoo?style=flat-square"></a>
     <a href="https://github.com/kenzok8/openwrt-clashoo/issues?q=is%3Aissue+is%3Aclosed" target="_blank">
     <img alt="GitHub closed issues" src="https://img.shields.io/github/issues-closed/kenzok8/openwrt-clashoo.svg?style=flat-square"></a>
+    <a href="https://github.com/kenzok8/openwrt-clashoo/wiki" target="_blank">
+    <img alt="Wiki" src="https://img.shields.io/badge/docs-Wiki-1f6feb?style=flat-square"></a>
 </div>
 
 ---
@@ -57,6 +59,8 @@
 - gVisor / System / Mixed 网络栈可选
 
 **系统与数据**
+- 组件更新：内核 / 内核数据 / 插件本体按组件单独检查更新，便于定位失败
+- 备份与还原：配置一键导出 / 导入，支持还原出厂默认设置，折腾不怕坏
 - 内核、管理面板、GeoIP / GeoSite 一键下载/更新
 - 镜像源自动回退（自定义 → gh-proxy → 直连 GitHub 兜底）
 - 面板四选一（MetaCubeXD / YACD / Zashboard / Razord）
@@ -182,6 +186,8 @@ wget --no-check-certificate -O - https://ghfast.top/https://raw.githubuserconten
 3. 选择内核（Mihomo / Smart / Sing-box）
 4. 点击启用服务
 5. 选运行模式（Fake-IP / TUN / Mixed）
+
+更多用法、配置说明与常见问题见 **[项目 Wiki](https://github.com/kenzok8/openwrt-clashoo/wiki)**。
 
 ---
 
