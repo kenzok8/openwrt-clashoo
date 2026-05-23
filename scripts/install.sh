@@ -120,9 +120,9 @@ build_sdk_candidates() {
   printf '%s\n' "$candidates"
 }
 
-# Feed 结构：<base>/<sdk>/<arch>/clashoo/<files>，clashoo 子目录是标准 apk/opkg feed 名
+# Feed 结构：<base>/<sdk>/<arch>/<files> —— 与 dllkids setup.sh 对齐，不嵌 feedname 子目录
 feed_base_for() {
-  printf '%s/%s/%s/clashoo' "$B2_FEED_BASE_URL" "$1" "$2"
+  printf '%s/%s/%s' "$B2_FEED_BASE_URL" "$1" "$2"
 }
 
 load_manifest_urls() {
