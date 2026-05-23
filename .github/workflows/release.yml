@@ -287,9 +287,9 @@ jobs:
             name=$(basename "$dir")
             sdk=$(echo "$name" | sed 's/packages-sdk\([^-]*\)-.*/\1/')
             arch=$(echo "$name" | sed 's/packages-sdk[^-]*-//')
-            # 标准 apk/opkg feed 结构：<sdk>/<arch>/<feedname>/<index+packages>
-            # feed 名取 clashoo，与 PACKAGES 一致；apk 仓库 URL 即此目录
-            target="feed/${sdk}/${arch}/clashoo"
+            # feed 结构与 dllkids 既有 setup.sh 对齐：<sdk>/<arch>/，
+            # apk/opkg 直接在该目录取 packages.adb / Packages.gz，不再嵌 feedname 子目录
+            target="feed/${sdk}/${arch}"
             mkdir -p "$target"
             cp -v "$dir/feed/"* "$target/" 2>/dev/null || true
 
