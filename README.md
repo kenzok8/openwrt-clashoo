@@ -143,9 +143,9 @@ wget -O - https://raw.githubusercontent.com/kenzok8/openwrt-clashoo/refs/heads/m
 wget --no-check-certificate -O - https://ghfast.top/https://raw.githubusercontent.com/kenzok8/openwrt-clashoo/refs/heads/main/scripts/install.sh | ash
 ```
 
-### 持久软件源（推荐，跟 nikki/momo 一样自动跟版本）
+### 持久软件源
 
-挂载 dllkids 软件源后，`opkg update` / `apk update` 就能自动拉到 clashoo 新版：
+添加软件源后，`opkg update` / `apk update` 就能自动拉到 clashoo 新版：
 
 ```bash
 wget -qO- https://down.dllkids.xyz/openwrt-feed/openwrt-feed-setup.sh | sh
