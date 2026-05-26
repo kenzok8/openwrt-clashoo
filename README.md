@@ -69,17 +69,19 @@
 
 ## 界面预览
 
-![hero](https://raw.githubusercontent.com/kenzok8/kenzok8/main/screenshot/clashoo-hero.png)
-
-<details>
-<summary>展开看每个内核在三种模式下的运行状态</summary>
-
-**Mihomo** ![mihomo](https://raw.githubusercontent.com/kenzok8/kenzok8/main/screenshot/clashoo-mihomo.png)
-
-**Smart** ![smart](https://raw.githubusercontent.com/kenzok8/kenzok8/main/screenshot/clashoo-smart.png)
-
-**Sing-box** ![singbox](https://raw.githubusercontent.com/kenzok8/kenzok8/main/screenshot/clashoo-singbox.png)
-
+<details open>
+<summary><b>Desktop Screenshots</b></summary>
+<br>
+<table>
+<tr>
+<td align="center"><b>Mihomo</b><br><img width="400" src="https://raw.githubusercontent.com/kenzok8/kenzok8/main/screenshot/clashoo/clashoo-mihomo.png"></td>
+<td align="center"><b>Smart</b><br><img width="400" src="https://raw.githubusercontent.com/kenzok8/kenzok8/main/screenshot/clashoo/clashoo-smart.png"></td>
+</tr>
+<tr>
+<td align="center"><b>Sing-box</b><br><img width="400" src="https://raw.githubusercontent.com/kenzok8/kenzok8/main/screenshot/clashoo/clashoo-singbox.png"></td>
+<td align="center"><b>System</b><br><img width="400" src="https://raw.githubusercontent.com/kenzok8/kenzok8/main/screenshot/clashoo/clashoo%23system.png"></td>
+</tr>
+</table>
 </details>
 
 ---
@@ -112,12 +114,16 @@ luci-app-clashoo/                     # LuCI 前端 + RPC 后端
 
 | 包名 | 说明 |
 |------|------|
-| `clashoo` | 运行时包，内置 mihomo 并软链 clash-meta |
-| `luci-app-clashoo` | LuCI 管理界面 |
-| `luci-i18n-clashoo-zh-cn` | 简体中文翻译（可选） |
-| `luci` | OpenWrt Web 界面框架 |
-| `ucode` | 配置生成与规则化运行时 |
+| `ca-bundle` | CA 证书包 |
 | `curl` | 下载 GeoIP / 面板 / 订阅 |
+| `yq` | YAML 处理工具 |
+| `firewall4` | nftables 防火墙 |
+| `ip-full` | 完整 iproute2 |
+| `kmod-inet-diag` | 网络诊断内核模块 |
+| `kmod-nft-socket` | nftables socket 匹配 |
+| `kmod-nft-tproxy` | nftables TPROXY 支持 |
+| `kmod-tun` | TUN 设备支持 |
+| `kmod-dummy` | dummy 网卡模块 |
 
 sing-box 二进制由用户按需安装，或通过「系统 → 内核下载」一键拉取。
 
