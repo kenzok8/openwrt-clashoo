@@ -81,6 +81,7 @@ jobs:
               cd /builder 2>/dev/null || cd "$(find / -path "*/scripts/ipkg-make-index.sh" -type f 2>/dev/null | head -n 1 | sed "s#/scripts/ipkg-make-index.sh##")"
               [ ! -f setup.sh ] || bash setup.sh
               export PATH="$PWD/staging_dir/host/bin:$PATH"
+              ln -sf "$PWD/staging_dir/host/bin/mkhash" "$PWD/staging_dir/host/bin/sha256"
               apk_bin="$PWD/staging_dir/host/bin/apk"
               usign_bin="$PWD/staging_dir/host/bin/usign"
               ipkg_index="$PWD/scripts/ipkg-make-index.sh"
