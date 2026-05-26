@@ -81,10 +81,7 @@ jobs:
               cd /builder 2>/dev/null || cd "$(find / -path "*/scripts/ipkg-make-index.sh" -type f 2>/dev/null | head -n 1 | sed "s#/scripts/ipkg-make-index.sh##")"
               [ ! -f setup.sh ] || bash setup.sh
               export PATH="$PWD/staging_dir/host/bin:$PATH"
-              cat > "$PWD/staging_dir/host/bin/sha256" <<'SH256EOF'
-#!/bin/sh
-exec mkhash sha256 "$@"
-SH256EOF
+              { echo '#!/bin/sh'; echo 'exec mkhash sha256 "$@"'; } > "$PWD/staging_dir/host/bin/sha256"
               chmod +x "$PWD/staging_dir/host/bin/sha256"
               apk_bin="$PWD/staging_dir/host/bin/apk"
               usign_bin="$PWD/staging_dir/host/bin/usign"
