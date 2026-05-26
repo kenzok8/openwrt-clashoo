@@ -26,7 +26,7 @@ jobs:
           cd usign && cmake . && make -j$(nproc) && sudo cp usign /usr/local/bin/
 
           # apk.static: use Alpine container to fetch the static package
-          docker run --rm alpine:latest sh -c 'apk update && apk fetch --stdout apk-tools-static' > /tmp/apk-static.apk
+          docker run --rm alpine:latest sh -c 'apk update >/dev/null && apk fetch --stdout apk-tools-static 2>/dev/null' > /tmp/apk-static.apk
           [ -s /tmp/apk-static.apk ] || { echo "Failed to download apk-tools-static"; exit 1; }
           tar xzf /tmp/apk-static.apk -C /tmp sbin/apk.static
           sudo cp /tmp/sbin/apk.static /usr/local/bin/apk.static
