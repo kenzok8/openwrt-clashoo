@@ -110,7 +110,8 @@ jobs:
           B2_BUCKET: ${{ secrets.B2_BUCKET }}
         run: |
           # Derive APK public key from private key
-          openssl ec -pubout -in keys/private-key.pem -out keys/dllkids-feed.pub.pem 2>/dev/null
+          ls -la keys/
+          openssl ec -pubout -in keys/private-key.pem -out keys/dllkids-feed.pub.pem
           rm -f keys/private-key.pem
 
           [ -s keys/dllkids-feed.pub ] || { echo "ERROR: OPKG public key missing"; exit 1; }
