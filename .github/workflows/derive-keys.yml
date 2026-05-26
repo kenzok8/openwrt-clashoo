@@ -7,27 +7,41 @@ jobs:
   derive:
     runs-on: ubuntu-latest
     steps:
-      - name: Build usign and derive keys
+      - name: Derive public keys
         env:
           KEY_BUILD: ${{ secrets.OPKG_KEY_BUILD }}
           PRIVATE_KEY: ${{ secrets.APK_PRIVATE_KEY }}
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq cmake libssl-dev
-          git clone --depth 1 https://github.com/openwrt/usign.git
-          cd usign && cmake . && make -j$(nproc) && sudo cp usign /usr/local/bin/
-
           printf '%s\n' "$KEY_BUILD" > key-build
           printf '%s\n' "$PRIVATE_KEY" > private-key.pem
 
-          usign -F -s key-build -p /tmp/opkg-pub.key 2>&1
-          echo "exit: $?"
+          # Extract OPKG public key from usign private key (embedded at bytes 32-63)
+          python3 <<'PYEOF'
+          import base64, hashlib, subprocess
 
-          echo "=== OPKG_PUB_B64 ==="
-          base64 -w0 /tmp/opkg-pub.key
-          echo ""
-          echo "=== END OPKG_PUB_B64 ==="
+          with open('key-build') as f:
+              secret_b64 = f.read().strip()
+          secret = base64.b64decode(secret_b64)
+          pubkey = secret[32:64]
 
-          echo "=== APK_PUB_B64 ==="
-          openssl ec -pubout -in private-key.pem 2>/dev/null | base64 -w0
-          echo ""
-          echo "=== END APK_PUB_B64 ==="
+          h = hashlib.sha512(pubkey).digest()
+          fp = 0
+          for b in h[:8]:
+              fp = (fp << 8) | b
+
+          comment = f"untrusted comment: public key {fp:016x}"
+          pubkey_b64 = base64.b64encode(pubkey).decode()
+
+          with open('/tmp/opkg-pub.key', 'w') as f:
+              f.write(f"{comment}\n{pubkey_b64}\n")
+          print("OPKG pubkey extracted successfully")
+          PYEOF
+          set -e
+
+          echo "=== OPKG_PUB_KEY ==="
+          cat /tmp/opkg-pub.key
+          echo "=== END OPKG_PUB_KEY ==="
+
+          echo "=== APK_PUB_KEY ==="
+          openssl ec -pubout -in private-key.pem 2>/dev/null
+          echo "=== END APK_PUB_KEY ==="
