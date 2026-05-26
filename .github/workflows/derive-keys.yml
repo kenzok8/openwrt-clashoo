@@ -19,7 +19,7 @@ jobs:
           printf '%s\n' "$KEY_BUILD" > key-build
           printf '%s\n' "$PRIVATE_KEY" > private-key.pem
 
-          usign -F -p /tmp/opkg-pub.key -s key-build
+          usign -F -s key-build > /tmp/opkg-pub.key
 
           echo "=== OPKG_PUB_KEY ==="
           cat /tmp/opkg-pub.key
