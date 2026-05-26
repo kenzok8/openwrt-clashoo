@@ -58,7 +58,7 @@ jobs:
           find merged -type f | sort
           find merged -type f | grep -q . || { echo "No packages to aggregate"; exit 1; }
 
-      - name: Generate signed indexes and keys
+      - name: Generate signed indexes
         env:
           KEY_BUILD: ${{ secrets.OPKG_KEY_BUILD }}
           PRIVATE_KEY: ${{ secrets.APK_PRIVATE_KEY }}
@@ -68,7 +68,6 @@ jobs:
           printf '%s\n' "$KEY_BUILD" > key-build
           printf '%s\n' "$PRIVATE_KEY" > private-key.pem
           chmod -R a+w merged/
-          mkdir -p merged/keys
 
           git clone --depth 1 https://github.com/openwrt/gh-action-sdk.git sdk-action
           docker build -t sdk-tools --build-arg ARCH=x86_64-openwrt-25.12 sdk-action
@@ -99,19 +98,17 @@ jobs:
                   "$PWD/staging_dir/host/bin/usign" -S -m Packages -s /keys/key-build
                 fi
               done
-              "$PWD/staging_dir/host/bin/usign" -F -p /work/keys/dllkids-feed.pub -s /keys/key-build
-              cp /keys/private-key.pem /work/keys/
             '
 
-      - name: Upload
+      - name: Prepare keys and upload
         env:
           B2_BUCKET: ${{ secrets.B2_BUCKET }}
+          OPKG_PUB_KEY: ${{ secrets.OPKG_PUB_KEY }}
+          APK_PUB_KEY: ${{ secrets.APK_PUB_KEY }}
         run: |
-          openssl ec -pubout -in merged/keys/private-key.pem -out merged/keys/dllkids-feed.pub.pem
-          rm -f merged/keys/private-key.pem
-
-          [ -s merged/keys/dllkids-feed.pub ] || { echo "ERROR: OPKG public key missing"; exit 1; }
-          [ -s merged/keys/dllkids-feed.pub.pem ] || { echo "ERROR: APK public key missing"; exit 1; }
+          mkdir -p merged/keys
+          printf '%s\n' "$OPKG_PUB_KEY" > merged/keys/dllkids-feed.pub
+          printf '%s\n' "$APK_PUB_KEY" > merged/keys/dllkids-feed.pub.pem
 
           rclone copy merged/keys/ "b2:${B2_BUCKET}/openwrt-feed/keys/" --checksum --fast-list
 
