@@ -68,40 +68,44 @@ jobs:
           [ -z "$PRIVATE_KEY" ] && { echo "No APK signing key"; exit 1; }
           printf '%s\n' "$KEY_BUILD" > key-build
           printf '%s\n' "$PRIVATE_KEY" > private-key.pem
-
           chmod -R a+w merged/
+
+          cat > /tmp/index-all.sh <<'SCRIPT'
+          #!/usr/bin/env bash
+          set -eu
+          cd /builder 2>/dev/null || cd "$(find / -path "*/scripts/ipkg-make-index.sh" -type f 2>/dev/null | head -n 1 | sed "s#/scripts/ipkg-make-index.sh##")"
+          [ ! -f setup.sh ] || bash setup.sh
+          export PATH="$PWD/staging_dir/host/bin:$PATH"
+          { echo '#!/bin/sh'; echo 'exec mkhash sha256 "$@"'; } > "$PWD/staging_dir/host/bin/sha256"
+          chmod +x "$PWD/staging_dir/host/bin/sha256"
+          apk_bin="$PWD/staging_dir/host/bin/apk"
+          usign_bin="$PWD/staging_dir/host/bin/usign"
+          ipkg_index="$PWD/scripts/ipkg-make-index.sh"
+          for dir in /work/*/*; do
+            [ -d "$dir" ] || continue
+            cd "$dir"
+            if ls ./*.apk >/dev/null 2>&1; then
+              rm -f packages.adb packages.adb.* APKINDEX*
+              "$apk_bin" mkndx --allow-untrusted --sign-key /keys/private-key.pem --output packages.adb ./*.apk
+            fi
+            if ls ./*.ipk >/dev/null 2>&1; then
+              rm -f Packages Packages.gz Packages.sig
+              "$ipkg_index" . > Packages
+              gzip -9nc Packages > Packages.gz
+              "$usign_bin" -S -m Packages -s /keys/key-build
+            fi
+          done
+          SCRIPT
+          chmod +x /tmp/index-all.sh
+
           git clone --depth 1 https://github.com/openwrt/gh-action-sdk.git sdk-action
           docker build -t openwrt-sdk-tools --build-arg ARCH=x86_64-openwrt-25.12 sdk-action
-          docker run --rm --entrypoint bash \
+          docker run --rm \
             -v "$PWD/merged":/work \
             -v "$PWD/key-build":/keys/key-build:ro \
             -v "$PWD/private-key.pem":/keys/private-key.pem:ro \
-            openwrt-sdk-tools -lc '
-              set -eu
-              cd /builder 2>/dev/null || cd "$(find / -path "*/scripts/ipkg-make-index.sh" -type f 2>/dev/null | head -n 1 | sed "s#/scripts/ipkg-make-index.sh##")"
-              [ ! -f setup.sh ] || bash setup.sh
-              export PATH="$PWD/staging_dir/host/bin:$PATH"
-              { echo '#!/bin/sh'; echo 'exec mkhash sha256 "$@"'; } > "$PWD/staging_dir/host/bin/sha256"
-              chmod +x "$PWD/staging_dir/host/bin/sha256"
-              apk_bin="$PWD/staging_dir/host/bin/apk"
-              usign_bin="$PWD/staging_dir/host/bin/usign"
-              ipkg_index="$PWD/scripts/ipkg-make-index.sh"
-
-              for dir in /work/*/*; do
-                [ -d "$dir" ] || continue
-                cd "$dir"
-                if ls ./*.apk >/dev/null 2>&1; then
-                  rm -f packages.adb packages.adb.* APKINDEX*
-                  "$apk_bin" mkndx --allow-untrusted --sign-key /keys/private-key.pem --output packages.adb ./*.apk
-                fi
-                if ls ./*.ipk >/dev/null 2>&1; then
-                  rm -f Packages Packages.gz Packages.sig
-                  "$ipkg_index" . > Packages
-                  gzip -9nc Packages > Packages.gz
-                  "$usign_bin" -S -m Packages -s /keys/key-build
-                fi
-              done
-            '
+            -v /tmp/index-all.sh:/index-all.sh \
+            openwrt-sdk-tools bash /index-all.sh
 
       - name: Upload unified feed
         env:
