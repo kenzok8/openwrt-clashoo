@@ -63,7 +63,7 @@
 - 备份与还原：配置一键导出 / 导入，支持还原出厂默认设置，折腾不怕坏
 - 内核、管理面板、GeoIP / GeoSite 一键下载/更新
 - 镜像源自动回退（自定义 → gh-proxy → 直连 GitHub 兜底）
-- 面板四选一（MetaCubeXD / YACD / Zashboard / Razord）
+- 面板四选一 MetaCubeXD / YACD / Zashboard / Razord
 
 ---
 
@@ -83,30 +83,6 @@
 </tr>
 </table>
 </details>
-
----
-
-## 仓库结构
-
-```
-clashoo/                              # 运行时包
-├── files/etc/config/clashoo          # UCI 默认配置
-├── files/etc/init.d/clashoo          # 服务启停（procd）
-└── files/usr/share/clashoo/
-    ├── net/                          # nftables 防火墙规则 + 连通性检测
-    ├── runtime/                      # mixin.uc（UCI → YAML 覆盖）+ yq merge
-    ├── lib/                          # ucode 工具 + sing-box JSON 规则化
-    ├── update/                       # 内核 / 面板 / GeoIP 更新脚本
-    └── ruleset/                      # .srs 规则集
-
-luci-app-clashoo/                     # LuCI 前端 + RPC 后端
-├── htdocs/luci-static/
-│   ├── resources/view/clashoo/       # overview / config / system 三大页
-│   └── resources/tools/clashoo.js    # 统一 RPC + toast 通知
-├── po/                               # i18n
-└── root/usr/share/rpcd/ucode/
-    └── luci.clashoo                   # 后端 RPC（60+ 方法）
-```
 
 ---
 
@@ -147,22 +123,6 @@ wget -O - https://raw.githubusercontent.com/kenzok8/openwrt-clashoo/refs/heads/m
 
 ```bash
 wget --no-check-certificate -O - https://ghfast.top/https://raw.githubusercontent.com/kenzok8/openwrt-clashoo/refs/heads/main/scripts/install.sh | ash
-```
-
-### 持久软件源
-
-添加软件源后，`opkg update` / `apk update` 就能自动拉到 clashoo 新版：
-
-```bash
-wget -qO- https://down.dllkids.xyz/openwrt-feed/openwrt-feed-setup.sh | sh
-```
-
-自动检测 SDK 版本（24.10 opkg / 25.12 apk）与架构，导入稳定签名公钥，写入 `customfeeds.conf` 或 `/etc/apk/repositories`。装好之后：
-
-```bash
-opkg update && opkg install clashoo luci-app-clashoo luci-i18n-clashoo-zh-cn
-# 或
-apk update && apk add clashoo luci-app-clashoo luci-i18n-clashoo-zh-cn
 ```
 
 ### Release 手动安装
