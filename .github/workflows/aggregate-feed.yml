@@ -77,6 +77,10 @@ jobs:
             -v "$PWD/private-key.pem":/keys/private-key.pem:ro \
             sdk-tools bash -c '
               set -eu
+              date > /work/debug.log 2>&1 || echo "CANNOT WRITE to /work/"
+              ls -la /work/ >> /work/debug.log 2>&1 || echo "CANNOT LS /work/"
+              echo "pre-setup done" >> /work/debug.log 2>&1
+
               mkdir -p /artifacts && chmod 777 /artifacts
               bash setup.sh
               export PATH="$PWD/staging_dir/host/bin:$PATH"
@@ -84,10 +88,9 @@ jobs:
                 printf "#!/bin/sh\nexec mkhash sha256 \"\$@\"\n" > "$PWD/staging_dir/host/bin/sha256"
                 chmod +x "$PWD/staging_dir/host/bin/sha256"
               fi
-              date > /work/debug.log
-              echo "SDK_DIR=$PWD" >> /work/debug.log
-              ls /work/25.12/x86_64/ >> /work/debug.log 2>&1
-              echo "DONE" >> /work/debug.log
+
+              echo "post-setup done" >> /work/debug.log 2>&1
+              ls /work/ >> /work/debug.log 2>&1
             '
 
       - name: Show debug log
