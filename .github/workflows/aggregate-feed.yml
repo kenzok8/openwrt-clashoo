@@ -84,26 +84,28 @@ jobs:
                 printf "#!/bin/sh\nexec mkhash sha256 \"\$@\"\n" > "$PWD/staging_dir/host/bin/sha256"
                 chmod +x "$PWD/staging_dir/host/bin/sha256"
               fi
+              echo "=== APK version ===" && "$PWD/staging_dir/host/bin/apk" --version || true
+              echo "=== APK mkndx help ===" && "$PWD/staging_dir/host/bin/apk" mkndx --help 2>&1 || true
+
               SDK_DIR="$PWD"
               for dir in /work/[0-9]*/*; do
                 [ -d "$dir" ] || continue
-                echo "==> Processing $dir"
                 cd "$dir"
-                if ls ./*.apk >/dev/null 2>&1; then
-                  echo "  APK: generating packages.adb for $(ls ./*.apk | wc -l) packages"
-                  rm -f packages.adb packages.adb.* APKINDEX*
-                  "$SDK_DIR/staging_dir/host/bin/apk" mkndx --allow-untrusted --sign-key /keys/private-key.pem --output packages.adb ./*.apk
-                  echo "  APK: packages.adb created ($(wc -c < packages.adb) bytes)"
+                apk_count=$(ls ./*.apk 2>/dev/null | wc -l)
+                ipk_count=$(ls ./*.ipk 2>/dev/null | wc -l)
+                echo "==> $dir  APK=$apk_count IPK=$ipk_count"
+                if [ "$apk_count" -gt 0 ]; then
+                  echo "  APK mkndx ..."
+                  "$SDK_DIR/staging_dir/host/bin/apk" mkndx --allow-untrusted --sign-key /keys/private-key.pem --output packages.adb ./*.apk || echo "  APK FAILED: $?"
+                  ls -la packages.adb* APKINDEX* 2>/dev/null || echo "  NO INDEX FILES"
                 fi
-                if ls ./*.ipk >/dev/null 2>&1; then
-                  echo "  IPK: generating Packages for $(ls ./*.ipk | wc -l) packages"
-                  rm -f Packages Packages.gz Packages.sig
-                  "$SDK_DIR/scripts/ipkg-make-index.sh" . > Packages
+                if [ "$ipk_count" -gt 0 ]; then
+                  echo "  IPK mkindex ..."
+                  "$SDK_DIR/scripts/ipkg-make-index.sh" . > Packages || echo "  IPK FAILED: $?"
                   gzip -9nc Packages > Packages.gz
                   "$SDK_DIR/staging_dir/host/bin/usign" -S -m Packages -s /keys/key-build
-                  echo "  IPK: Packages created, signed"
+                  ls -la Packages* 2>/dev/null
                 fi
-                echo "  Done: $(ls | tr '\n' ' ')"
               done
             '
 
