@@ -60,7 +60,14 @@ detect_arch() {
     opkg print-architecture | awk '/^arch / {print $2}' | tail -n 1
     return
   fi
-  apk --print-arch
+  # apk --print-arch 只回 CPU family（如 aarch64），丢掉 subtarget 后缀；
+  # feed/release 产物用完整 target arch（aarch64_cortex-a53），优先读 DISTRIB_ARCH
+  distrib_arch="$(sed -n "s/^DISTRIB_ARCH=['\"]\([^'\"]*\)['\"].*/\1/p" /etc/openwrt_release 2>/dev/null | head -n 1)"
+  if [ -n "$distrib_arch" ]; then
+    printf '%s\n' "$distrib_arch"
+  else
+    apk --print-arch
+  fi
 }
 
 detect_sdk() {
