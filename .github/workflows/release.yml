@@ -111,14 +111,10 @@ jobs:
           path: all-artifacts
           pattern: packages-*
 
-      - name: Package by SDK
+      - name: Flatten release files
         run: |
-          mkdir -p dist/sdk24.10 dist/sdk25.12
-          find all-artifacts -path "*sdk24.10*/release/*" -type f -exec cp -v {} dist/sdk24.10/ \;
-          find all-artifacts -path "*sdk25.12*/release/*" -type f -exec cp -v {} dist/sdk25.12/ \;
-          tar -czf dist/clashoo-sdk24.10-ipk.tar.gz -C dist/sdk24.10 .
-          tar -czf dist/clashoo-sdk25.12-apk.tar.gz -C dist/sdk25.12 .
-          ls -lh dist/*.tar.gz
+          mkdir -p dist
+          find all-artifacts -path "*/release/*" -type f -exec cp -v {} dist/ \;
 
       - name: Determine tag
         id: meta
@@ -207,29 +203,29 @@ jobs:
             write_section "Maintenance / 维护" '^(chore|test)([(][^)]+[)])?!?:'
             echo "## Packages / 安装包"
             echo ""
-            echo "> 按 SDK 版本打包，解压后选对应架构安装即可。"
+            echo "## 📦 SDK 24.10 · 稳定版 (IPK)"
             echo ""
-            echo "| SDK | 格式 | 下载 |"
+            echo "| 架构 | clashoo | luci-app-clashoo |"
             echo "| :--- | :--- | :--- |"
-            echo "| 24.10 | IPK (opkg) | [clashoo-sdk24.10-ipk.tar.gz](${BASE}/clashoo-sdk24.10-ipk.tar.gz) |"
-            echo "| 25.12 | APK       | [clashoo-sdk25.12-apk.tar.gz](${BASE}/clashoo-sdk25.12-apk.tar.gz) |"
+            luci_ipk=$(ls dist/luci-app-clashoo_*_all.ipk 2>/dev/null | head -1)
+            luci_ipk_link=$( [ -n "$luci_ipk" ] && echo "[$(basename $luci_ipk)](${BASE}/$(basename $luci_ipk))" || echo "—" )
+            for arch in $ARCHS; do
+              f=$(ls dist/clashoo_*_${arch}.ipk 2>/dev/null | head -1)
+              link=$( [ -n "$f" ] && echo "[$(basename $f)](${BASE}/$(basename $f))" || echo "—" )
+              echo "| \`${arch}\` | ${link} | ${luci_ipk_link} |"
+            done
+
             echo ""
-            echo "### 包含架构"
+            echo "## 📦 SDK 25.12 · 稳定版 (APK)"
             echo ""
-            for sdk_name in sdk24.10 sdk25.12; do
-              if [ "$sdk_name" = "sdk24.10" ]; then
-                echo "**SDK 24.10 (IPK)**"
-                ls dist/sdk24.10/*.ipk 2>/dev/null | while read f; do
-                  echo "- $(basename $f)"
-                done
-                echo ""
-              else
-                echo "**SDK 25.12 (APK)**"
-                ls dist/sdk25.12/*.apk 2>/dev/null | while read f; do
-                  echo "- $(basename $f)"
-                done
-                echo ""
-              fi
+            echo "| 架构 | clashoo | luci-app-clashoo |"
+            echo "| :--- | :--- | :--- |"
+            for arch in $ARCHS; do
+              f_core=$(ls dist/clashoo-*-${arch}.apk 2>/dev/null | head -1)
+              f_luci=$(ls dist/luci-app-clashoo-*-${arch}.apk 2>/dev/null | head -1)
+              link_core=$( [ -n "$f_core" ] && echo "[$(basename $f_core)](${BASE}/$(basename $f_core))" || echo "—" )
+              link_luci=$( [ -n "$f_luci" ] && echo "[$(basename $f_luci)](${BASE}/$(basename $f_luci))" || echo "—" )
+              echo "| \`${arch}\` | ${link_core} | ${link_luci} |"
             done
           } > release_notes.md
 
@@ -253,7 +249,7 @@ jobs:
           name: Release ${{ steps.meta.outputs.tag }}
           body_path: release_notes.md
           prerelease: ${{ steps.meta.outputs.prerelease }}
-          files: dist/*.tar.gz
+          files: dist/**
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
