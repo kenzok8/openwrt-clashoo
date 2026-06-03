@@ -48,11 +48,15 @@ prune_one() {
         if (n >= 3) { k = a[1]; for (i = 3; i <= n; i++) k = k "_" a[i]; return dir SUBSEP k }
         return dir SUBSEP fn
       }
-      # apk:  name-version-rRELEASE.apk  ->  strip "-version-rN.apk".
-      # apk version cannot contain "-"; name can.
+      # apk:  name-version[-rRELEASE].apk  ->  strip ".apk", optional "-rN", then "-version".
+      # apk version cannot contain "-"; name can. Works for both naming styles:
+      #   clashoo-2026.06.03~316f5df-r1.apk        -> clashoo
+      #   luci-app-adguardhome-27.147.35947~a57e622.apk -> luci-app-adguardhome
       if (fn ~ /\.apk$/) {
         t = fn
-        sub(/-[^-]+-r[0-9]+\.apk$/, "", t)
+        sub(/\.apk$/, "", t)
+        sub(/-r[0-9]+$/, "", t)
+        sub(/-[^-]+$/, "", t)
         return dir SUBSEP t
       }
       # firmware image:  MM.DD-...  or  YYYYMMDD-...  ->  strip the leading date.
