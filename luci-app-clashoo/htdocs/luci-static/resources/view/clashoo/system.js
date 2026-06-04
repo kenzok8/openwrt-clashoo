@@ -540,7 +540,13 @@ return view.extend({
 
   /* 已装版与最新版不一致即视为可更新（alpha 按 hash 字符串差异判断）*/
   _compUpdatable: function (comp, latestMap) {
-    if (!comp || comp.kind === 'data') return false;
+    if (!comp) return false;
+    /* lgbm has no version; compare local vs remote model sha256 (kind=data skips generic path) */
+    if (comp.id === 'lgbm') {
+      var rem = latestMap.lgbm, ins = comp.installed_version;
+      return !!(rem && ins && this._compNorm(rem) !== this._compNorm(ins));
+    }
+    if (comp.kind === 'data') return false;
     var variant = this._compVariantOf(comp);
     var inst = this._compInstalledVersion(comp, variant);
     if (!inst || inst === '未安装' || inst === '未知') return false;
