@@ -71,3 +71,5 @@ openwrt-clashoo-test/
 Thumbs.db
 scripts/compose_screenshots.py
 docs/
+/.codegraph/
+/ROLLBACK.md
