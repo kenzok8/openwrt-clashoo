@@ -436,9 +436,7 @@ function loadCodeMirror() {
   return _cmLoad;
 }
 
-/* 配置编辑器：小文件套 CodeMirror（语法高亮/行号/括号匹配），
-   超过 512KB 回退原生 textarea —— CM5 大文档全量 tokenize 会卡顿。
-   CM 加载失败同样回退，编辑功能不至于全废。 */
+/* CodeMirror for files ≤512KB; fallback to textarea for oversized or failed load */
 function createConfigEditor(mode) {
   var LARGE = 512 * 1024;
   var ta = E('textarea', {
@@ -651,14 +649,14 @@ return view.extend({
               setDlStatus('⏳ ' + (line || '正在下载订阅...'), 'progress');
               return;
             }
-            /* 进程结束但日志还空 → 后台 sh 可能尚未就绪，前几次宽限不判定 */
+            /* sh has not flushed yet, wait a few polls */
             if (!raw && pollCount < 4) return;
             stopDlPoll();
             /* 收尾行只有三种：「订阅下载完成：成功 N 个，失败 M 个」=成功（含"失败 0 个"
                字样，不能按"失败"判负）；「订阅下载失败：全部链接失败」「未找到订阅链接」=失败 */
             var ok = /下载完成|completed/i.test(raw);
-            /* 收尾行笼统，fail_detail 是带真因的失败行（rc=/HTTP/校验失败）：
-               全失败 → 直接显示真因；部分失败 → 收尾行后附上真因 */
+            /* fail_detail carries the real cause（rc=/HTTP/校验失败）：
+               all fail: show real cause; partial: summary + cause */
             var detail = st.fail_detail ? clashoo.localizeLogLine(st.fail_detail) : '';
             var shown = ok ? (line + (detail ? ' · ' + detail : ''))
                            : (detail || line || '订阅下载失败');
