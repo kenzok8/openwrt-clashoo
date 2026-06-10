@@ -74,7 +74,7 @@ jobs:
             base=$(basename "$f" .apk)
             safe="${base//\~/.}"
             cp -v "$f" "dist/release/${safe}-${ARCH}.apk"
-            cp -v "$f" "dist/feed/${safe}.apk"
+            cp -v "$f" dist/feed/
           done
 
           # Feed 索引（仅 feed）：opkg 用 Packages*，apk v2 用 APKINDEX.tar.gz，
