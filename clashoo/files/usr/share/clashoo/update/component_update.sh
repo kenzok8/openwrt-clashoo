@@ -24,13 +24,30 @@ finish() {
   exit "$rc"
 }
 
+# In kernel-only mode there is no transparent proxy, so component downloads
+# would go out direct and stall behind the GFW. Route them through the local
+# mihomo proxy (same as panel_download.sh / core_download.sh). Normal mode
+# returns empty because TPROXY already redirects everything.
+detect_proxy() {
+  [ "$(uci -q get clashoo.config.core_only 2>/dev/null)" = "1" ] || return 0
+  pidof mihomo >/dev/null 2>&1 || pidof clash-meta >/dev/null 2>&1 || pidof sing-box >/dev/null 2>&1 || return 0
+  for key in mixed-port port socks-port; do
+    p="$(sed -n "s/^[[:space:]]*${key}:[[:space:]]*\([0-9][0-9]*\).*/\1/p" /etc/clashoo/config.yaml 2>/dev/null | head -n 1)"
+    [ -n "$p" ] && { printf 'http://127.0.0.1:%s' "$p"; return 0; }
+  done
+  p="$(uci -q get clashoo.config.mixed_port 2>/dev/null)"
+  [ -n "$p" ] && printf 'http://127.0.0.1:%s' "$p"
+}
+
 fetch_text() {
   url="$1"
+  proxy="$(detect_proxy)"
   if command -v curl >/dev/null 2>&1; then
-    curl -fsSL "$url"
+    curl -fsSL ${proxy:+--proxy "$proxy"} "$url"
     return $?
   fi
   if command -v wget >/dev/null 2>&1; then
+    [ -n "$proxy" ] && { http_proxy="$proxy" https_proxy="$proxy" wget -qO- "$url"; return $?; }
     wget -qO- "$url"
     return $?
   fi
@@ -40,8 +57,13 @@ fetch_text() {
 download_file() {
   url="$1"
   out="$2"
+  proxy="$(detect_proxy)"
   if command -v curl >/dev/null 2>&1; then
-    curl -fL "$url" -o "$out"
+    curl -fL ${proxy:+--proxy "$proxy"} "$url" -o "$out"
+    return $?
+  fi
+  if [ -n "$proxy" ]; then
+    http_proxy="$proxy" https_proxy="$proxy" wget -qO "$out" "$url"
     return $?
   fi
   wget -qO "$out" "$url"

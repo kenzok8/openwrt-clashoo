@@ -66,8 +66,29 @@ cleanup() {
 	rm -f "$RUN_FILE" >/dev/null 2>&1
 }
 
+detect_proxy() {
+	[ "$(uci -q get clashoo.config.core_only 2>/dev/null)" = "1" ] || return 0
+	[ -r /etc/clashoo/config.yaml ] || return 0
+
+	port="$(sed -n \
+		-e 's/^[[:space:]]*mixed-port:[[:space:]]*\([0-9][0-9]*\).*/\1/p' \
+		-e 's/^[[:space:]]*port:[[:space:]]*\([0-9][0-9]*\).*/\1/p' \
+		/etc/clashoo/config.yaml 2>/dev/null | head -n 1)"
+	[ -n "$port" ] || return 0
+	# the proxy must be up; check the process (ss isn't present on this busybox,
+	# so a port-listening check via ss silently fails and disables the proxy)
+	pidof mihomo >/dev/null 2>&1 || pidof clash-meta >/dev/null 2>&1 || pidof sing-box >/dev/null 2>&1 || return 0
+	printf 'http://127.0.0.1:%s' "$port"
+}
+
 download_zip() {
+	proxy="$(detect_proxy)"
 	for url in $URLS; do
+		if [ -n "$proxy" ] && command -v curl >/dev/null 2>&1 &&
+			curl -fsSL --connect-timeout 15 --max-time 300 --retry 1 \
+				--proxy "$proxy" -A "Clash/OpenWRT" "$url" -o "$ZIP_FILE"; then
+			return 0
+		fi
 		if wget -q --timeout=60 --no-check-certificate --user-agent="Clash/OpenWRT" "$url" -O "$ZIP_FILE"; then
 			return 0
 		fi
