@@ -12,6 +12,10 @@ UPDATE_LOG="${CLASHOO_UPDATE_LOG:-/tmp/clash_update.txt}"
 SERVICE_CMD="${CLASHOO_SERVICE_CMD:-/etc/init.d/clashoo}"
 TMP_DIR="${CLASHOO_TMP_DIR:-/tmp}"
 
+# Subscriptions are fetched direct first (many airports are domestic / geo-fence
+# foreign exit IPs). Only used as a last-resort fallback, see download_to.
+. /usr/share/clashoo/update/proxy_lib.sh
+
 updated=0
 unchanged=0
 failed=0
@@ -125,6 +129,18 @@ download_to() {
 			rc=$?
 			[ "$rc" -eq 0 ] && [ "$code" = "200" ] && return 0
 		done
+		# Last resort: direct + DNS-override both failed, so the source may be
+		# GFW-blocked (e.g. a github-hosted sub). In kernel-only mode try once
+		# through the running core — nothing left to lose, and it won't disturb
+		# any airport that already answered direct.
+		proxy="$(clashoo_detect_proxy)"
+		if [ -n "$proxy" ]; then
+			log_update "代理兜底：通过本地核心重试订阅"
+			code="$(curl -sSL --connect-timeout 15 --max-time 60 --speed-time 30 \
+				--speed-limit 1 --retry 1 -A "$ua" -D "$hdr" -o "$out" \
+				--proxy "$proxy" -w '%{http_code}' "$url" 2>/dev/null)"
+			[ "$?" -eq 0 ] && [ "$code" = "200" ] && return 0
+		fi
 		return 1
 	fi
 	wget -q --tries=4 --timeout=20 --user-agent="$ua" "$url" -O "$out"

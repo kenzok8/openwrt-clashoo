@@ -25,19 +25,10 @@ finish() {
 }
 
 # In kernel-only mode there is no transparent proxy, so component downloads
-# would go out direct and stall behind the GFW. Route them through the local
-# mihomo proxy (same as panel_download.sh / core_download.sh). Normal mode
-# returns empty because TPROXY already redirects everything.
-detect_proxy() {
-  [ "$(uci -q get clashoo.config.core_only 2>/dev/null)" = "1" ] || return 0
-  pidof mihomo >/dev/null 2>&1 || pidof clash-meta >/dev/null 2>&1 || pidof sing-box >/dev/null 2>&1 || return 0
-  for key in mixed-port port socks-port; do
-    p="$(sed -n "s/^[[:space:]]*${key}:[[:space:]]*\([0-9][0-9]*\).*/\1/p" /etc/clashoo/config.yaml 2>/dev/null | head -n 1)"
-    [ -n "$p" ] && { printf 'http://127.0.0.1:%s' "$p"; return 0; }
-  done
-  p="$(uci -q get clashoo.config.mixed_port 2>/dev/null)"
-  [ -n "$p" ] && printf 'http://127.0.0.1:%s' "$p"
-}
+# would go out direct and stall behind the GFW. Route them through the running
+# core (shared logic in proxy_lib.sh). Normal mode returns empty -> TPROXY.
+. /usr/share/clashoo/update/proxy_lib.sh
+detect_proxy() { clashoo_detect_proxy; }
 
 fetch_text() {
   url="$1"

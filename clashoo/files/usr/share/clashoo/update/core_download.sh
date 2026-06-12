@@ -92,13 +92,10 @@ fetch_url_try() {
 	return 127
 }
 
-detect_proxy() {
-	if pidof mihomo >/dev/null 2>&1 || pidof clash-meta >/dev/null 2>&1 || pidof sing-box >/dev/null 2>&1; then
-		local p
-		p="$(uci -q get clashoo.config.mixed_port 2>/dev/null)"
-		[ -n "$p" ] && echo "http://127.0.0.1:$p"
-	fi
-}
+# Route core downloads through the running core in kernel-only mode (shared
+# logic in proxy_lib.sh: handles smart core + sing-box's own profile port).
+. /usr/share/clashoo/update/proxy_lib.sh
+detect_proxy() { clashoo_detect_proxy; }
 
 download_file_try() {
 	url="$1"
