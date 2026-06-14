@@ -542,7 +542,11 @@ runtime_run_health_check() {
 	fi
 
 	detail="dns:${dns_state};explicit:${explicit_state};transparent:${transparent_state}"
-	if [ "$explicit_state" = "ok" ] && [ "$transparent_state" = "ok" ]; then
+	# Pass on explicit (local mixed-port) reachability alone. The transparent
+	# probe tests the router's OWN output-redirect path, which is unreliable on
+	# some stacks (PPPoE/GL.iNet, issue #25) yet does not reflect LAN-client
+	# proxying — keep it informational in `detail`, not a pass gate.
+	if [ "$explicit_state" = "ok" ]; then
 		if [ "$require_fakeip" = "0" ] || [ "$dns_state" = "ok" ] || [ "$dns_state" = "compat" ] || [ "$dns_state" = "na" ]; then
 			runtime_state_accepts_health_update || return 1
 			runtime_state_record_health "pass" "$detail"
