@@ -85,6 +85,12 @@ jobs:
           echo "pkg_hash=${pkg_hash}" >> $GITHUB_OUTPUT
           # Upload the canonical tarball to the fixed mihomo-src release.
           gh release upload mihomo-src "${tarball}" --repo "${{ github.repository }}" --clobber
+          # keep only the newest 3 source tarballs (never the release/tag itself)
+          gh release view mihomo-src --repo "${{ github.repository }}" --json assets \
+            --jq '.assets | sort_by(.createdAt) | reverse | .[3:] | .[].name' \
+            | while read -r old; do
+                [ -n "$old" ] && gh release delete-asset mihomo-src "$old" --repo "${{ github.repository }}" -y
+              done
 
       - name: Update Makefile
         run: |
