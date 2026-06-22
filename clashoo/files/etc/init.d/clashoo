@@ -1439,7 +1439,7 @@ _start_prepare_config() {
 
 	# flatten YAML merge anchors first (yq 4.53+ breaks "<<" keys on rewrite)
 	if command -v yq >/dev/null 2>&1 && grep -q '<<[[:space:]]*:' "$CONFIG_YAML" 2>/dev/null; then
-		yq e -i 'explode(.)' "$CONFIG_YAML" 2>/dev/null || true
+		yq e -i 'explode(.) | .rule-providers? |= with_entries(.value.path = "./rule_provider/" + .key)' "$CONFIG_YAML" 2>/dev/null || true
 	fi
 	# stage bundled cn.mrs into the core dir; mihomo rejects rule-set paths outside /etc/clashoo
 	if [ -f /usr/share/clashoo/ruleset/cn.mrs ]; then
