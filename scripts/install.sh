@@ -2,7 +2,7 @@
 
 set -eu
 
-B2_FEED_BASE_URL="https://kenzo111.s3.us-west-004.backblazeb2.com/openwrt-feed/clashoo"
+FEED_BASE_URL="https://down.dllkids.xyz/openwrt-feed/clashoo"
 GITHUB_API_URL="https://api.github.com/repos/kenzok8/openwrt-clashoo/releases/latest"
 GITHUB_PROXY_PREFIX="${GITHUB_PROXY_PREFIX:-https://ghfast.top/}"
 TMP_DIR="/tmp/clashoo-install"
@@ -143,7 +143,7 @@ build_sdk_candidates() {
 
 # Feed 结构：<base>/<sdk>/<arch>/<files> —— 与 dllkids setup.sh 对齐，不嵌 feedname 子目录
 feed_base_for() {
-  printf '%s/%s/%s' "$B2_FEED_BASE_URL" "$1" "$2"
+  printf '%s/%s/%s' "$FEED_BASE_URL" "$1" "$2"
 }
 
 load_manifest_urls() {
@@ -237,11 +237,11 @@ I18N_URL=""
 if [ -n "$SDK_CANDIDATES" ]; then
   for SDK in $SDK_CANDIDATES; do
     if load_manifest_urls "$SDK" "$ARCH"; then
-      echo "Using B2 manifest: ${SDK}/${ARCH}"
+      echo "Using R2 feed manifest: ${SDK}/${ARCH}"
       break
     fi
     if [ "$PM" = "opkg" ] && load_opkg_feed_urls "$SDK" "$ARCH"; then
-      echo "Using B2 feed: ${SDK}/${ARCH}"
+      echo "Using R2 feed: ${SDK}/${ARCH}"
       break
     fi
   done

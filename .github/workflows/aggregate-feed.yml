@@ -20,29 +20,33 @@ jobs:
     steps:
       - name: Prepare rclone
         env:
-          B2_KEY_ID: ${{ secrets.B2_KEY_ID }}
-          B2_APPLICATION_KEY: ${{ secrets.B2_APPLICATION_KEY }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
         run: |
-          [ -z "$B2_KEY_ID" ] && { echo "No B2 credentials"; exit 1; }
+          [ -z "$R2_ACCESS_KEY_ID" ] && { echo "No R2 credentials"; exit 1; }
           curl -fsSL https://rclone.org/install.sh | sudo bash
           mkdir -p ~/.config/rclone
           cat > ~/.config/rclone/rclone.conf <<EOF
-          [b2]
-          type = b2
-          account = ${B2_KEY_ID}
-          key = ${B2_APPLICATION_KEY}
-          hard_delete = true
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = ${R2_ACCESS_KEY_ID}
+          secret_access_key = ${R2_SECRET_ACCESS_KEY}
+          endpoint = ${R2_ENDPOINT}
+          acl = private
+          no_check_bucket = true
           EOF
 
       - name: Download project feeds
         env:
-          B2_BUCKET: ${{ secrets.B2_BUCKET }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
         run: |
-          [ -z "$B2_BUCKET" ] && { echo "No B2 bucket"; exit 1; }
+          [ -z "$R2_BUCKET" ] && { echo "No R2 bucket"; exit 1; }
           mkdir -p aggregate/clashoo aggregate/daed aggregate/jell merged
-          rclone copy "b2:${B2_BUCKET}/openwrt-feed/clashoo/" aggregate/clashoo/ --fast-list || true
-          rclone copy "b2:${B2_BUCKET}/openwrt-feed/daed/" aggregate/daed/ --fast-list || true
-          rclone copy "b2:${B2_BUCKET}/openwrt-feed/jell/" aggregate/jell/ --fast-list || true
+          rclone copy "r2:${R2_BUCKET}/openwrt-feed/clashoo/" aggregate/clashoo/ --fast-list || true
+          rclone copy "r2:${R2_BUCKET}/openwrt-feed/daed/" aggregate/daed/ --fast-list || true
+          rclone copy "r2:${R2_BUCKET}/openwrt-feed/jell/" aggregate/jell/ --fast-list || true
 
           for project in clashoo daed jell; do
             [ -d "aggregate/${project}" ] || continue
@@ -108,7 +112,7 @@ jobs:
 
       - name: Prepare keys and upload
         env:
-          B2_BUCKET: ${{ secrets.B2_BUCKET }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
           OPKG_PUB_KEY: ${{ secrets.OPKG_PUB_KEY }}
           APK_PUB_KEY: ${{ secrets.APK_PUB_KEY }}
         run: |
@@ -119,7 +123,7 @@ jobs:
           printf '%s\n' "$OPKG_PUB_KEY" > merged/keys/dllkids-feed.pub
           printf '%s\n' "$APK_PUB_KEY" > merged/keys/dllkids-feed.pub.pem
 
-          rclone copy merged/keys/ "b2:${B2_BUCKET}/openwrt-feed/keys/" --checksum --fast-list
+          rclone copy merged/keys/ "r2:${R2_BUCKET}/openwrt-feed/keys/" --checksum --fast-list
 
           dirs=()
           while IFS= read -r d; do dirs+=("$d"); done < <(find merged -mindepth 2 -maxdepth 2 -type d)
@@ -128,17 +132,17 @@ jobs:
             arch=$(basename "$dir")
             [ "$sdk" = "keys" ] && continue
             echo "Uploading ${sdk}/${arch} ..."
-            rclone sync "$dir/" "b2:${B2_BUCKET}/openwrt-feed/${sdk}/${arch}/" --checksum --fast-list --transfers 8 --checkers 16 --b2-hard-delete
+            rclone sync "$dir/" "r2:${R2_BUCKET}/openwrt-feed/${sdk}/${arch}/" --checksum --fast-list --transfers 8 --checkers 16
             echo "  -> done"
           done
 
-      - name: Verify B2 upload
+      - name: Verify R2 upload
         env:
-          B2_BUCKET: ${{ secrets.B2_BUCKET }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
         run: |
           set -euo pipefail
           echo "Checking keys ..."
-          rclone lsf "b2:${B2_BUCKET}/openwrt-feed/keys/" --files-only > /dev/null || { echo "FAIL: no keys"; exit 1; }
+          rclone lsf "r2:${R2_BUCKET}/openwrt-feed/keys/" --files-only > /dev/null || { echo "FAIL: no keys"; exit 1; }
           echo "  -> OK"
 
           fail=0
@@ -149,7 +153,7 @@ jobs:
             [ "$sdk" = "keys" ] && continue
 
             echo "Checking ${sdk}/${arch} ..."
-            if rclone lsf "b2:${B2_BUCKET}/openwrt-feed/${sdk}/${arch}/" --files-only > /dev/null 2>&1; then
+            if rclone lsf "r2:${R2_BUCKET}/openwrt-feed/${sdk}/${arch}/" --files-only > /dev/null 2>&1; then
               echo "  -> OK"
             else
               echo "  -> FAIL"
@@ -161,4 +165,4 @@ jobs:
             echo "Verification FAILED"
             exit 1
           fi
-          echo "All B2 paths verified OK"
+          echo "All R2 paths verified OK"
