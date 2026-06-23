@@ -1,6 +1,6 @@
 name: Prune feed (keep newest)
 
-# Trim duplicate package/firmware versions on the B2 feed so they stop piling up.
+# Trim duplicate package/firmware versions on the R2 feed so they stop piling up.
 # Keeps only the newest build of each package and firmware variant.
 # Does NOT touch the package index — the daily aggregate-feed run (04:37 UTC)
 # rebuilds and re-signs it; this job runs ~32 min earlier so the index refreshes
@@ -33,19 +33,27 @@ jobs:
       - name: Install rclone
         run: curl -fsSL https://rclone.org/install.sh | sudo bash
 
-      - name: Configure rclone (B2)
+      - name: Configure rclone (R2)
+        env:
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
         run: |
           mkdir -p ~/.config/rclone
           cat > ~/.config/rclone/rclone.conf <<EOF
-          [b2]
-          type = b2
-          account = ${{ secrets.B2_KEY_ID }}
-          key = ${{ secrets.B2_APPLICATION_KEY }}
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = ${R2_ACCESS_KEY_ID}
+          secret_access_key = ${R2_SECRET_ACCESS_KEY}
+          endpoint = ${R2_ENDPOINT}
+          acl = private
+          no_check_bucket = true
           EOF
 
       - name: Prune
         env:
-          REMOTE: "b2:${{ secrets.B2_BUCKET }}"
+          REMOTE: "r2:${{ secrets.R2_BUCKET }}"
           KEEP: ${{ github.event.inputs.keep || '1' }}
           # Scheduled runs delete for real; manual runs default to dry-run.
           DRY: ${{ github.event_name == 'schedule' && '0' || (github.event.inputs.dry_run == 'false' && '0' || '1') }}

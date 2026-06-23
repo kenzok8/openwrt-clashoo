@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # prune-feed.sh
 #
-# Keep only the newest build of each package / firmware variant on the B2 feed,
-# so duplicate versions stop piling up. Operates directly on B2 via rclone — no
+# Keep only the newest build of each package / firmware variant on the R2 feed,
+# so duplicate versions stop piling up. Operates directly on R2 via rclone — no
 # downloads. Run from GitHub Actions (see .github/workflows/prune-feed.yml).
 #
 # It NEVER touches the package index. The signed Packages/Packages.gz/Packages.sig
@@ -11,7 +11,7 @@
 # the same day.
 #
 # Env:
-#   REMOTE  rclone remote+bucket, e.g. b2:kenzo111   (required)
+#   REMOTE  rclone remote+bucket, e.g. r2:dllkids-openwrt-feed   (required)
 #   KEEP    newest builds to keep per group          (default 1)
 #   DRY     "1" => rclone --dry-run (list only)       (default 1)
 #
