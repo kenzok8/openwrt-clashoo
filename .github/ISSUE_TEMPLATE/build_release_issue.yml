@@ -50,8 +50,8 @@ body:
   - type: input
     id: b2_manifest
     attributes:
-      label: B2 Manifest URL / B2 manifest 地址
-      placeholder: "https://kenzo111.s3.us-west-004.backblazeb2.com/openwrt-feed/clashoo/25.12/x86_64/manifest-clashoo.txt"
+      label: Manifest URL / manifest 地址
+      placeholder: "https://down.dllkids.xyz/openwrt-feed/clashoo/25.12/x86_64/manifest-clashoo.txt"
     validations:
       required: false
   - type: textarea
