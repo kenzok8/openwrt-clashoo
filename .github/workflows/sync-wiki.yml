@@ -1,6 +1,5 @@
 name: Sync skill references to Wiki
 
-# references/ 是用户向文档的单一信息源；改动后自动同步到 GitHub Wiki，免手动两边对齐。
 on:
   push:
     branches: [main]
@@ -34,7 +33,6 @@ jobs:
           git config --global core.quotepath false
           git clone "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.wiki.git" "$WIKI_DIR"
 
-          # 用 references 覆盖 Wiki 里的同名页（只动文档页，保留 Wiki 自有的 .git）
           cp -f "$REF_DIR"/*.md "$WIKI_DIR"/
 
           cd "$WIKI_DIR"
