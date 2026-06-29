@@ -176,6 +176,24 @@ wget --no-check-certificate -O - https://ghfast.top/https://raw.githubuserconten
 
 ---
 
+## AI 助手指南（Skill）
+
+仓库自带一个通用 AI 技能 `clashoo-user-guide`，把 Clashoo 的功能说明、双内核内幕与排障经验喂给 AI 助手，让它能准确回答「某功能怎么开」「为什么不通」「日志报错什么意思」。
+
+通用安装（Claude Code / Codex / Gemini 等都支持，需要 Node.js）：
+
+```bash
+# 装到当前 agent
+npx skills add kenzok8/openwrt-clashoo
+
+# 装到所有已安装的 agent
+npx skills add kenzok8/openwrt-clashoo -a '*'
+```
+
+技能源码在 [`skills/clashoo-user-guide/`](skills/clashoo-user-guide/)；其中 `references/` 与本仓库 Wiki 同源，由 CI 自动同步。
+
+---
+
 ## 开发
 
 ```bash

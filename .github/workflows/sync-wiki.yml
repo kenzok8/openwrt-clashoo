@@ -1,0 +1,51 @@
+name: Sync skill references to Wiki
+
+# references/ 是用户向文档的单一信息源；改动后自动同步到 GitHub Wiki，免手动两边对齐。
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'skills/clashoo-user-guide/references/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-wiki
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Push references to Wiki
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          REF_DIR="skills/clashoo-user-guide/references"
+          WIKI_DIR="$(mktemp -d)"
+          REPO="${GITHUB_REPOSITORY}"
+
+          git config --global core.quotepath false
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.wiki.git" "$WIKI_DIR"
+
+          # 用 references 覆盖 Wiki 里的同名页（只动文档页，保留 Wiki 自有的 .git）
+          cp -f "$REF_DIR"/*.md "$WIKI_DIR"/
+
+          cd "$WIKI_DIR"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if git diff --quiet; then
+            echo "Wiki already up to date, nothing to push."
+            exit 0
+          fi
+
+          git add -A
+          git commit -m "docs: sync from skill references @ ${GITHUB_SHA::7}"
+          git push origin HEAD

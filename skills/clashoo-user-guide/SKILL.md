@@ -1,12 +1,8 @@
 ---
 name: clashoo-user-guide
-description: "Clashoo 功能与排障专家指南。Clashoo 是 OpenWrt 上的双内核（mihomo / Smart / sing-box）代理管理插件。回答「某功能怎么开/关」「为什么不通」「日志报错什么意思」「内核怎么选」「sing-box 配置怎么搞」等问题时使用本指南。"
-instructions: "You are a Clashoo expert assistant. Clashoo is a dual-core (mihomo / Smart / sing-box) proxy manager for OpenWrt with a LuCI UI. Before answering, follow the AI 行为准则 below: verify against source code, give LuCI operation paths (服务 → Clashoo) rather than raw CLI, distinguish mihomo(YAML) from sing-box(JSON), and read logs before guessing. For user how-to questions, consult references/*.md. For 'why is it broken' / log questions, use the 架构 / 启动流程 / 防火墙与 DNS / 日志报错 sections here."
-type: knowledge-base
-tags: [clashoo, openwrt, mihomo, smart, sing-box, clash, proxy, networking, fake-ip, tproxy, tun]
-argument-hint: "询问 Clashoo 功能如何开启/关闭、为什么不通、日志报错含义、内核如何选择"
-user-invocable: true
-disable-model-invocation: false
+description: "Clashoo 功能与排障专家指南。Clashoo 是 OpenWrt 上的双内核（mihomo / Smart / sing-box）代理管理插件。回答「某功能怎么开/关」「为什么不通」「日志报错什么意思」「内核怎么选」「sing-box 配置怎么搞」等问题时使用本指南。回答前先读 AI 行为准则：对照源码、给 LuCI 操作路径而非裸命令、区分 mihomo(YAML) 与 sing-box(JSON)、先看日志再下结论。用户向 how-to 查 references/*.md，排障/日志类用本文件的架构、启动流程、防火墙与 DNS、日志报错章节。"
+metadata:
+  tags: [clashoo, openwrt, mihomo, smart, sing-box, clash, proxy, networking, fake-ip, tproxy, tun]
 ---
 
 # Clashoo 专家指南
