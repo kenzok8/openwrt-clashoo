@@ -39,4 +39,13 @@ jobs:
           git add clashoo/files/usr/share/clashoo/nftables
           git add clashoo/files/usr/share/clashoo/ruleset
           git commit -m "chore: refresh clashoo rule data"
-          git push
+
+          # 远端可能已被其它定时任务/推送推进（重跑时基线也可能落后）；
+          # rebase 到最新 main 后再推，并重试几次防并发竞态。
+          for i in 1 2 3 4 5; do
+            git push && exit 0
+            echo "push rejected, rebasing onto latest main (attempt $i)..."
+            git pull --rebase origin main || exit 1
+          done
+          echo "push failed after retries" >&2
+          exit 1
