@@ -109,17 +109,32 @@ Clashoo 把上游 DNS 分成不同角色，不同域名会走不同解析链。
 
 | 角色 | 默认值 | 用途 |
 |---|---|---|
-| 国内上游 DNS | `https://dns.alidns.com/dns-query`、`https://doh.pub/dns-query` | 解析国内域名，减少国内网站绕路 |
-| 节点域名解析专用 | `tls://1.1.1.1:853` | 解析代理节点服务器域名，避免节点域名被错误分流 |
-| 国外加密 DNS | `https://cloudflare-dns.com/dns-query`、`https://dns.google/dns-query` | 解析国外域名，降低污染影响 |
-| 直连域名解析 | `udp://223.5.5.5` | 明确直连的域名走国内 DNS |
+| 主解析（nameserver） | `https://1.1.1.1/dns-query`、`https://8.8.8.8/dns-query` | 解析境外域名。配合 DNS Respect Rules 经代理查询，避免被污染 |
+| 节点域名解析（proxy-server-nameserver） | `https://223.5.5.5/dns-query`、`https://doh.pub/dns-query` | 解析代理节点服务器域名。这一步必须直连可达，所以用国内 DNS |
+| 直连域名解析（direct-nameserver） | `udp://223.5.5.5` | 明确直连的域名走国内 DNS |
+| Bootstrap DNS（default-nameserver） | `223.5.5.5`、`119.29.29.29` | 解析 DoH / DoT / DoQ 服务器本身，必须是纯 IP |
 
 默认分流解析策略：
 
 | 匹配规则 | 默认使用 DNS | 含义 |
 |---|---|---|
 | `geosite:cn` | 阿里 DNS、腾讯 DNS | 国内域名用国内 DNS |
-| `geosite:geolocation-!cn` | Cloudflare DNS | 非中国域名用国外加密 DNS |
+
+Fake-IP 模式下不再配置 fallback。mihomo 一旦配了 fallback 就会自动启用 fallback-filter，境外 DNS 直连被墙时会空等超时，反而拖慢 Google、YouTube。
+
+## DNS Respect Rules
+
+位置：`基础设置 -> 高级 DNS -> DNS Respect Rules`，默认开启。
+
+打开后，DNS 查询本身也按代理规则走，也就是说主解析用的境外 DoH（1.1.1.1）是**经代理查询**的，而不是直连。这是境外域名不被污染的关键。
+
+关闭它会怎样：境外域名改用直连的 DNS 解析，很可能拿到污染 IP。表现是网页能开（TCP 把域名交给节点解析，不受影响），但 **QUIC / UDP 会挂**（UDP 出站必须先在本地解析出 IP，就发到污染地址去了），典型症状就是 Google Play 下载一直转圈。
+
+前提：必须配置了「节点域名解析（proxy-server-nameserver）」，否则 mihomo 会拒绝启动。开了 `prefer-h3` 时不要用。
+
+## 自己写的配置文件优先
+
+如果你的配置文件里已经写了 `dns` 段，里面已有的字段（`nameserver`、`nameserver-policy`、`respect-rules` 等）**不会被 LuCI 的设置覆盖**，Clashoo 只补你没写的部分。想完全由 LuCI 接管，就把配置文件里的 `dns` 段删掉。
 
 ## 基础 DNS 与透明代理 DNS 劫持的区别
 

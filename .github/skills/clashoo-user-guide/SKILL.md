@@ -153,6 +153,12 @@ OpenClash / nikki / passwall 可能和 Clashoo 共用同名二进制（mihomo、
 
 另有本机出站表 `clashoo_local`（`ip` 族，**仅 redirect 模式**），让路由器自身流量也走代理。
 
+**QUIC 阻断表 `clashoo_quic`**（`block_quic=1` 时建，`inet` 族，forward hook priority -10）：`ip daddr <fake-ip 段> udp dport 443 reject with icmpx type port-unreachable`。
+- 必须 **reject 发 ICMP**，不能 drop：drop 与「机场黑洞掉 UDP 443」无法区分，客户端照样干等。mihomo 规则里的 `REJECT` 对 UDP 也是静默丢包，同样无效。
+- 优先级要抢在 fw4 之前：mihomo 的 auto-redirect 会在 fw4 forward 链顶部 accept 所有 tun 流量。
+- **只挂 forward，不能挂 output**：output 会打死内核自己连 Hysteria2/TUIC 节点的 UDP 443。
+- 限定 fake-ip 目标 = 只拦走代理的 QUIC，国内直连 QUIC 不受影响（非 fake-ip 模式回退用 `clashoo_china` 集合排除）。
+
 **两个关键 fwmark（不能混用）**：
 - `PROXY_FWMARK = 0x162`：入站 TProxy 标记 → `ip rule fwmark 0x162 table 0x162` → `local 0.0.0.0/0 dev lo`。
 - `CORE_ROUTING_MARK = 0x1a0a`（=6666）：内核出站 SO_MARK（= mihomo `routing-mark` / sing-box `routing_mark`）。
@@ -171,6 +177,12 @@ OpenClash / nikki / passwall 可能和 Clashoo 共用同名二进制（mihomo、
 - **sing-box**：`singbox_dns_change` 同理，但仅在 `dnsforwader=1` 时接管。
 - **增强模式**：`enhanced_mode = fake-ip`（默认，配 `fake_ip_range 198.18.0.1/16` + `fake_ip_filter`）或 `redir-host`。
 - **安全网**：`ensure_dns_when_core_stopped` —— 内核停了，若 dnsmasq 只剩指向本地 Clashoo DNS，会自动补公共 DNS（119.29.29.29 / 223.5.5.5），避免断网。
+- **上游 DNS 注入**（`mixin.uc`，2026-07-14 起）：UCI 的 `dnsservers`（按 `ser_type` 分角色）/ `dns_policy` / `default_nameserver` 会注入 mihomo 的 `dns` 段。**在此之前 mihomo 完全没有 nameserver**，回落到内置国内 DNS（`doh.pub` / `tls://223.5.5.5:853`），境外域名解析成污染 IP。
+  - 角色映射：`nameserver` = 境外 DoH（配 `respect-rules` 经代理查询）、`proxy-server-nameserver` = 国内（解析节点域名，必须直连可达）、`direct-nameserver` = 国内。**sing-box 的映射相反**：`dns_proxy` 取 `nameserver`（走代理），`dns_direct` 取 `direct-nameserver`。
+  - `respect-rules` 需要 `proxy-server-nameserver` 存在，且不能与 `prefer-h3` 同用。
+  - fake-ip 下不注入 `fallback`（mihomo 一配 fallback 就自动开 fallback-filter，境外 DNS 直连被墙会空等超时）。
+  - **用户配置优先**：`init.d` 用 yq 探测用户 yaml 的 `dns` 段已有哪些字段，经 `CLASHOO_DNS_PRESENT` 传给 mixin，逐字段跳过。老用户的错误角色由 `_migrate_dns_roles` 一次性迁移（`dns_migrated` 标记）。
+- **DNS 污染的典型症状**：TCP 正常、UDP/QUIC 全挂（连接表里 upload 一直涨、download 恒为 0），Google Play 下载卡死。因为 **TCP 出站把域名透传给节点解析，UDP 出站必须先在本地解析出 IP**。排查看连接的 destinationIP 是不是国内地址。
 - **DNS 防泄漏**（`dns_leak_protect=1`）：阻止国内 DNS 解析国外域名、阻断 DoT/DoQ，并强制 `ipv6:false`。
 - sing-box 的 fake-ip 反查表持久化在 `cache.db` 的 `store_fakeip`（模板已开）；**删了 cache.db 或没开 store_fakeip，重启后 HTTPS 会大面积失败**。
 
