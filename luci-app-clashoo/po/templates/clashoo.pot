@@ -1364,9 +1364,6 @@ msgstr ""
 msgid "TUN Network Stack"
 msgstr ""
 
-msgid "Stack"
-msgstr ""
-
 msgid "Type"
 msgstr ""
 

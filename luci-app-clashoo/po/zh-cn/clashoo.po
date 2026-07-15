@@ -1371,9 +1371,6 @@ msgstr "TUN 模式"
 msgid "TUN Network Stack"
 msgstr "TUN 网络栈"
 
-msgid "Stack"
-msgstr "栈"
-
 msgid "Type"
 msgstr "类型"
 

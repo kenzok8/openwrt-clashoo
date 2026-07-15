@@ -855,7 +855,7 @@ return view.extend({
       rows: [
         { proto: 'TCP', mode: this._tpModeName(tcpRaw), suffix: String(tcpRaw).toLowerCase() === 'off' ? '' : _("Mode") },
         { proto: 'UDP', mode: this._tpModeName(udpRaw), suffix: String(udpRaw).toLowerCase() === 'off' ? '' : _("Mode") },
-        { proto: _("Stack"), mode: tunEnabled ? this._stackLabel(stackRaw) : _("Not enabled"), suffix: tunEnabled ? _("Mode") : '' }
+        { proto: _("Network Stack"), mode: tunEnabled ? this._stackLabel(stackRaw) : _("Not enabled"), suffix: tunEnabled ? _("Mode") : '' }
       ]
     };
   },
