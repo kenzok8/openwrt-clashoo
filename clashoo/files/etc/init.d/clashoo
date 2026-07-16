@@ -1032,6 +1032,12 @@ ensure_dns_cn_policy_fallback() {
 	_ensure_cn_domain_rule_provider
 }
 
+_remap_dns_system_nameserver() {
+	command -v yq >/dev/null 2>&1 || return 0
+	[ -s "$CONFIG_YAML" ] || return 0
+	yq -M e -i '(.dns | .. | select(. == "system")) |= "223.5.5.5"' "$CONFIG_YAML" 2>/dev/null || true
+}
+
 ip_rules() {
 #===========================================================================================================================
 	sh /usr/share/clashoo/runtime/iprules.sh 2>/dev/null
@@ -1650,6 +1656,7 @@ _start_prepare_config() {
 	fi
 
 	_prepare_geo_bootstrap_mode
+	_remap_dns_system_nameserver >/dev/null 2>&1
 	ensure_dns_cn_policy_fallback >/dev/null 2>&1
 
 
