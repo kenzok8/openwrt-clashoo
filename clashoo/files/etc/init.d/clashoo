@@ -1987,9 +1987,7 @@ reload_service()
 		resolve_effective_tp_modes
 		runtime_state_record_preflight "mihomo"
 		backend_remove_rules 2>/dev/null
-		yml_dns_change 2>/dev/null
-		ip_rules 2>/dev/null
-		cp -f "$CONFIG_YAML" "${CLASH_CONFIG}/config.yaml" 2>/dev/null
+		( select_config && _start_prepare_config ) >/dev/null 2>&1
 		# hot-reload via mihomo REST API (config + addtype rules), no process restart or tunnel drop
 		local _dp _ds _lip
 		_dp="$(uci -q get clashoo.config.dash_port)"; [ -n "$_dp" ] || _dp=9090
