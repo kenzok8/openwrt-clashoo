@@ -69,13 +69,16 @@
 **DNS 策略**
 - 增强模式：Fake-IP / Redir-Host 自由切换
 - 上游 DNS 按角色分流：默认 / 代理 / 直连 / Fallback
+- mihomo 会读取 LuCI 上游 DNS / 分流 DNS 设置，并保留用户配置里已有的 DNS 字段
+- 内置 `cn.mrs` 域名集，默认用 `rule-set:cn_domain` 处理国内域名，避免依赖 geosite.dat
 - Bootstrap DNS、Fallback GeoIP 过滤、ECS 客户端子网
 - DNS 防泄漏：阻止国内 DNS 解析国外域名、阻断 DoT/DoQ
 
 **透明代理**
-- Fake-IP / TUN / Mixed 三种模式
-- TCP Redirect + UDP TProxy 自动匹配
-- gVisor / System / Mixed 网络栈可选
+- TCP / UDP / 网络栈分开配置
+- TCP 支持 Redirect / TProxy / TUN，UDP 支持 TProxy / TUN
+- TUN 网络栈支持 gVisor / System / Mixed，只有 TCP 或 UDP 选 TUN 时生效
+- 可禁用 QUIC GSO，也可按需阻断走代理的 UDP 443，让应用回落 TCP
 
 **系统与数据**
 - 组件更新：内核 / 内核数据 / 插件本体按组件单独检查更新，便于定位失败
@@ -170,7 +173,7 @@ wget --no-check-certificate -O - https://ghfast.top/https://raw.githubuserconten
 2. 上传订阅或导入配置文件
 3. 选择内核（Mihomo / Smart / Sing-box）
 4. 点击启用服务
-5. 选运行模式（Fake-IP / TUN / Mixed）
+5. 按需要调整透明代理：TCP、UDP 和 TUN 网络栈
 
 更多用法、配置说明与常见问题见 **[项目 Wiki](https://github.com/kenzok8/openwrt-clashoo/wiki)**。
 

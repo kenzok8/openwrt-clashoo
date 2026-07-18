@@ -21,7 +21,7 @@ Clashoo 是 OpenWrt 上的代理管理插件，提供 LuCI 图形界面，用来
 - 在 LuCI 中启动、停止和切换代理服务
 - 管理 mihomo YAML 配置和 sing-box JSON 配置
 - 在 mihomo、Smart、sing-box 之间切换内核
-- 在 Fake-IP、TUN、Mixed 模式之间切换透明代理方式
+- 分开设置 TCP、UDP 和 TUN 网络栈，支持 Redirect、TProxy、TUN 等常用透明代理组合
 - 下载或更新内核、管理面板、GeoIP 和大陆白名单资源
 - 备份和还原配置，支持一键还原出厂默认设置
 - 查看插件日志、核心日志和更新日志

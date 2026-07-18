@@ -117,7 +117,7 @@ OpenClash / nikki / passwall 可能和 Clashoo 共用同名二进制（mihomo、
    - 拷到工作目录 + `ip_rules`。
 5. `_start_launch_core`：
    - **`mihomo -t` 预检**（15s 看门狗）。失败不碰防火墙/dnsmasq；**超时（退出码 124）多半是在下载 geo 数据**，会异步补 geo 并稍后重试。
-   - `procd_open_instance` 拉起内核（`disable_quic_gso=1` 时注入 `QUIC_GO_DISABLE_GSO=1`；core-only 注入 `SAFE_PATHS=/`）。
+   - `procd_open_instance` 拉起内核（`disable_quic_gso=1` 时注入 `QUIC_GO_DISABLE_GSO=1`，只影响 quic-go GSO；core-only 注入 `SAFE_PATHS=/`）。
    - 非 core-only：`fw4.sh apply` → 重启 dnsmasq → `restore` → `add_cron`。
    - 后台看门狗等内核出现：出现则跑健康检查 + 立即触发访问检查 + 完成 bootstrap geo 补全；**超时未出现则 `_rollback_failed_start` 回滚防火墙与 DNS**（否则会留下指向无人监听端口的劫持 DNS）。
 
@@ -153,7 +153,11 @@ OpenClash / nikki / passwall 可能和 Clashoo 共用同名二进制（mihomo、
 
 另有本机出站表 `clashoo_local`（`ip` 族，**仅 redirect 模式**），让路由器自身流量也走代理。
 
-**QUIC 阻断表 `clashoo_quic`**（`block_quic=1` 时建，`inet` 族，forward hook priority -10）：`ip daddr <fake-ip 段> udp dport 443 reject with icmpx type port-unreachable`。
+**QUIC 两个开关不重叠**：
+- `disable_quic_gso=1`：启动 mihomo / Smart 时注入 `QUIC_GO_DISABLE_GSO=1`，关闭 quic-go 的 GSO 批量发送能力。它是核心兼容性开关，用来绕过部分内核、网卡、虚拟化环境的 UDP GSO 问题，不会阻断 QUIC。
+- `block_quic=1`：创建防火墙表 `clashoo_quic`，拒绝走代理链路里的 UDP 443，让客户端尽快回落 TCP。它是访问兼容性开关，只在下载、视频或应用卡在 QUIC 时尝试。
+
+**QUIC 阻断表 `clashoo_quic`**（`block_quic=1` 时建，`inet` 族，prerouting hook priority `mangle - 1` + forward hook priority `-10`）：`ip daddr <fake-ip 段> udp dport 443 reject with icmpx type port-unreachable`。
 - 必须 **reject 发 ICMP**，不能 drop：drop 与「机场黑洞掉 UDP 443」无法区分，客户端照样干等。mihomo 规则里的 `REJECT` 对 UDP 也是静默丢包，同样无效。
 - 优先级要抢在 fw4 之前：mihomo 的 auto-redirect 会在 fw4 forward 链顶部 accept 所有 tun 流量。
 - **只挂 forward，不能挂 output**：output 会打死内核自己连 Hysteria2/TUIC 节点的 UDP 443。
@@ -168,20 +172,24 @@ OpenClash / nikki / passwall 可能和 Clashoo 共用同名二进制（mihomo、
 - `redirect`：DSTNAT 链 `redirect to :redir_port`（默认 7891）。
 - `tproxy`（TCP/UDP）：mangle 链 `tproxy to :tproxy_port`（默认 7982）+ 打 `0x162` + `ip rule`/`ip route`。
 - `tun`：内核自己接管，nft 不加代理规则（仅留 DNS 劫持）；无 tun 设备时自动回落 redirect/tproxy。
+- `tcp_mode`、`udp_mode` 和 `stack` 是独立字段；`stack` 只在 TCP 或 UDP 至少一个为 `tun` 时生效。常见组合：默认 `TCP Redirect + UDP TProxy + gVisor`，也可用 `TCP Redirect + UDP TUN + Mixed`，或 `TCP TUN + UDP TUN + System/Mixed/gVisor`。
 
-**绕行（bypass）**：本地网段、中国 IP（`bypass_china=1` 用内置 `geoip_cn.nft`）、ACL（`access_control` 1=白名单只代理 `proxy_lan_ips`、2=黑名单不代理 `reject_lan_ips`）、自定义端口（`bypass_port_mode`：all/common/custom）、DSCP、fwmark。**共存**：自动把 passwall(0x1)/passwall2(0xff)/nikki(tproxy/tun mark) 的标记并入 bypass，避免互相截流。
+**绕行（bypass）**：本地网段、中国 IP（`bypass_china=1` 用内置 `geoip_cn.nft`）、ACL（`access_control` 1=白名单只代理 `proxy_lan_ips`、2=黑名单不代理 `reject_lan_ips`）、自定义端口（`bypass_port_mode`：all/common/custom）、DSCP、fwmark。DNS 劫持也遵守 ACL：白名单外或黑名单内的 LAN IP 不再被 53 端口劫持。**共存**：自动把 passwall(0x1)/passwall2(0xff)/nikki(tproxy/tun mark) 的标记并入 bypass，避免互相截流。
 
 ### DNS 接管
 
-- **mihomo**：`yml_dns_change` 把 dnsmasq 上游改成 `127.0.0.1#listen_port`（默认 1053）+ `noresolv=1`，原状存于 `/tmp/clashoo/dnsmasq_*.before`。配置里 `listen: 0.0.0.0:53` 会被改成 `listen_port`，避免和 dnsmasq 抢 53。
+- **mihomo**：`enable_dns=1` 且 `dnsforwader=1` 时，`yml_dns_change` 把 dnsmasq 上游改成 `127.0.0.1#listen_port`（默认 1053）+ `noresolv=1`，原状存于 `/tmp/clashoo/dnsmasq_*.before`。`enable_dns=0` 时必须先还原 dnsmasq，避免强制 DNS 转发指向已关闭的核心 DNS 端口。配置里 `listen: 0.0.0.0:53` 会被改成 `listen_port`，避免和 dnsmasq 抢 53。
 - **sing-box**：`singbox_dns_change` 同理，但仅在 `dnsforwader=1` 时接管。
 - **增强模式**：`enhanced_mode = fake-ip`（默认，配 `fake_ip_range 198.18.0.1/16` + `fake_ip_filter`）或 `redir-host`。
 - **安全网**：`ensure_dns_when_core_stopped` —— 内核停了，若 dnsmasq 只剩指向本地 Clashoo DNS，会自动补公共 DNS（119.29.29.29 / 223.5.5.5），避免断网。
 - **上游 DNS 注入**（`mixin.uc`，2026-07-14 起）：UCI 的 `dnsservers`（按 `ser_type` 分角色）/ `dns_policy` / `default_nameserver` 会注入 mihomo 的 `dns` 段。**在此之前 mihomo 完全没有 nameserver**，回落到内置国内 DNS（`doh.pub` / `tls://223.5.5.5:853`），境外域名解析成污染 IP。
-  - 角色映射：`nameserver` = 境外 DoH（配 `respect-rules` 经代理查询）、`proxy-server-nameserver` = 国内（解析节点域名，必须直连可达）、`direct-nameserver` = 国内。**sing-box 的映射相反**：`dns_proxy` 取 `nameserver`（走代理），`dns_direct` 取 `direct-nameserver`。
+  - 角色映射：默认 `nameserver` = 国内 DoH（阿里 / 腾讯，保证国内 CDN）、`proxy-server-nameserver` = 境外 DNS（1.1.1.1，配 `respect-rules` 防污染）、`direct-nameserver` = 国内。**sing-box 的映射相反**：`dns_proxy` 取 `nameserver`（走代理），`dns_direct` 取 `direct-nameserver`。
   - `respect-rules` 需要 `proxy-server-nameserver` 存在，且不能与 `prefer-h3` 同用。
   - fake-ip 下不注入 `fallback`（mihomo 一配 fallback 就自动开 fallback-filter，境外 DNS 直连被墙会空等超时）。
-  - **用户配置优先**：`init.d` 用 yq 探测用户 yaml 的 `dns` 段已有哪些字段，经 `CLASHOO_DNS_PRESENT` 传给 mixin，逐字段跳过。老用户的错误角色由 `_migrate_dns_roles` 一次性迁移（`dns_migrated` 标记）。
+  - **用户配置优先**：`init.d` 用 yq 探测用户 yaml 的 `dns` 段已有哪些字段，经 `CLASHOO_DNS_PRESENT` 传给 mixin，逐字段跳过；已有 `fake-ip-filter` / `sniffer` 时整体保留，不再强行覆盖。老用户的错误角色由 `_migrate_dns_roles` 一次性迁移（`dns_migrated` 标记）。
+  - `x-clashoo-managed-dns: true` 表示这段 DNS 是 Clashoo 管理的运行时配置，升级后可强制迁移到新模型；普通用户自写 DNS 不会被整段覆盖。
+  - 用户配置已有 `nameserver-policy` 但缺国内兜底时，自动补 `rule-set:cn_domain`；已有 `geosite:cn` 时也映射到 `rule-set:cn_domain`，并注入内置 `cn.mrs` rule-provider。
+  - 用户配置里 DNS 写 `system` 时，运行时改成 `223.5.5.5`，避免 dnsmasq → Clashoo DNS → system → dnsmasq 的自环。
 - **DNS 污染的典型症状**：TCP 正常、UDP/QUIC 全挂（连接表里 upload 一直涨、download 恒为 0），Google Play 下载卡死。因为 **TCP 出站把域名透传给节点解析，UDP 出站必须先在本地解析出 IP**。排查看连接的 destinationIP 是不是国内地址。
 - **DNS 防泄漏**（`dns_leak_protect=1`）：阻止国内 DNS 解析国外域名、阻断 DoT/DoQ，并强制 `ipv6:false`。
 - sing-box 的 fake-ip 反查表持久化在 `cache.db` 的 `store_fakeip`（模板已开）；**删了 cache.db 或没开 store_fakeip，重启后 HTTPS 会大面积失败**。
