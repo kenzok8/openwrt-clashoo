@@ -127,6 +127,33 @@ _migrate_legacy_mihomo_stable() {
 	cp -f "$legacy" /usr/bin/mihomo-stable 2>/dev/null && chmod 0755 /usr/bin/mihomo-stable
 }
 
+_fallback_missing_mihomo_core() {
+	local selected fallback
+	is_singbox_selected && return 0
+	selected="$(uci -q get clashoo.config.core 2>/dev/null)"
+	case "$selected" in
+		2)
+			[ -x /usr/bin/mihomo-stable ] && return 0
+			[ -x /usr/bin/mihomo ] || return 0
+			fallback=3
+			;;
+		3)
+			[ -x /usr/bin/mihomo ] && return 0
+			[ -x /usr/bin/mihomo-stable ] || return 0
+			fallback=2
+			;;
+		*) return 0 ;;
+	esac
+	uci -q set clashoo.config.core="$fallback"
+	uci -q set clashoo.config.dcore="$fallback"
+	uci -q commit clashoo >/dev/null 2>&1
+	if [ "$fallback" = "3" ]; then
+		log_msg "Stable core missing, falling back to Alpha" "稳定版内核缺失，自动回退到 Alpha"
+	else
+		log_msg "Alpha core missing, falling back to stable" "Alpha 内核缺失，自动回退到稳定版"
+	fi
+}
+
 _detect_selected_core() {
 	local selected
 	selected=$(uci get clashoo.config.core 2>/dev/null)
@@ -1890,6 +1917,7 @@ start_service(){
 
 	sync_legacy_core_field
 	_migrate_legacy_mihomo_stable
+	_fallback_missing_mihomo_core
 	CLASH="$(_detect_selected_core)"
 
 	cleanup_legacy_startup_backups
