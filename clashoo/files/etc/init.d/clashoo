@@ -114,7 +114,17 @@ cleanup_stale_core_nft() {
 }
 
 _core_candidates() {
-	echo "/usr/bin/mihomo /usr/bin/clash-meta /etc/clashoo/clash"
+	echo "/usr/bin/mihomo-stable /usr/bin/mihomo /usr/bin/clash-meta /etc/clashoo/clash"
+}
+
+_migrate_legacy_mihomo_stable() {
+	local legacy=/usr/bin/clash-meta version
+	[ -x /usr/bin/mihomo-stable ] && return 0
+	[ -x "$legacy" ] && [ ! -L "$legacy" ] || return 0
+	version=$("$legacy" -v 2>/dev/null | head -n 1)
+	[ -n "$version" ] || return 0
+	echo "$version" | grep -Eiq '(alpha|beta|rc|pre|smart)' && return 0
+	cp -f "$legacy" /usr/bin/mihomo-stable 2>/dev/null && chmod 0755 /usr/bin/mihomo-stable
 }
 
 _detect_selected_core() {
@@ -128,16 +138,11 @@ _detect_selected_core() {
 			return 1
 			;;
 		2|mihomo)
-			# stable: clash-meta first (user-downloaded); /usr/bin/mihomo is auto-bump-alpha, skip it.
-			for _bin in /usr/bin/clash-meta /etc/clashoo/clash-meta /usr/bin/mihomo; do
-				[ -x "$_bin" ] && echo "$_bin" && return
-			done
+			[ -x /usr/bin/mihomo-stable ] && echo /usr/bin/mihomo-stable && return
 			return 1
 			;;
 		3|mihomo-alpha)
-			for _bin in /usr/bin/mihomo /usr/bin/clash-meta; do
-				[ -x "$_bin" ] && echo "$_bin" && return
-			done
+			[ -x /usr/bin/mihomo ] && echo /usr/bin/mihomo && return
 			return 1
 			;;
 	esac
@@ -146,7 +151,7 @@ _detect_selected_core() {
 
 core_supports_advanced_features() {
 	case "$CLASH" in
-		*/mihomo|*/clash-meta|*/smart)
+		*/mihomo|*/mihomo-stable|*/clash-meta|*/smart)
 			return 0
 			;;
 		*)
@@ -1679,7 +1684,7 @@ _start_prepare_config() {
 	if { egrep -q '^ {0,}rule-providers:' "/etc/clashoo/config.yaml" || egrep -q '^ {0,}script:' "/etc/clashoo/config.yaml"; } && ! core_supports_advanced_features; then
 		if [ -x /usr/bin/mihomo ]; then
 			uci set clashoo.config.core="3" && uci commit clashoo
-		elif [ -x /usr/bin/clash-meta ] || [ -x /etc/clashoo/clash-meta ]; then
+		elif [ -x /usr/bin/mihomo-stable ]; then
 			uci set clashoo.config.core="2" && uci commit clashoo
 		else
 			log_msg "Current config requires mihomo/clash-meta core" "当前配置需要 mihomo 或 clash-meta 内核"
@@ -1884,6 +1889,7 @@ start_service(){
 	core_only=$(uci -q get clashoo.config.core_only 2>/dev/null)
 
 	sync_legacy_core_field
+	_migrate_legacy_mihomo_stable
 	CLASH="$(_detect_selected_core)"
 
 	cleanup_legacy_startup_backups
