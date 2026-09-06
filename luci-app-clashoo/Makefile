@@ -75,7 +75,7 @@ define Package/luci-i18n-clashoo-zh-cn
 	SECTION:=luci
 	CATEGORY:=LuCI
 	TITLE:=luci-app-clashoo - Simplified Chinese (zh-cn)
-	DEPENDS:=+luci-app-clashoo
+	DEPENDS:=luci-app-clashoo
 	DEFAULT:=LUCI_LANG_zh_Hans||(ALL&&m)
 	HIDDEN:=1
 	PKGARCH:=all
