@@ -3034,36 +3034,65 @@ message: '模板生成完成: 成功 ' + length(done) + '，失败 ' + length(fa
 },
 
 list_dir_files: {
-args: { type: 'type' },
-call: function(req) {
-let type_map = { '1': '/usr/share/clashoo/config/sub', '2': '/usr/share/clashoo/config/upload', '3': '/usr/share/clashoo/config/custom' };
-let dir = type_map[req.args?.type || '2'];
-if (!dir) return { files: [] };
-let active = uci_get('clashoo', 'config', 'use_config');
-let active_name = replace(active, /^.*\//, '');
-let files = [];
-for (let f in (glob(dir + '/*.yaml') || [])) {
-let name = replace(f, dir + '/', '');
-let fi   = stat(f);
-push(files, {
-name,
-mtime:  fi ? ('' + fi.mtime) : null,
-size:   fi ? (int(fi.size / 1024) + ' KB') : null,
-active: name == active_name
-});
-}
-for (let f in (glob(dir + '/*.yml') || [])) {
-let name = replace(f, dir + '/', '');
-let fi   = stat(f);
-push(files, {
-name,
-mtime:  fi ? ('' + fi.mtime) : null,
-size:   fi ? (int(fi.size / 1024) + ' KB') : null,
-active: name == active_name
-});
-}
-return { files, active: active_name };
-}
+    args: { type: 'type' },
+    call: function(req) {
+        let type_map = { '1': '/usr/share/clashoo/config/sub', '2': '/usr/share/clashoo/config/upload', '3': '/usr/share/clashoo/config/custom' };
+        let dir = type_map[req.args?.type || '2'];
+        if (!dir) return { files: [] };
+        let active = uci_get('clashoo', 'config', 'use_config');
+        let active_name = replace(active, /^.*\//, '');
+        let files = [];
+
+        let collect = function(ext) {
+            for (let f in (glob(dir + '/*' + ext) || [])) {
+                let name = replace(f, dir + '/', '');
+                let fi   = stat(f);
+                let content = readfile(f);
+                let first = '';
+                if (content !== null && content !== '') {
+                    let parts = split(content, '\n');
+                    first = length(parts) > 0 ? parts[0] : '';
+                }
+                let generated = match(first, /^# @meta: /) != null;
+                push(files, {
+                    name,
+                    mtime:  fi ? ('' + fi.mtime) : null,
+                    size:   fi ? (int(fi.size / 1024) + ' KB') : null,
+                    active: name == active_name,
+                    generated: generated
+                });
+            }
+        };
+        collect('.yaml');
+        collect('.yml');
+        return { files, active: active_name };
+    }
+},
+
+regenerate_output: {
+    args: { name: 'name' },
+    call: function(req) {
+        let name = safe_name(ensure_yaml_name(req.args?.name || ''));
+        if (!name)
+            return { success: false, error: 'invalid_name', message: '文件名无效' };
+        let path = TEMPLATE_DIR + '/' + name;
+        if (!access(path, 'r'))
+            return { success: false, error: 'not_found', message: '文件不存在' };
+        let content = readfile(path);
+        if (content === null || content === '')
+            return { success: false, error: 'read_failed', message: '读取失败' };
+        let parts = split(content, '\n');
+        let first = length(parts) > 0 ? parts[0] : '';
+        let m = match(first, /^# @meta: template=([^,]+), *sub=(.+)$/);
+        if (!m)
+            return { success: false, error: 'no_meta', message: '该文件没有 meta 信息，无法更新' };
+        return {
+            success: true,
+            template_source: trim(m[1]),
+            sub_url: trim(m[2]),
+            output_name: name
+        };
+    }
 },
 
 delete_config: {
@@ -3456,6 +3485,14 @@ system('rm -f ' + shell_quote(tmp_tpl));
 		system("rm -f " + shell_quote(mixin_yaml));
 	}
 
+/* @meta write for panel identification */
+let tpl_label = match(tpl_src, /^https?:\/\//) ? tpl_src : replace(tpl_src, /^.*\//, "");
+let meta_line = "# @meta: template=" + tpl_label + ", sub=" + sub_url;
+let _orig_content = readfile(out_path);
+if (_orig_content !== null && !match(_orig_content, /^# @meta:/)) {
+writefile(out_path, meta_line + "\n" + _orig_content);
+}
+
 
 	/* ── mihomo -t 预校验（搜所有 mihomo 变体）── */
 	let _core_bin = '';
@@ -3659,9 +3696,26 @@ if (!content) return { success: false, error: 'empty_content',   message: '文�
 let dir = config_dir_by_type(type);
 if (!dir) dir = '/usr/share/clashoo/config/upload';
 system('mkdir -p ' + shell_quote(dir));
-let path = dir + '/' + name;
-if (writefile(path, content) === null)
-return { success: false, error: 'write_failed', message: '写入文件失败' };
+        let path = dir + '/' + name;
+        let _metaLine = '';
+        if (access(path, 'r')) {
+                let _old = readfile(path);
+                if (_old !== null && _old !== '') {
+                        let _oldFirst = split(_old, '\n')[0];
+                        if (match(_oldFirst, /^# @meta: /)) _metaLine = _oldFirst;
+                }
+        }
+        if (_metaLine) {
+                let _lines = split(content, '\n');
+                let _kept = [];
+                for (let _i = 0; _i < length(_lines); _i++) {
+                        if (_i == 0 && match(_lines[_i], /^# @meta: /)) continue;
+                        push(_kept, _lines[_i]);
+                }
+                content = _metaLine + '\n' + join('\n', _kept);
+        }
+        if (writefile(path, content) === null)
+                return { success: false, error: 'write_failed', message: '写入文件失败' };
 return { success: true, name, path };
 }
 },

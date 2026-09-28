@@ -159,6 +159,7 @@ var callUploadTemplate= rpc.declare({ object: 'luci.clashoo', method: 'upload_te
 var callApplyRewrite  = rpc.declare({ object: 'luci.clashoo', method: 'apply_rewrite',          params: ['base_type','base_name','rewrite_type','rewrite_name','output_name','set_active'], expect: {} });
 var callFetchUrl      = rpc.declare({ object: 'luci.clashoo', method: 'fetch_rewrite_url',      params: ['url','name'], expect: {} });
 var callApplyTplUrl   = rpc.declare({ object: 'luci.clashoo', method: 'apply_template_with_url', params: ['template_source','sub_url','output_name','set_active'], expect: {} });
+var callRegenerate   = rpc.declare({ object: 'luci.clashoo', method: 'regenerate_output', params: ['name'], expect: {} });
 var callMigrateSbProfile = rpc.declare({ object: 'luci.clashoo', method: 'migrate_singbox_profile', params: ['name'], expect: {} });
 var callSmartFlushCache  = rpc.declare({ object: 'luci.clashoo', method: 'smart_flush_cache',   expect: {} });
 var callDetectPrimaryGroup = rpc.declare({ object: 'luci.clashoo', method: 'detect_primary_group', expect: {} });
@@ -624,11 +625,11 @@ function createConfigEditor(mode) {
 function clKernelBusy() { return !!document.body.getAttribute('data-cl-kernel-busy'); }
 function clKernelLock() {
   document.body.setAttribute('data-cl-kernel-busy', '1');
-  document.querySelectorAll('.cl-btn-switch, .cl-btn-update-sub, .cl-btn-delete').forEach(function (b) { b.disabled = true; });
+  document.querySelectorAll('.cl-btn-switch, .cl-btn-update-sub, .cl-btn-delete, .cl-btn-update-output').forEach(function (b) { b.disabled = true; });
 }
 function clKernelUnlock() {
   document.body.removeAttribute('data-cl-kernel-busy');
-  document.querySelectorAll('.cl-btn-switch, .cl-btn-update-sub, .cl-btn-delete').forEach(function (b) { b.disabled = false; });
+  document.querySelectorAll('.cl-btn-switch, .cl-btn-update-sub, .cl-btn-delete, .cl-btn-update-output').forEach(function (b) { b.disabled = false; });
 }
 
 return view.extend({
@@ -1019,7 +1020,7 @@ return view.extend({
       }
     }, _("Save"));
 
-    var otherEditorBox = E('div', { 'class': 'cl-section cl-card cl-sb-editor' }, [
+    var otherEditorBox = E('div', { 'class': 'cl-section cl-card cl-sb-editor cl-inline-editor' }, [
       otherEditorTitle,
       otherEd.el,
       E('div', { 'class': 'cl-actions cl-sb-row-actions cl-sb-editor-actions' }, [
@@ -1028,9 +1029,15 @@ return view.extend({
       ])
     ]);
 
-    function loadOtherEditor(name, type) {
-      otherEditorTitle.textContent = _("Editing: ") + name;
-      otherSaveBtn.removeAttribute('disabled');
+    function loadOtherEditor(name, type, readOnly) {
+      otherEditorTitle.textContent = (readOnly ? _("Show/Hide") + ": " : _("Editing: ")) + name;
+      if (readOnly) {
+        otherSaveBtn.style.display = "none";
+      } else {
+        otherSaveBtn.style.display = "";
+      }
+      var _hint = otherEditorBox.querySelector(".cl-hint");
+      if (_hint) _hint.style.display = readOnly ? "none" : "";
       otherEd.textarea.dataset.name = name;
       otherEd.textarea.dataset.type = type;
       otherEd.setValue(_("Loading…"));
@@ -1039,81 +1046,158 @@ return view.extend({
       });
     }
 
+    var currentEditorCard = null;
+    var toggleOtherEditor = function (f, type, cardEl) {
+      if (currentEditorCard === cardEl && otherEditorBox.parentNode) {
+        otherEditorBox.parentNode.removeChild(otherEditorBox);
+        currentEditorCard = null;
+        return;
+      }
+      if (otherEditorBox.parentNode) otherEditorBox.parentNode.removeChild(otherEditorBox);
+      loadOtherEditor(f.name, type, f.generated === true);
+      cardEl.parentNode.insertBefore(otherEditorBox, cardEl.nextSibling);
+      currentEditorCard = cardEl;
+      setTimeout(function(){
+        var listWrap = cardEl.closest(".cl-file-list") || cardEl.parentNode;
+        var section  = listWrap.closest(".cl-section") || listWrap.parentNode;
+        if (listWrap && section) {
+          var cs = getComputedStyle(section);
+          var innerW = section.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+          var listW  = listWrap.clientWidth;
+          var diff   = Math.floor((innerW - listW) / 2);
+          if (diff > 0 && innerW > 0) {
+            otherEditorBox.style.width = innerW + "px";
+            otherEditorBox.style.maxWidth = "none";
+            otherEditorBox.style.marginLeft = "-" + diff + "px";
+            otherEditorBox.style.marginRight = "-" + diff + "px";
+            otherEditorBox.style.boxSizing = "border-box";
+            otherEditorBox.style.alignSelf = "stretch";
+          }
+        }
+        try { otherEditorBox.scrollIntoView({behavior:"smooth", block:"nearest"}); } catch(e) {}
+      }, 60);
+    };
+
     var makeOtherCards = function (files, type) {
       return files.map(function (f) {
+        var cardEl;
         var nameNodes = [];
         if (f.active) nameNodes.push(E('span', { 'class': 'cl-active-badge' }, _("Active")));
         nameNodes.push(E('span', { 'class': 'cl-file-name-text' }, safeText(f.name)));
 
-        return E('div', { 'class': 'cl-file-item' + (f.active ? ' is-active' : '') }, [
+        var actions = [];
+
+        if (f.generated === true) {
+          actions.push(E('button', {
+            'class': 'btn cbi-button-action cl-btn-sm cl-btn-update-output',
+            click: function (ev) {
+              var btn = ev.target;
+              if (btn.disabled || clKernelBusy()) return;
+              clKernelLock();
+              btn.disabled = true;
+              btn.textContent = _("Updating…");
+              L.resolveDefault(callRegenerate(f.name), {}).then(function (r) {
+                if (!r || !r.success) {
+                  ui.addNotification(null, E('p', _("Update failed: ") + ((r && (r.message || r.error)) || '')));
+                  btn.disabled = false;
+                  btn.textContent = _("Update");
+                  clKernelUnlock();
+                  return;
+                }
+                L.resolveDefault(callApplyTplUrl(r.template_source, r.sub_url, r.output_name, f.active ? '1' : '0'), {}).then(function (r2) {
+                  ui.addNotification(null, E('p', (r2 && r2.success) ? f.name + _(" updated") : _("Update failed")));
+                  location.reload();
+                }).catch(function () {
+                  btn.disabled = false;
+                  btn.textContent = _("Update");
+                  clKernelUnlock();
+                });
+              }).catch(function () {
+                btn.disabled = false;
+                btn.textContent = _("Update");
+                clKernelUnlock();
+              });
+            }
+          }, _("Update")));
+        }
+
+        actions.push(E('button', {
+          'class': 'btn cbi-button cl-btn-sm cl-btn-edit',
+          click: function (ev) {
+            var btn = ev.target;
+            if (btn.disabled) return;
+            toggleOtherEditor(f, type, cardEl);
+          }
+        }, f.generated === true ? _("Show/Hide") : _("Edit")));
+
+        actions.push(E('button', {
+          'class': 'btn cbi-button cl-btn-sm cl-btn-switch',
+          click: function (ev) {
+            var btn = ev.target;
+            if (btn.disabled || clKernelBusy()) return;
+            clKernelLock();
+            btn.disabled = true;
+            btn.textContent = _("Loading…");
+            L.resolveDefault(callSetConfig(f.name), {}).then(function () {
+              location.reload();
+            }).catch(function () {
+              btn.disabled = false;
+              btn.textContent = _("Switch Profile");
+              clKernelUnlock();
+            });
+          }
+        }, _("Switch Profile")));
+
+        actions.push(E('button', {
+          'class': 'btn cbi-button cl-btn-sm cl-btn-delete',
+          click: function (ev) {
+            var btn = ev.target;
+            if (btn.disabled || clKernelBusy()) return;
+            if (!confirm(_("Delete ") + f.name + '?')) return;
+            clKernelLock();
+            btn.disabled = true;
+            btn.textContent = _("Loading…");
+            L.resolveDefault(callDeleteCfg(f.name, type), {}).then(function () {
+              location.reload();
+            }).catch(function () {
+              btn.disabled = false;
+              btn.textContent = _("Delete");
+              clKernelUnlock();
+            });
+          }
+        }, _("Delete")));
+
+        cardEl = E('div', { 'class': 'cl-file-item' + (f.active ? ' is-active' : '') }, [
           E('div', { 'class': 'cl-file-meta' }, [
             E('div', { 'class': 'cl-file-name' }, nameNodes),
             E('div', { 'class': 'cl-file-size' }, safeText(f.size))
           ]),
-          E('div', { 'class': 'cl-file-actions' }, [
-            E('button', {
-              'class': 'btn cbi-button cl-btn-sm cl-btn-edit',
-              click: function (ev) {
-                var btn = ev.target;
-                if (btn.disabled) return;
-                btn.disabled = true;
-                var orig = btn.textContent;
-                btn.textContent = _("Loading…");
-                Promise.resolve(loadOtherEditor(f.name, type)).then(function () {
-                  btn.disabled = false;
-                  btn.textContent = orig;
-                }).catch(function () {
-                  btn.disabled = false;
-                  btn.textContent = orig;
-                });
-              }
-            }, _("Edit")),
-            E('button', {
-              'class': 'btn cbi-button cl-btn-sm cl-btn-switch',
-              click: function (ev) {
-                var btn = ev.target;
-                if (btn.disabled || clKernelBusy()) return;
-                clKernelLock();
-                btn.disabled = true;
-                btn.textContent = _("Loading…");
-                L.resolveDefault(callSetConfig(f.name), {}).then(function () {
-                  location.reload();
-                }).catch(function () {
-                  btn.disabled = false;
-                  btn.textContent = _("Switch Profile");
-                  clKernelUnlock();
-                });
-              }
-            }, _("Switch Profile")),
-            E('button', {
-              'class': 'btn cbi-button cl-btn-sm cl-btn-delete',
-              click: function (ev) {
-                var btn = ev.target;
-                if (btn.disabled || clKernelBusy()) return;
-                if (!confirm(_("Delete ") + f.name + '?')) return;
-                clKernelLock();
-                btn.disabled = true;
-                btn.textContent = _("Loading…");
-                L.resolveDefault(callDeleteCfg(f.name, type), {}).then(function () {
-                  location.reload();
-                }).catch(function () {
-                  btn.disabled = false;
-                  btn.textContent = _("Delete");
-                  clKernelUnlock();
-                });
-              }
-            }, _("Delete"))
-          ])
+          E('div', { 'class': 'cl-file-actions' }, actions)
         ]);
+        return cardEl;
       });
     };
 
-    var otherFiles = (upFiles || []).map(function(f){ return {f:f, t:'2'}; })
-      .concat((customFiles || []).map(function(f){ return {f:f, t:'3'}; }));
+    var tplOnlyFiles = (customFiles || []).filter(function(f){ return f.generated !== true; });
+    var genCustomFiles = (customFiles || []).filter(function(f){ return f.generated === true; });
 
-    var otherCards = otherFiles.map(function(o) {
-      return makeOtherCards([o.f], o.t)[0];
-    });
+    var tplCards = tplOnlyFiles.map(function(f){ return makeOtherCards([f], '3')[0]; });
+    var genCards = (upFiles || []).map(function(f){ return makeOtherCards([f], '2')[0]; })
+      .concat(genCustomFiles.map(function(f){ return makeOtherCards([f], '3')[0]; }));
+
+    var tplListBox = tplCards.length ? E('div', { 'class': 'cl-section cl-card' }, [
+      E("h4", {}, _("Template Selection")),
+      E('div', { 'class': 'cl-fixed-600' }, [
+        E('div', { 'class': 'cl-file-list' }, tplCards)
+      ])
+    ]) : null;
+
+    var genListBox = genCards.length ? E('div', { 'class': 'cl-section cl-card' }, [
+      E('h4', {}, _("Other Configuration Files (upload / overwrite output)")),
+      E('div', { 'class': 'cl-fixed-600' }, [
+        E('div', { 'class': 'cl-file-list' }, genCards)
+      ])
+    ]) : null;
 
     var sections = [
       E('div', { 'class': 'cl-section cl-card' }, [
@@ -1138,15 +1222,8 @@ return view.extend({
       ])
     ];
 
-    if (otherFiles.length) {
-      sections.push(E('div', { 'class': 'cl-section cl-card' }, [
-        E('h4', {}, _("Other Configuration Files (upload / overwrite output)")),
-        E('div', { 'class': 'cl-fixed-600' }, [
-          E('div', { 'class': 'cl-file-list' }, otherCards)
-        ])
-      ]));
-      sections.push(otherEditorBox);
-    }
+    if (genListBox) sections.push(genListBox);
+    if (tplListBox) sections.push(tplListBox);
 
       sections.push(
       E('div', { 'class': 'cl-section cl-card' }, [
