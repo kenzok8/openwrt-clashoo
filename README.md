@@ -123,14 +123,18 @@ sing-box 内核通过 Clashoo 的「组件更新」下载到私有目录，不�
 ### 一键安装
 
 ```bash
+# 大陆推荐：jsDelivr 镜像，比 ghfast 之类的加速站稳定
+wget -O - https://cdn.jsdelivr.net/gh/kenzok8/openwrt-clashoo@main/scripts/install.sh | ash
+```
+
+```bash
+# 直连 GitHub（镜像还没同步到最新脚本时用）
 wget -O - https://raw.githubusercontent.com/kenzok8/openwrt-clashoo/refs/heads/main/scripts/install.sh | ash
 ```
 
-大陆网络访问 GitHub 受限，可用镜像加速：
-
-```bash
-wget -O - https://ghfast.top/https://raw.githubusercontent.com/kenzok8/openwrt-clashoo/refs/heads/main/scripts/install.sh | ash
-```
+> jsDelivr 对 `@main` 有缓存（最长约 12 小时），刚改过的脚本可能延迟生效。
+> 安装包下载默认走 `GITHUB_PROXY_PREFIX`（默认 `https://ghfast.top/`），失败会自动回落到直连 GitHub；
+> 想换加速站可以 `GITHUB_PROXY_PREFIX=https://你的加速站/ wget -O - ... | ash`。
 
 安装脚本的校验行为：
 

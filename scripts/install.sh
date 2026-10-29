@@ -82,6 +82,19 @@ download_url() {
   esac
 }
 
+# 先走镜像、失败再直连 GitHub：加速站经常抖，单次尝试会让用户以为脚本坏了。
+download_github_url() {
+  _gh_url="$1"
+  _gh_out="$2"
+  download_file "$(download_url "$_gh_url")" "$_gh_out" && return 0
+  if [ -n "$GITHUB_PROXY_PREFIX" ]; then
+    echo "镜像下载失败，改用直连 GitHub 重试" >&2
+    download_file "$_gh_url" "$_gh_out"
+    return $?
+  fi
+  return 1
+}
+
 detect_manager() {
   if command -v opkg >/dev/null 2>&1; then
     echo opkg
@@ -433,7 +446,7 @@ github_install() {
     [ -n "$want" ] || die "资产 ${name} 没有 sha256 摘要，已停止"
     idx=$((idx + 1))
     out="${TMP_DIR}/pkg-${idx}.${ext}"
-    download_file "$(download_url "$url")" "$out" || die "下载失败: ${name}"
+    download_github_url "$url" "$out" || die "下载失败: ${name}"
     have="$(sha256_of "$out" || true)"
     [ "$have" = "$want" ] || die "摘要不匹配（${name}）：期望 ${want}，实际 ${have}，已停止"
     info "摘要校验通过: ${name}"
