@@ -1,5 +1,9 @@
 name: Aggregate Unified Feed
 
+# run-name 会出现在 run 的 display_title 里，daede 的 promote gate 靠它认领
+# 自己派发的那次聚合，而不是只按时间窗口猜。
+run-name: Aggregate Unified Feed · ${{ inputs.candidate_sha || 'manual' }} · ${{ inputs.build_run_id || '' }} · ${{ inputs.dispatch_id || '' }}
+
 on:
   workflow_dispatch:
     inputs:
@@ -8,6 +12,9 @@ on:
         type: string
       build_run_id:
         description: 'Expected daede build run (optional for manual runs)'
+        type: string
+      dispatch_id:
+        description: 'Unique id from the daede promote gate (echoed in run-name)'
         type: string
   schedule:
     - cron: '37 4 * * *'
