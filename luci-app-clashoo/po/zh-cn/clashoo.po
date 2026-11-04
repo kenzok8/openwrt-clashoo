@@ -261,6 +261,9 @@ msgstr "清理失败（mihomo 可能未运行）"
 msgid "Cleanup interval (hours)"
 msgstr "清理间隔（小时）"
 
+msgid "Currently fake-ip: this role is skipped, the entry is saved but not used. Switch to redir-host to make it a secondary resolver."
+msgstr "当前是 fake-ip：这一项会被跳过，配置会保存但不生效。改成 redir-host 后才会作为备用解析器。"
+
 msgid "Clear"
 msgstr "清理"
 
@@ -272,6 +275,9 @@ msgstr "清理 Smart 缓存"
 
 msgid "Clear the current log file? This cannot be undone."
 msgstr "确定要清空当前日志文件吗？此操作不可恢复。"
+
+msgid "redir-host mode: used as a secondary encrypted resolver."
+msgstr "redir-host 模式：作为备用加密解析器。"
 
 msgid "Clear View"
 msgstr "清空显示"
@@ -927,8 +933,11 @@ msgstr "输出文件名（不含扩展名，留空自动填写）"
 msgid "Overseas"
 msgstr "境外"
 
-msgid "Overseas Encrypted DNS (anti-pollution)"
-msgstr "国外加密 DNS（防污染）"
+msgid "Overseas Encrypted DNS"
+msgstr "国外加密 DNS"
+
+msgid "Overseas Encrypted DNS (no effect in fake-ip mode)"
+msgstr "国外加密 DNS（fake-ip 下不生效）"
 
 msgid "Overview"
 msgstr "概览"

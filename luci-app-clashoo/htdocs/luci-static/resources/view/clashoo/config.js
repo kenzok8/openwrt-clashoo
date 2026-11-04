@@ -1613,8 +1613,15 @@ return view.extend({
     o.value('nameserver', _("Domestic Upstream DNS"));
     o.value('direct-nameserver', _("Direct Domain Resolver"));
     o.value('proxy-server-nameserver', _("Proxy Node Domain Resolver"));
-    o.value('fallback', _("Overseas Encrypted DNS (anti-pollution)"));
+    /* fake-ip 先返回合成地址，fallback 这一角色会被 mixin 跳过，界面上要说清 */
+    var dnsFakeIpMode = (uci.get('clashoo', 'config', 'enhanced_mode') || 'fake-ip') === 'fake-ip';
+    o.value('fallback', dnsFakeIpMode
+      ? _("Overseas Encrypted DNS (no effect in fake-ip mode)")
+      : _("Overseas Encrypted DNS"));
     o.default = 'nameserver';
+    o.description = dnsFakeIpMode
+      ? _("Currently fake-ip: this role is skipped, the entry is saved but not used. Switch to redir-host to make it a secondary resolver.")
+      : _("redir-host mode: used as a secondary encrypted resolver.");
     o = s.option(form.Value,     'ser_address', _("DNS Address"));
     o.placeholder = 'https://dns.alidns.com/dns-query / https://doh.pub/dns-query';
     o = s.option(form.ListValue, 'protocol',    _("Protocol"));
