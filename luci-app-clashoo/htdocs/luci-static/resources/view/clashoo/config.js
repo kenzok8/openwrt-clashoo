@@ -1349,8 +1349,8 @@ return view.extend({
     o = s.option(form.ListValue, 'udp_mode', _("UDP Mode"));
     o.value('tun', 'TUN'); o.value('tproxy', 'TPROXY'); o.value('off', _("Off"));
     o = s.option(form.ListValue, 'stack', _("TUN Network Stack"));
-    o.value('system', 'System'); o.value('gvisor', 'gVisor'); o.value('mixed', 'Mixed');
-    o.description = _("TUN stack is used when either TCP or UDP mode is TUN.");
+    o.value('system', 'System'); o.value('gvisor', 'gVisor'); o.value('mixed', 'Mixed'); o.value('mips', 'Mips');
+    o.description = _("TUN stack is used when either TCP or UDP mode is TUN. System: kernel stack. gVisor / Mixed: userspace stack, needs a core built with <code>with_gvisor</code>. Mips: mihomo's own userspace stack (metacubex/mipstack), always available — pick it when gVisor is not in the core.");
     o = s.option(form.Flag, 'disable_quic_gso', _("Disable QUIC GSO"));
     o = s.option(form.Flag, 'block_quic', _("Block QUIC"));
     o.description = _("Reject proxied UDP 443 so some apps fall back to TCP. Try only when downloads or video stall.");

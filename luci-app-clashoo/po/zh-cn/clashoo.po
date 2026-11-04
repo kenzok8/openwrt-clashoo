@@ -1625,3 +1625,15 @@ msgstr "仅在本机转换"
 
 msgid "If local conversion fails, the selected external service receives the complete subscription URL, including its access token. Leave Local conversion only selected to keep the URL on this router."
 msgstr "如果本机转换失败，所选第三方服务会收到完整订阅链接，包括访问令牌。保持选择「仅在本机转换」可避免向第三方发送链接。"
+
+msgid "TUN stack is used when either TCP or UDP mode is TUN. System: kernel stack. gVisor / Mixed: userspace stack, needs a core built with <code>with_gvisor</code>. Mips: mihomo's own userspace stack (metacubex/mipstack), always available — pick it when gVisor is not in the core."
+msgstr "TCP 或 UDP 模式为 TUN 时生效。System：系统协议栈。gVisor / Mixed：用户态栈，内核需要带 <code>with_gvisor</code> 编译。Mips：mihomo 自带用户态栈（metacubex/mipstack），始终可用，内核没有 gVisor 时选它。"
+
+msgid "core-managed"
+msgstr "内核接管"
+
+msgid "Core-managed"
+msgstr "内核接管"
+
+msgid "eBPF core captures traffic itself; turn off Clashoo forwarding rules"
+msgstr "eBPF 内核自行接管流量，请关闭 Clashoo 的转发规则"
