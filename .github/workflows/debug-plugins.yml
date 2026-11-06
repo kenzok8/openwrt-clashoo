@@ -27,7 +27,7 @@ jobs:
     name: debug build ${{ github.event.inputs.arch }}-24.10.4
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -60,7 +60,7 @@ jobs:
     name: debug build ${{ github.event.inputs.arch }}-25.12.2
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
