@@ -1,0 +1,78 @@
+<h1>安装与升级</h1>
+
+<p>安装包分两层：<code>clashoo</code>（内核 + 服务脚本 + 默认配置）和 <code>luci-app-clashoo</code>（LuCI 界面 + 中文翻译）。24.10 用 <code>.ipk</code>，25.12 用 <code>.apk</code>，脚本会自己判断。</p>
+
+<h2 id="install-script">一键安装</h2>
+
+<p>以 <code>root</code> 执行。大陆推荐走 jsDelivr 镜像：</p>
+
+<pre><code>wget -O - https://cdn.jsdelivr.net/gh/kenzok8/openwrt-clashoo@main/scripts/install.sh | ash</code></pre>
+
+<p>镜像还没同步到最新脚本时，直连 GitHub：</p>
+
+<pre><code>wget -O - https://raw.githubusercontent.com/kenzok8/openwrt-clashoo/refs/heads/main/scripts/install.sh | ash</code></pre>
+
+<blockquote>jsDelivr 对 <code>@main</code> 有缓存（最长约 12 小时），刚改过的脚本可能延迟生效。安装包下载默认走 <code>GITHUB_PROXY_PREFIX</code>（默认 <code>https://ghfast.top/</code>），失败自动回落直连。换加速站：<code>GITHUB_PROXY_PREFIX=https://你的加速站/ wget -O - … | ash</code>。</blockquote>
+
+<h2 id="verify">脚本校验什么</h2>
+
+<ul>
+  <li>默认只从<b>签名 feed</b> 装：先比对内置公钥指纹，再用 apk/opkg 校验索引签名与包摘要</li>
+  <li>指纹不匹配、验签失败、摘要不符 —— 直接停止，不自动降级</li>
+  <li>只有签名 feed 不可达（纯网络原因）时，才可以用 <code>CLASHOO_ALLOW_GITHUB_FALLBACK=1</code> 显式走 GitHub Release 回退；那条路只核对 GitHub 记录的 SHA-256，<b>不是</b>包签名</li>
+</ul>
+
+<pre><code>CLASHOO_ALLOW_GITHUB_FALLBACK=1 sh install.sh</code></pre>
+
+<p>公钥脚本自己会导入，不用手工操作。要自己核对指纹：</p>
+
+<table>
+  <tr><th>公钥</th><th>用途</th></tr>
+  <tr><td><code>dllkids-feed.pub.pem</code></td><td>25.12+ 的 apk 索引签名（ECDSA P-256）</td></tr>
+  <tr><td><code>dllkids-feed.pub</code></td><td>24.10 及更早的 opkg <code>Packages.gz</code> 签名（usign Ed25519）</td></tr>
+</table>
+
+<pre><code>curl -fsSLO https://down.dllkids.xyz/openwrt-feed/keys/dllkids-feed.pub.pem
+curl -fsSLO https://down.dllkids.xyz/openwrt-feed/keys/dllkids-feed.pub
+sha256sum dllkids-feed.pub dllkids-feed.pub.pem</code></pre>
+
+<h2 id="feed">软件源安装与升级</h2>
+
+<pre><code>wget -qO- https://down.dllkids.xyz/openwrt-feed/openwrt-feed-setup.sh | sh</code></pre>
+
+<p>脚本会检测 SDK 版本与架构、下载对应公钥、写源配置、刷索引，最后 <code>apk add</code> / <code>opkg install</code>。之后升级只走系统包管理器：</p>
+
+<pre><code>apk update &amp;&amp; apk upgrade            # 25.12
+opkg update &amp;&amp; opkg upgrade clashoo luci-app-clashoo   # 24.10</code></pre>
+
+<h2 id="source">源码编译</h2>
+
+<pre><code>git clone https://github.com/kenzok8/openwrt-clashoo.git package/openwrt-clashoo
+make package/clashoo/compile V=s
+make package/luci-app-clashoo/compile V=s</code></pre>
+
+<h2 id="deps">依赖</h2>
+
+<table>
+  <tr><th>包名</th><th>用途</th></tr>
+  <tr><td><code>ca-bundle</code> / <code>curl</code></td><td>证书与下载（GeoIP、面板、订阅）</td></tr>
+  <tr><td><code>yq</code></td><td>YAML 处理</td></tr>
+  <tr><td><code>firewall4</code> / <code>ip-full</code></td><td>nftables 防火墙与完整 iproute2</td></tr>
+  <tr><td><code>kmod-nft-socket</code> / <code>kmod-nft-tproxy</code></td><td>nftables 的 socket 匹配与 TPROXY</td></tr>
+  <tr><td><code>kmod-tun</code> / <code>kmod-dummy</code></td><td>TUN 设备与 dummy 网卡</td></tr>
+  <tr><td><code>kmod-inet-diag</code></td><td>网络诊断</td></tr>
+</table>
+
+<h2 id="uninstall">卸载</h2>
+
+<pre><code>wget -O - https://raw.githubusercontent.com/kenzok8/openwrt-clashoo/refs/heads/main/scripts/uninstall.sh | ash</code></pre>
+
+<p>卸载会停服务、删包。配置留在 <code>/etc/config/clashoo</code> 与配置文件目录，确认不再用之后手动清理。</p>
+
+<h2 id="app">配套 App</h2>
+
+<p>仓库自带 AI 技能 <code>clashoo-user-guide</code>，把功能说明、双内核内幕和排障经验喂给 AI 助手，让它能回答「某功能怎么开」「为什么不通」「日志报错什么意思」：</p>
+
+<pre><code>npx skills add kenzok8/openwrt-clashoo -a '*'</code></pre>
+
+<p>技能里的 <code>references/</code> 与本仓库 Wiki 同源，由 CI 自动同步。</p>

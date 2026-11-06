@@ -1,0 +1,56 @@
+<h1>系统维护</h1>
+
+<p><code>系统</code> 页面管四件事：组件更新、备份还原、定时任务、日志。组件更新在<a href="kernel.html">内核与组件更新</a>里讲，这页讲剩下的。</p>
+
+<h2 id="backup">备份与还原</h2>
+
+<p>位置：组件更新卡片下方，三个按钮。</p>
+
+<table>
+  <tr><th>按钮</th><th>做什么</th></tr>
+  <tr><td>导出备份</td><td>把 UCI 设置和订阅 / 上传 / 自定义 / sing-box 配置文件打包成一个 JSON 下载</td></tr>
+  <tr><td>导入还原</td><td>选之前导出的备份，一键回到那个时间点</td></tr>
+  <tr><td>还原默认配置</td><td>设置重置为出厂默认，订阅和配置文件保留</td></tr>
+</table>
+
+<blockquote>备份只含配置与设置，不含内核和 GeoIP 这些大文件 —— 那些在「组件更新」里重新下载就行。</blockquote>
+
+<p>两条经验：更新内核、批量改配置之前先导一份；改坏了先「导入还原」，找不到原因再「还原默认配置」。</p>
+
+<h2 id="cron">定时任务</h2>
+
+<p>用来定时刷新资源。值得开的：</p>
+
+<ul>
+  <li>大陆白名单更新</li>
+  <li>GeoIP 更新</li>
+</ul>
+
+<p>订阅自动更新按需 —— 如果你的订阅是转换类链接，自动更新可能把手工调过的配置覆盖掉，那就关掉它。</p>
+
+<h2 id="logs">日志</h2>
+
+<p>日志分插件日志和核心日志，排障时先看核心日志里的 <code>ERROR</code> / <code>FATAL</code>：</p>
+
+<pre><code>系统 → 日志 → 核心日志</code></pre>
+
+<p>存储小的设备建议打开自动清理日志，别让日志把闪存写满。</p>
+
+<h2 id="feed">软件包更新</h2>
+
+<p>如果你按<a href="install.html#feed">软件源安装</a>配了 feed，升级走系统包管理器即可：</p>
+
+<pre><code>apk update &amp;&amp; apk upgrade                            # 25.12
+opkg update &amp;&amp; opkg upgrade clashoo luci-app-clashoo  # 24.10</code></pre>
+
+<p>用一键脚本装的机器没有把 feed 写进源，想要包管理器升级就先跑一遍 feed 脚本。</p>
+
+<h2 id="reset">彻底重来</h2>
+
+<ol>
+  <li>导出备份（万一还想回退）</li>
+  <li>停服务</li>
+  <li>卸载：<code>scripts/uninstall.sh</code></li>
+  <li>确认要清空配置的话，删掉 <code>/etc/config/clashoo</code> 与配置文件目录</li>
+  <li>重新安装</li>
+</ol>

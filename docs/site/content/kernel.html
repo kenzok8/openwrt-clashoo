@@ -1,0 +1,52 @@
+<h1>内核与组件更新</h1>
+
+<p>Clashoo 把「内核」「内核数据」「插件本体」拆成独立条目，逐个检查、逐个更新 —— 失败了能立刻看出是哪个组件的问题，不用一锅端。</p>
+
+<h2 id="kernels">五种内核形态</h2>
+
+<table>
+  <tr><th>内核</th><th>配置格式</th><th>适合</th></tr>
+  <tr><td>mihomo 稳定版</td><td>YAML</td><td>默认选择，普通家庭路由器</td></tr>
+  <tr><td>mihomo Alpha</td><td>YAML</td><td>要新特性、能接受偶发兼容问题；普通用户不建议</td></tr>
+  <tr><td>Smart</td><td>YAML</td><td>配了 Smart 策略组、要用策略权重</td></tr>
+  <tr><td>sing-box 稳定版</td><td>JSON</td><td>机场给的是 JSON，或想用 sing-box 生态</td></tr>
+  <tr><td>sing-box Alpha</td><td>JSON</td><td>同上，尝鲜用</td></tr>
+</table>
+
+<p>安装包自带 mihomo 正式版，新装默认就是它。Alpha 需要自己在「系统 → 组件更新」里装；已有设备升级会保留原来的内核选择，不会被悄悄换掉。</p>
+
+<blockquote>没有 Smart 策略时，用 Smart 内核和普通 mihomo 体验差别不大 —— 它的价值在策略组能力，不在内核本身更快。</blockquote>
+
+<h2 id="components">组件更新</h2>
+
+<p>路径：<code>系统 → 组件更新</code>。</p>
+
+<ul>
+  <li>点「检查更新」拉各组件最新版本</li>
+  <li>每个组件单独点「更新」，互不影响</li>
+  <li>架构自动识别，也可以手动指定</li>
+  <li>内核类（mihomo / Smart / sing-box）收在「高级设置」里，页面不至于太长</li>
+</ul>
+
+<p>下载失败的常见原因就三条：路由器连不上 GitHub、镜像源不可用、架构选错。镜像源会按「自定义 → gh-proxy → 直连 GitHub」自动回退。</p>
+
+<h2 id="panel">管理面板</h2>
+
+<p>面板四选一：<b>Zashboard</b> / <b>MetaCubeXD</b> / <b>YACD</b> / <b>Razord</b>。面板更新只换 Web 界面，跟代理内核无关 —— 面板打不开别急着重装内核。</p>
+
+<h2 id="geo">GeoIP / GeoSite / 大陆白名单</h2>
+
+<p>这三类是分流与 DNS 判断的原料，通常在「组件更新」里一起更新：</p>
+
+<table>
+  <tr><th>资源</th><th>用途</th></tr>
+  <tr><td>GeoIP</td><td>按 IP 归属判断是否直连</td></tr>
+  <tr><td>GeoSite</td><td>按域名归类判断走向</td></tr>
+  <tr><td>大陆白名单</td><td>国内域名直连名单，配合 DNS 分流</td></tr>
+</table>
+
+<blockquote>sing-box 内核下载到 Clashoo 私有目录，不覆盖系统的 <code>/usr/bin/sing-box</code>，可以和 HomeProxy 同时装着。但两个插件不要同时抢透明代理 —— 要并行就切「仅内核」并错开端口。</blockquote>
+
+<h2 id="backup-first">更新前先备份</h2>
+
+<p>换内核、批量改配置之前，先去 <code>系统 → 备份与还原</code> 导出一份。配置炸了能一键回到那个时间点，具体见<a href="maintenance.html">系统维护</a>。</p>

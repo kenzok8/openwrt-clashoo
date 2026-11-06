@@ -1,0 +1,46 @@
+<p class="hero"><img src="assets/logo.png" width="96" height="96" alt="Clashoo" /></p>
+
+<h1>Clashoo</h1>
+
+<p>Clashoo 是 OpenWrt 上的代理管理插件：一套 LuCI 界面，管三种内核（mihomo 稳定版 / Alpha、Smart、sing-box），订阅、分流、DNS、透明代理都在图形界面里点完，不用手写配置文件。</p>
+
+<blockquote>支持 OpenWrt <b>24.10+</b>，推荐 25.x。装完进 <code>服务 → Clashoo</code>，三个页面：<b>概览</b>（启停、内核切换、健康检查）、<b>配置</b>（订阅、配置文件、DNS、Smart 策略）、<b>系统</b>（组件更新、备份还原、日志、定时任务）。</blockquote>
+
+<div class="cards">
+  <a class="card" href="install.html"><strong>安装与升级 →</strong><span>一键脚本、签名 feed、卸载</span></a>
+  <a class="card" href="quickstart.html"><strong>快速开始 →</strong><span>导入订阅、选内核、跑起来</span></a>
+  <a class="card" href="troubleshooting.html"><strong>故障排查 →</strong><span>不通先看这一页</span></a>
+</div>
+
+<h2 id="features">它管什么</h2>
+
+<table>
+  <tr><th>能力</th><th>说明</th></tr>
+  <tr><td><b>三内核切换</b></td><td>mihomo 稳定版 / mihomo Alpha / Smart / sing-box 稳定版 / Alpha，切换不用重装，同一套 UCI 配置两端自动适配</td></tr>
+  <tr><td><b>配置管理</b></td><td>订阅一键拉取、上传、在线编辑、模板复写（YAML 模板 + 订阅链接）；生成后自动 <code>mihomo -t</code> 干跑校验，坏配置不落盘</td></tr>
+  <tr><td><b>DNS 策略</b></td><td>Fake-IP / Redir-Host 切换，上游按「默认 / 代理 / 直连 / Fallback」分角色，内置 <code>cn.mrs</code> 域名集，防 DNS 泄漏</td></tr>
+  <tr><td><b>透明代理</b></td><td>TCP 支持 Redirect / TProxy / TUN，UDP 支持 TProxy / TUN，网络栈 gVisor / System / Mixed；局域网 ACL 可按 IPv4 / IPv6 / MAC 分组</td></tr>
+  <tr><td><b>系统与数据</b></td><td>组件分开更新（内核 / 内核数据 / 插件本体）、备份还原、面板四选一（Zashboard / MetaCubeXD / YACD / Razord）</td></tr>
+</table>
+
+<h2 id="formats">两种配置格式，别混用</h2>
+
+<table>
+  <tr><th>配置</th><th>内核</th><th>典型来源</th></tr>
+  <tr><td>mihomo YAML</td><td>Mihomo / Smart</td><td>机场给的 Clash / mihomo 订阅</td></tr>
+  <tr><td>sing-box JSON</td><td>Sing-box</td><td>机场给的 sing-box JSON，或由 YAML 转换而来</td></tr>
+</table>
+
+<p>sing-box 不能直接吃 mihomo YAML；YAML 转出来的 JSON 也要自己测兼容性。首次使用建议先用 mihomo YAML，兼容性最好。</p>
+
+<h2 id="what-it-is-not">它不是什么</h2>
+
+<ul>
+  <li>不是订阅转换器，转换只是附带功能，复杂规则还得靠机场或 Tower 这类工具整理。</li>
+  <li>不接管内核本体之外的系统代理设置，别和 HomeProxy 等插件同时抢透明代理。</li>
+  <li>sing-box 内核下载到私有目录，不覆盖系统的 <code>/usr/bin/sing-box</code>，所以可以和 HomeProxy 共存装；共存时把 Clashoo 切到「仅内核」并错开监听端口。</li>
+</ul>
+
+<h2 id="where-to-start">从哪里开始</h2>
+
+<p>没装过先看<a href="install.html">安装与升级</a>；装好不知道点哪，看<a href="quickstart.html">快速开始</a>；起来了但不通，直接跳<a href="troubleshooting.html">故障排查</a>。</p>

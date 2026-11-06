@@ -71,6 +71,9 @@ openwrt-clashoo-test/
 .DS_Store
 Thumbs.db
 scripts/compose_screenshots.py
-docs/
+/docs/internal/
 /.codegraph/
 /ROLLBACK.md
+
+# ── 文档站构建产物 ──
+/.build/

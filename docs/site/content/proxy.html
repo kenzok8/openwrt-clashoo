@@ -1,0 +1,74 @@
+<h1>代理模式与 DNS</h1>
+
+<p>这两块最容易混：<b>代理模式</b>决定路由器怎么接管流量，<b>DNS 设置</b>决定域名怎么解析。流量不通先分清是哪一层出的问题。</p>
+
+<h2 id="modes">三种代理模式</h2>
+
+<table>
+  <tr><th>模式</th><th>怎么接管</th><th>什么时候用</th></tr>
+  <tr><td><b>Fake-IP</b></td><td>给需要代理的域名分一个虚拟 IP（<code>198.18.x.x</code>），内核收到再还原成域名转发</td><td>默认。兼容性好、配置简单，绝大多数家庭路由器够用</td></tr>
+  <tr><td><b>TUN</b></td><td>建虚拟网卡接管流量</td><td>需要更完整的接管，或某些应用在 Fake-IP 下不听话</td></tr>
+  <tr><td><b>Mixed</b></td><td>TUN 的另一种网络栈（mixed stack）</td><td>System / gVisor 表现不稳、虚拟机环境兼容性差时试它</td></tr>
+</table>
+
+<p>TUN 系（含 Mixed）的前提：设备有 <code>/dev/net/tun</code>，容器或 PVE LXC 还要宿主机放行 TUN。</p>
+
+<h2 id="transport">透明代理细分</h2>
+
+<p>Clashoo 把 TCP、UDP、网络栈拆开配，不必一个模式全包：</p>
+
+<table>
+  <tr><th>项目</th><th>可选</th><th>说明</th></tr>
+  <tr><td>TCP</td><td>Redirect / TProxy / TUN</td><td>Redirect 最省事，TProxy 兼容性好，TUN 接管最彻底</td></tr>
+  <tr><td>UDP</td><td>TProxy / TUN</td><td>走代理的 UDP 出问题时，可以只把 UDP 443 拦掉让应用回落 TCP</td></tr>
+  <tr><td>网络栈</td><td>gVisor / System / Mixed</td><td>只有 TCP 或 UDP 选了 TUN 才生效</td></tr>
+</table>
+
+<p>另有「禁用 QUIC GSO」开关，个别网卡驱动下 GSO 会导致 UDP 分片异常。</p>
+
+<blockquote>选了 TUN 但设备不支持时，Clashoo 会自动降级到兼容模式继续跑。能上网就说明只是没吃上 TUN，不是配错了。</blockquote>
+
+<h2 id="acl">局域网 ACL</h2>
+
+<p>可以按 IPv4、IPv6、MAC 分组，分别控制两件事：<b>是否接管 DNS</b>、<b>是否走代理</b>。想让某台设备（比如电视盒子）绕开代理，或者反过来说「只让这台走代理」，都在这一块。</p>
+
+<h2 id="dns">DNS 的三块拼图</h2>
+
+<p>DNS 页面按作用拆成三区，先分清谁管谁：</p>
+
+<table>
+  <tr><th>区域</th><th>管什么</th></tr>
+  <tr><td>基础 DNS</td><td>内核 DNS 本身怎么工作：接管开关、监听端口、Fake-IP / Redir-Host、是否解析 IPv6、Fake-IP 网段</td></tr>
+  <tr><td>上游 DNS</td><td>解析域名时去问谁：国内 DNS、国外加密 DNS、节点域名专用 DNS、直连域名 DNS</td></tr>
+  <tr><td>分流 DNS</td><td>什么域名问哪个上游：默认 <code>geosite:cn</code> 走国内，<code>geosite:geolocation-!cn</code> 走国外</td></tr>
+</table>
+
+<p>默认值基本可以直接用，关键的几项：</p>
+
+<table>
+  <tr><th>设置</th><th>默认</th><th>说明</th></tr>
+  <tr><td>DNS 监听端口</td><td><code>1053</code></td><td>dnsmasq / 防火墙把请求转到这里，不冲突就别改</td></tr>
+  <tr><td>增强模式</td><td><code>fake-ip</code></td><td>推荐保留</td></tr>
+  <tr><td>Fake-IP 网段</td><td><code>198.18.0.1/16</code></td><td>测试网段，不与公网冲突</td></tr>
+  <tr><td>Fake-IP 过滤域名</td><td><code>*.lan</code>、<code>rule-set:cn_domain</code> 等</td><td>国内域名走真实 IP 直连；内置 <code>cn.mrs</code>，不用加载 10MB 的 <code>geosite.dat</code>，启动更快</td></tr>
+  <tr><td>Bootstrap DNS</td><td><code>223.5.5.5</code>、<code>119.29.29.29</code></td><td>用来解析 DoH / DoT 服务器本身的域名，要稳定</td></tr>
+  <tr><td>ECS 客户端子网</td><td>留空</td><td>留空最省心；填错会拿到不合适的 CDN 节点</td></tr>
+</table>
+
+<h2 id="ipv6">IPv6 的两个开关别搞反</h2>
+
+<table>
+  <tr><th></th><th>基础 DNS → IPv6 解析</th><th>透明代理 → IPv6 DNS 劫持</th></tr>
+  <tr><td>作用对象</td><td>Clashoo 内核自己解析域名时查不查 AAAA</td><td>局域网设备发出的 IPv6 DNS 请求要不要被接管</td></tr>
+  <tr><td>关掉的后果</td><td>内核基本只拿 IPv4 地址</td><td>设备可能绕过 Clashoo，分流规则失效、DNS 泄漏</td></tr>
+</table>
+
+<p>即使不用 IPv6 代理，也建议<b>保留 IPv6 DNS 劫持</b>。运营商下发的 IPv6 DNS 一旦绕过 Clashoo，分流和 Fake-IP 都会失灵。</p>
+
+<h2 id="leak">防泄漏</h2>
+
+<ul>
+  <li>阻止国内 DNS 解析国外域名</li>
+  <li>阻断 DoT / DoQ，避免应用自带加密 DNS 绕过分流</li>
+  <li>节点域名单独指定 DNS，防止节点域名被规则误分流</li>
+</ul>

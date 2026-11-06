@@ -1,0 +1,62 @@
+<h1>快速开始</h1>
+
+<p>目标：十分钟内让路由器代理起来。装好插件后进 <code>服务 → Clashoo</code>，菜单没出现就刷新浏览器缓存或重启 LuCI / rpcd。</p>
+
+<h2 id="step-config">1. 准备配置</h2>
+
+<p>先确认手上有哪种配置：机场给的 Clash / mihomo 订阅（YAML），还是 sing-box JSON。拿不准就先用 YAML —— 兼容性最好。</p>
+
+<h2 id="step-import">2. 导入配置</h2>
+
+<p>路径：<code>配置 → 配置文件</code>。四种常见做法：</p>
+
+<ul>
+  <li>粘贴订阅链接下载</li>
+  <li>上传本地配置文件</li>
+  <li>把 YAML 转换成 sing-box JSON</li>
+  <li>直接导入机场提供的 sing-box JSON</li>
+</ul>
+
+<p>导入后在配置文件列表里点 <b>切换</b>，让这份配置生效。生成类订阅会自动跑 <code>mihomo -t</code> 干跑校验，配置有问题会写不进去。</p>
+
+<h2 id="step-kernel">3. 选内核</h2>
+
+<p>路径：<code>概览 → 内核切换</code>。三个选项对应三种配置：</p>
+
+<table>
+  <tr><th>选择</th><th>什么时候用</th></tr>
+  <tr><td>Mihomo</td><td>YAML 订阅，普通家庭路由器，默认选这个</td></tr>
+  <tr><td>Smart</td><td>配了 Smart 策略组、要用策略权重时</td></tr>
+  <tr><td>Sing-box</td><td>手上是 JSON 配置时</td></tr>
+</table>
+
+<p>切换内核后 Clashoo 会按当前配置重新准备运行环境，不用重装包。</p>
+
+<h2 id="step-mode">4. 选代理模式</h2>
+
+<p>概览底部的运行模式下拉框，含义见<a href="proxy.html">代理模式与 DNS</a>。一句话：不确定就 <b>Fake-IP</b>；设备有 <code>/dev/net/tun</code> 且想更完整接管流量，再试 TUN 或 Mixed。</p>
+
+<h2 id="step-start">5. 启动</h2>
+
+<p>概览页打开 <b>启用服务</b> 开关。然后看三处：</p>
+
+<table>
+  <tr><th>看什么</th><th>正常表现</th></tr>
+  <tr><td>运行状态</td><td>显示运行中</td></tr>
+  <tr><td>健康检查</td><td>DNS / 显式代理 / 透明代理三项通过</td></tr>
+  <tr><td>访问检查</td><td>字节跳动与 YouTube 都能出延迟分档（<code>&lt;400ms</code> 绿 / <code>&lt;800ms</code> 黄 / 更高红）</td></tr>
+</table>
+
+<p>再看眼流量监控有没有上下行与活跃连接变化 —— 有数字说明流量真的过内核了。</p>
+
+<h2 id="step-dns">6. DNS 要不要动</h2>
+
+<p>默认配置能跑就先别动。确实要按域名分流、或者遇到 DNS 泄漏，再看<a href="proxy.html#dns">代理模式与 DNS</a> 里的 DNS 三块拼图。</p>
+
+<h2 id="next">下一步</h2>
+
+<ul>
+  <li>升级内核、换面板、更新 GeoIP：<a href="kernel.html">内核与组件更新</a></li>
+  <li>备份配置、定时更新资源、看日志：<a href="maintenance.html">系统维护</a></li>
+  <li>起来了但不通：<a href="troubleshooting.html">故障排查</a></li>
+</ul>

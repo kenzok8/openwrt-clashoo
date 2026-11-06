@@ -1,0 +1,32 @@
+{
+  "title": "Clashoo",
+  "subtitle": "OpenWrt 双内核代理插件",
+  "description": "luci-app-clashoo：mihomo / Smart / sing-box 三内核，一套 LuCI 界面管理订阅、分流、DNS 与透明代理。",
+  "base_url": "https://kenzok8.github.io/openwrt-clashoo/",
+  "repo": "kenzok8/openwrt-clashoo",
+  "version_file": "luci-app-clashoo/Makefile",
+  "nav": [
+    {
+      "group": "开始使用",
+      "items": [
+        { "page": "index.html", "title": "概览" },
+        { "page": "install.html", "title": "安装与升级" },
+        { "page": "quickstart.html", "title": "快速开始" }
+      ]
+    },
+    {
+      "group": "日常使用",
+      "items": [
+        { "page": "proxy.html", "title": "代理模式与 DNS" },
+        { "page": "kernel.html", "title": "内核与组件更新" },
+        { "page": "maintenance.html", "title": "系统维护" }
+      ]
+    },
+    {
+      "group": "参考",
+      "items": [
+        { "page": "troubleshooting.html", "title": "故障排查" }
+      ]
+    }
+  ]
+}
