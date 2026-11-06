@@ -4,6 +4,7 @@
   "description": "luci-app-clashoo：mihomo / Smart / sing-box 三内核，一套 LuCI 界面管理订阅、分流、DNS 与透明代理。",
   "base_url": "https://kenzok8.github.io/openwrt-clashoo/",
   "repo": "kenzok8/openwrt-clashoo",
+  "license": "GPL-3.0",
   "version_file": "luci-app-clashoo/Makefile",
   "nav": [
     {

@@ -1,8 +1,8 @@
-// Tower 文档站交互：主题、手机目录、站内搜索。无第三方依赖。
+// Clashoo 文档站交互：主题、手机目录、站内搜索。无第三方依赖。
 (function () {
   'use strict';
 
-  var THEME_KEY = 'tower-docs-theme';
+  var THEME_KEY = 'clashoo-docs-theme';
   var root = document.documentElement;
 
   function applyTheme(theme) {
