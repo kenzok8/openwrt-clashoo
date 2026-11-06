@@ -47,7 +47,7 @@ jobs:
           - "25.12"
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Build packages
         uses: kenzok8/gh-action-sdk@main
@@ -125,7 +125,7 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
