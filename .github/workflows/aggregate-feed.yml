@@ -292,7 +292,9 @@ jobs:
             # does not re-detect the same no-op change.
             if [ ! -s /tmp/dirty-dirs.txt ]; then
               echo "Source changed but merged set is unchanged, nothing to do."
-              rclone copy /tmp/cur-fingerprint.txt "r2:${R2_BUCKET}/openwrt-feed/aggregate-fingerprint.txt" --checksum
+              # copyto (not copy): copy's destination must be a directory;
+              # a file-path destination fails with "is a file not a directory".
+              rclone copyto /tmp/cur-fingerprint.txt "r2:${R2_BUCKET}/openwrt-feed/aggregate-fingerprint.txt" --checksum
               echo "Fingerprint recorded."
               echo "changed=false" >> "$GITHUB_OUTPUT"
               exit 0
