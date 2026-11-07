@@ -1,8 +1,10 @@
 name: Aggregate Unified Feed
 
 # run-name 会出现在 run 的 display_title 里，daede 的 promote gate 靠它认领
-# 自己派发的那次聚合，而不是只按时间窗口猜。
-run-name: Aggregate Unified Feed · ${{ inputs.candidate_sha || 'manual' }} · ${{ inputs.build_run_id || '' }} · ${{ inputs.dispatch_id || '' }}
+# 自己派发的那次聚合，而不是只按时间窗口猜。第一段优先放 candidate_sha
+#（daede gate 要靠它匹配），其次是 dispatch 方传的 trigger_project
+#（如 honk），最后是事件名（schedule / workflow_dispatch）。
+run-name: Aggregate Unified Feed · ${{ inputs.candidate_sha || inputs.trigger_project || github.event_name }} · ${{ inputs.build_run_id || '' }} · ${{ inputs.dispatch_id || '' }}
 
 on:
   workflow_dispatch:
@@ -15,6 +17,9 @@ on:
         type: string
       dispatch_id:
         description: 'Unique id from the daede promote gate (echoed in run-name)'
+        type: string
+      trigger_project:
+        description: 'Project that triggered this run (honk, daede, clashoo, tower, jell); shown in run-name'
         type: string
       full_rebuild:
         description: 'Force a full rebuild (ignore incremental plan; use for index-equivalence checks)'
@@ -147,6 +152,31 @@ jobs:
               MODE=full
             fi
           fi
+
+          # Which source projects changed (for the run summary, so the
+          # trigger is visible at a glance: e.g. honk, jell). Diff the raw
+          # fingerprints, not the merged set: prune deleting an old version
+          # changes the listing even when the merged set is unchanged.
+          # Written here (before the guard / no-op early exits) so it is
+          # recorded on every path.
+          if [ -f /tmp/prev-fingerprint.txt ]; then
+            comm -3 /tmp/prev-fingerprint.txt /tmp/cur-fingerprint.txt 2>/dev/null \
+              | awk '{print $1}' | cut -d/ -f1 | sort -u > /tmp/changed-projects.txt || true
+          else
+            printf 'full-rebuild\n' > /tmp/changed-projects.txt
+          fi
+          {
+            echo "### Aggregate feed trigger"
+            echo ""
+            if [ -s /tmp/changed-projects.txt ]; then
+              echo "Changed source projects: $(paste -sd', ' /tmp/changed-projects.txt)"
+            else
+              echo "Changed source projects: (none)"
+            fi
+            echo ""
+            echo "Mode: $MODE"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "Changed source projects: $(paste -sd', ' /tmp/changed-projects.txt 2>/dev/null || echo '(none)')"
 
           # No-change guard: if none of the five project feeds changed since
           # the last successful aggregate, skip the rest of the job. The
