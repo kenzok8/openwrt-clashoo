@@ -40,7 +40,8 @@ jobs:
           R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
         run: |
           [ -z "$R2_ACCESS_KEY_ID" ] && { echo "No R2 credentials"; exit 1; }
-          curl -fsSL https://rclone.org/install.sh | sudo bash
+          timeout 120 curl -fsSL https://rclone.org/install.sh -o /tmp/rclone-install.sh && sudo bash /tmp/rclone-install.sh
+          command -v rclone >/dev/null || { echo "rclone install failed"; exit 1; }
           mkdir -p ~/.config/rclone
           cat > ~/.config/rclone/rclone.conf <<EOF
           [r2]
@@ -54,6 +55,7 @@ jobs:
           EOF
 
       - name: Download project feeds
+        id: download
         env:
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           EXPECTED_DAEDE_SHA: ${{ inputs.candidate_sha }}
@@ -66,12 +68,42 @@ jobs:
               echo "Invalid daede candidate identity"; exit 1;
             }
           fi
+
+          # No-change guard: if none of the five project feeds changed since
+          # the last successful aggregate, skip the rest of the job. The
+          # fingerprint is written by the upload step only after a full
+          # successful sync, so a failed run never records a fingerprint.
+          # Candidate runs (daede promote gate) always do full work: the gate
+          # needs the manifest verification below to run.
+          if [ -z "$EXPECTED_DAEDE_SHA" ] && [ -z "$EXPECTED_DAEDE_RUN" ]; then
+            if rclone cat "r2:${R2_BUCKET}/openwrt-feed/aggregate-fingerprint.txt" > /tmp/prev-fingerprint.txt 2>/dev/null; then
+              {
+                for p in clashoo daed jell tower honk; do
+                  rclone ls "r2:${R2_BUCKET}/openwrt-feed/${p}/" 2>/dev/null | awk -v p="$p" '{print p"/"$2, $1}' || true
+                done
+              } | sort > /tmp/cur-fingerprint.txt
+              if cmp -s /tmp/prev-fingerprint.txt /tmp/cur-fingerprint.txt; then
+                echo "No feed changes since last aggregate, skipping."
+                echo "changed=false" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+            fi
+          fi
+
           mkdir -p aggregate/clashoo aggregate/daed aggregate/jell aggregate/tower aggregate/honk merged
-          rclone copy "r2:${R2_BUCKET}/openwrt-feed/clashoo/" aggregate/clashoo/ --fast-list || true
-          rclone copy "r2:${R2_BUCKET}/openwrt-feed/daed/" aggregate/daed/ --fast-list
-          rclone copy "r2:${R2_BUCKET}/openwrt-feed/jell/" aggregate/jell/ --fast-list || true
-          rclone copy "r2:${R2_BUCKET}/openwrt-feed/tower/" aggregate/tower/ --fast-list || true
-          rclone copy "r2:${R2_BUCKET}/openwrt-feed/honk/" aggregate/honk/ --fast-list || true
+          # --stats-log-level NOTICE: the default INFO level hides the periodic
+          # stats lines in the Actions log, which left past runs with no
+          # bandwidth data at all. --transfers 32 is the main lever here;
+          # --multi-thread-streams only helps single files over 256 MB, which
+          # these packages are not, so it is intentionally not set. The five
+          # copies stay sequential: one --transfers 32 stream gives a clean
+          # bandwidth reading, and the runner's egress is the shared cap.
+          RCLONE_FLAGS=(--fast-list --transfers 32 --checkers 32 --stats 30s --stats-one-line --stats-log-level NOTICE)
+          rclone copy "r2:${R2_BUCKET}/openwrt-feed/clashoo/" aggregate/clashoo/ "${RCLONE_FLAGS[@]}" || true
+          rclone copy "r2:${R2_BUCKET}/openwrt-feed/daed/" aggregate/daed/ "${RCLONE_FLAGS[@]}"
+          rclone copy "r2:${R2_BUCKET}/openwrt-feed/jell/" aggregate/jell/ "${RCLONE_FLAGS[@]}" || true
+          rclone copy "r2:${R2_BUCKET}/openwrt-feed/tower/" aggregate/tower/ "${RCLONE_FLAGS[@]}" || true
+          rclone copy "r2:${R2_BUCKET}/openwrt-feed/honk/" aggregate/honk/ "${RCLONE_FLAGS[@]}" || true
 
           # New daede releases provide a byte-for-byte feed manifest. Older
           # releases remain readable during the transition.
@@ -104,7 +136,10 @@ jobs:
               arch=$(basename "$dir")
               target="merged/${sdk}/${arch}"
               mkdir -p "$target"
-              find "$dir" -maxdepth 1 -type f \( -name '*.apk' -o -name '*.ipk' \) -exec cp -v {} "$target/" \;
+              # Same filesystem (both under $PWD), so mv is a rename: no data
+              # copy, no per-file log spam. Batched (-exec ... {} +) so this
+              # is a handful of mv processes, not one per file (~16k before).
+              find "$dir" -maxdepth 1 -type f \( -name '*.apk' -o -name '*.ipk' \) -exec mv -t "$target/" {} +
             done
           done
 
@@ -147,8 +182,10 @@ jobs:
 
           find merged -type f | sort
           find merged -type f -print -quit | grep -q . || { echo "No packages to aggregate"; exit 1; }
+          echo "changed=true" >> "$GITHUB_OUTPUT"
 
       - name: Generate signed indexes
+        if: steps.download.outputs.changed == 'true'
         env:
           KEY_BUILD: ${{ secrets.OPKG_KEY_BUILD }}
           PRIVATE_KEY: ${{ secrets.APK_PRIVATE_KEY }}
@@ -159,44 +196,61 @@ jobs:
           printf '%s\n' "$PRIVATE_KEY" > private-key.pem
           chmod -R a+w merged/
 
-          git clone --depth 1 https://github.com/openwrt/gh-action-sdk.git sdk-action
-          docker build -t sdk-tools --build-arg ARCH=x86_64-openwrt-25.12 sdk-action
-          docker run --rm --user root --entrypoint bash \
+          echo "=== [1/3] clone gh-action-sdk ==="
+          timeout 300 git clone --depth 1 https://github.com/openwrt/gh-action-sdk.git sdk-action || {
+            echo "clone failed, retrying once..."
+            rm -rf sdk-action
+            timeout 300 git clone --depth 1 https://github.com/openwrt/gh-action-sdk.git sdk-action
+          }
+          echo "=== [2/3] docker build sdk-tools ==="
+          timeout --kill-after=60 600 docker build --progress=plain -t sdk-tools --build-arg ARCH=x86_64-openwrt-25.12 sdk-action || {
+            echo "docker build failed, retrying once..."
+            timeout --kill-after=60 600 docker build --progress=plain -t sdk-tools --build-arg ARCH=x86_64-openwrt-25.12 sdk-action
+          }
+          echo "=== [3/3] generate indexes ==="
+          timeout --kill-after=60 1200 docker run --rm --user root --entrypoint bash \
             -v "$PWD/merged":/work \
             -v "$PWD/key-build":/keys/key-build:ro \
             -v "$PWD/private-key.pem":/keys/private-key.pem:ro \
             sdk-tools -c '
               set -eu
               mkdir -p /artifacts && chmod 777 /artifacts
+              echo "--- setup.sh (SDK unpack) ---"
               bash setup.sh
               export PATH="$PWD/staging_dir/host/bin:$PATH"
               if [ ! -x "$PWD/staging_dir/host/bin/sha256" ]; then
                 printf "#!/bin/sh\nexec mkhash sha256 \"\$@\"\n" > "$PWD/staging_dir/host/bin/sha256"
                 chmod +x "$PWD/staging_dir/host/bin/sha256"
               fi
-              SDK_DIR="$PWD"
-              for dir in /work/[0-9]*/*; do
-                [ -d "$dir" ] || continue
-                cd "$dir"
-                apk_count=$(ls ./*.apk 2>/dev/null | wc -l)
-                ipk_count=$(ls ./*.ipk 2>/dev/null | wc -l)
-                echo "==> $dir  APK=$apk_count IPK=$ipk_count"
-                if [ "$apk_count" -gt 0 ]; then
-                  rm -f packages.adb packages.adb.* APKINDEX*
-                  "$SDK_DIR/staging_dir/host/bin/apk" mkndx --allow-untrusted --sign-key /keys/private-key.pem --output packages.adb ./*.apk
-                  echo "  APK: packages.adb $(wc -c < packages.adb) bytes"
-                fi
-                if [ "$ipk_count" -gt 0 ]; then
-                  rm -f Packages Packages.gz Packages.sig
-                  "$SDK_DIR/scripts/ipkg-make-index.sh" . > Packages
-                  gzip -9nc Packages > Packages.gz
-                  "$SDK_DIR/staging_dir/host/bin/usign" -S -m Packages -s /keys/key-build
-                  echo "  IPK: Packages.gz $(wc -c < Packages.gz) bytes, signed"
-                fi
-              done
+              export SDK_DIR="$PWD"
+              cat > /tmp/index-one.sh <<\EOS
+              #!/bin/bash
+              set -eu
+              dir="$1"
+              cd "$dir" || exit 1
+              apk_count=$(ls ./*.apk 2>/dev/null | wc -l)
+              ipk_count=$(ls ./*.ipk 2>/dev/null | wc -l)
+              echo "==> $dir  APK=$apk_count IPK=$ipk_count"
+              if [ "$apk_count" -gt 0 ]; then
+                rm -f packages.adb packages.adb.* APKINDEX*
+                "$SDK_DIR/staging_dir/host/bin/apk" mkndx --allow-untrusted --sign-key /keys/private-key.pem --output packages.adb ./*.apk
+                echo "  APK: packages.adb $(wc -c < packages.adb) bytes"
+              fi
+              if [ "$ipk_count" -gt 0 ]; then
+                rm -f Packages Packages.gz Packages.sig
+                "$SDK_DIR/scripts/ipkg-make-index.sh" . > Packages
+                gzip -9nc Packages > Packages.gz
+                "$SDK_DIR/staging_dir/host/bin/usign" -S -m Packages -s /keys/key-build
+                echo "  IPK: Packages.gz $(wc -c < Packages.gz) bytes, signed"
+              fi
+              EOS
+              chmod +x /tmp/index-one.sh
+              echo "--- indexing all sdk/arch dirs, 4 parallel ---"
+              printf "%s\n" /work/[0-9]*/* | xargs -P4 -I{} /tmp/index-one.sh {}
             '
 
       - name: Prepare keys and upload
+        if: steps.download.outputs.changed == 'true'
         env:
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           OPKG_PUB_KEY: ${{ secrets.OPKG_PUB_KEY }}
@@ -209,7 +263,7 @@ jobs:
           printf '%s\n' "$OPKG_PUB_KEY" > merged/keys/dllkids-feed.pub
           printf '%s\n' "$APK_PUB_KEY" > merged/keys/dllkids-feed.pub.pem
 
-          rclone copy merged/keys/ "r2:${R2_BUCKET}/openwrt-feed/keys/" --checksum --fast-list
+          rclone copy merged/keys/ "r2:${R2_BUCKET}/openwrt-feed/keys/" --checksum --fast-list --stats 30s --stats-one-line --stats-log-level NOTICE
 
           dirs=()
           while IFS= read -r d; do dirs+=("$d"); done < <(find merged -mindepth 2 -maxdepth 2 -type d)
@@ -218,11 +272,22 @@ jobs:
             arch=$(basename "$dir")
             [ "$sdk" = "keys" ] && continue
             echo "Uploading ${sdk}/${arch} ..."
-            rclone sync "$dir/" "r2:${R2_BUCKET}/openwrt-feed/${sdk}/${arch}/" --checksum --fast-list --transfers 8 --checkers 16
+            rclone sync "$dir/" "r2:${R2_BUCKET}/openwrt-feed/${sdk}/${arch}/" --checksum --fast-list --transfers 8 --checkers 16 --stats 30s --stats-one-line --stats-log-level NOTICE
             echo "  -> done"
           done
 
+          # Record the source fingerprint for the next run's no-change guard.
+          # Only written after a full successful upload.
+          {
+            for p in clashoo daed jell tower honk; do
+              rclone ls "r2:${R2_BUCKET}/openwrt-feed/${p}/" 2>/dev/null | awk -v p="$p" '{print p"/"$2, $1}' || true
+            done
+          } | sort > /tmp/aggregate-fingerprint.txt
+          rclone copy /tmp/aggregate-fingerprint.txt "r2:${R2_BUCKET}/openwrt-feed/" --checksum
+          echo "Fingerprint recorded."
+
       - name: Verify R2 upload
+        if: steps.download.outputs.changed == 'true'
         env:
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
         run: |
