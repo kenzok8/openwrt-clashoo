@@ -196,58 +196,92 @@ jobs:
           printf '%s\n' "$PRIVATE_KEY" > private-key.pem
           chmod -R a+w merged/
 
-          echo "=== [1/3] clone gh-action-sdk ==="
-          timeout 300 git clone --depth 1 https://github.com/openwrt/gh-action-sdk.git sdk-action || {
-            echo "clone failed, retrying once..."
-            rm -rf sdk-action
-            timeout 300 git clone --depth 1 https://github.com/openwrt/gh-action-sdk.git sdk-action
+          echo "=== [1/3] fetch SDK (25.12-SNAPSHOT x86_64, host-side) ==="
+          # The SDK host tools (apk/usign/mkhash) are self-contained: they
+          # ship their own loader + libs, so they run directly on the runner.
+          # No docker, no setup.sh: setup.sh downloads the SDK tarball from
+          # mirror-03 (~22 KB/s, hung two runs in a row), so we fetch it
+          # ourselves from a fast mirror with retry + sha256 verification.
+          # NOTE: sha256sums and the tarball must come from the SAME mirror:
+          # 25.12-SNAPSHOT rebuilds often and mirrors skew by a build.
+          command -v zstd >/dev/null || {
+            echo "zstd missing, installing..."
+            sudo apt-get update -qq && sudo apt-get install -y -qq zstd
           }
-          echo "=== [2/3] docker build sdk-tools ==="
-          timeout --kill-after=60 600 docker build --progress=plain -t sdk-tools --build-arg ARCH=x86_64-openwrt-25.12 sdk-action || {
-            echo "docker build failed, retrying once..."
-            timeout --kill-after=60 600 docker build --progress=plain -t sdk-tools --build-arg ARCH=x86_64-openwrt-25.12 sdk-action
+          SDK_GOT=""
+          for M in https://ftp.halifax.rwth-aachen.de/openwrt https://downloads.openwrt.org; do
+            echo "--- trying mirror: $M ---"
+            rm -f sdk-sha256sums sdk.tar.zst
+            timeout 120 curl -fsSL --retry 2 --connect-timeout 15 \
+              "$M/releases/25.12-SNAPSHOT/targets/x86/64/sha256sums" -o sdk-sha256sums || {
+              echo "sha256sums fetch failed from $M"
+              continue
+            }
+            SDK_FILE=$(grep -i 'openwrt-sdk-.*\.tar\.zst' sdk-sha256sums | awk '{print $2}' | tr -d '*' | head -1)
+            [ -n "$SDK_FILE" ] || { echo "no SDK file in sha256sums from $M"; continue; }
+            echo "SDK file: $SDK_FILE"
+            EXPECTED=$(grep -i 'openwrt-sdk-.*\.tar\.zst' sdk-sha256sums | awk '{print $1}' | head -1)
+            # Fresh download per mirror (no resume across mirrors: snapshot
+            # skew would corrupt the file). 600s cap: a >=500 KB/s mirror
+            # finishes the ~271 MB tarball inside it; a slow one fails fast.
+            if timeout --kill-after=30 600 curl -fSL --retry 2 --retry-delay 5 --connect-timeout 15 \
+              "$M/releases/25.12-SNAPSHOT/targets/x86/64/$SDK_FILE" -o sdk.tar.zst; then
+              ACTUAL=$(sha256sum sdk.tar.zst | awk '{print $1}')
+              if [ "$ACTUAL" = "$EXPECTED" ]; then
+                echo "SDK verified from $M"
+                SDK_GOT="$M"
+                break
+              fi
+              echo "sha256 mismatch from $M (snapshot skew), next mirror"
+            else
+              echo "download failed/timed out from $M, next mirror"
+            fi
+          done
+          [ -n "$SDK_GOT" ] || { echo "All SDK mirrors failed"; exit 1; }
+          # --no-same-owner: as root, GNU tar would otherwise try to restore
+          # the tarball’s recorded uid/gid (1000) and fail; as a normal user
+          # this is already the default, so it is a no-op on the runner.
+          tar --no-same-owner -I zstd -xf sdk.tar.zst
+          SDK_DIR="$PWD/$(echo openwrt-sdk-*/ | sed 's:/$::')"
+          [ -x "$SDK_DIR/staging_dir/host/bin/apk" ] || { echo "SDK apk tool missing"; exit 1; }
+          [ -x "$SDK_DIR/staging_dir/host/bin/usign" ] || { echo "SDK usign tool missing"; exit 1; }
+          [ -x "$SDK_DIR/scripts/ipkg-make-index.sh" ] || { echo "ipkg-make-index.sh missing"; exit 1; }
+          echo "SDK ready: $SDK_DIR"
+          export SDK_DIR
+
+          echo "=== [2/3] generate indexes (host, 4 parallel) ==="
+          export WORK_ROOT="$PWD"
+          export PATH="$SDK_DIR/staging_dir/host/bin:$PATH"
+          export MKHASH="$SDK_DIR/staging_dir/host/bin/mkhash"
+          if [ ! -x "$SDK_DIR/staging_dir/host/bin/sha256" ]; then
+            printf '#!/bin/sh\nexec mkhash sha256 "$@"\n' > "$SDK_DIR/staging_dir/host/bin/sha256"
+            chmod +x "$SDK_DIR/staging_dir/host/bin/sha256"
+          fi
+          # Per-directory indexer as an exported function (no heredoc: a
+          # heredoc terminator cannot sit at column 0 inside a YAML run
+          # block, and an indented one is silently swallowed by bash).
+          index_one() {
+            dir="$1"
+            cd "$dir" || exit 1
+            apk_count=$(ls ./*.apk 2>/dev/null | wc -l)
+            ipk_count=$(ls ./*.ipk 2>/dev/null | wc -l)
+            echo "==> $dir  APK=$apk_count IPK=$ipk_count"
+            if [ "$apk_count" -gt 0 ]; then
+              rm -f packages.adb packages.adb.* APKINDEX*
+              "$SDK_DIR/staging_dir/host/bin/apk" mkndx --allow-untrusted --sign-key "$WORK_ROOT/private-key.pem" --output packages.adb ./*.apk
+              echo "  APK: packages.adb $(wc -c < packages.adb) bytes"
+            fi
+            if [ "$ipk_count" -gt 0 ]; then
+              rm -f Packages Packages.gz Packages.sig
+              "$SDK_DIR/scripts/ipkg-make-index.sh" . > Packages
+              gzip -9nc Packages > Packages.gz
+              "$SDK_DIR/staging_dir/host/bin/usign" -S -m Packages -s "$WORK_ROOT/key-build"
+              echo "  IPK: Packages.gz $(wc -c < Packages.gz) bytes, signed"
+            fi
           }
-          echo "=== [3/3] generate indexes ==="
-          timeout --kill-after=60 1200 docker run --rm --user root --entrypoint bash \
-            -v "$PWD/merged":/work \
-            -v "$PWD/key-build":/keys/key-build:ro \
-            -v "$PWD/private-key.pem":/keys/private-key.pem:ro \
-            sdk-tools -c '
-              set -eu
-              mkdir -p /artifacts && chmod 777 /artifacts
-              echo "--- setup.sh (SDK unpack) ---"
-              bash setup.sh
-              export PATH="$PWD/staging_dir/host/bin:$PATH"
-              if [ ! -x "$PWD/staging_dir/host/bin/sha256" ]; then
-                printf "#!/bin/sh\nexec mkhash sha256 \"\$@\"\n" > "$PWD/staging_dir/host/bin/sha256"
-                chmod +x "$PWD/staging_dir/host/bin/sha256"
-              fi
-              export SDK_DIR="$PWD"
-              cat > /tmp/index-one.sh <<\EOS
-              #!/bin/bash
-              set -eu
-              dir="$1"
-              cd "$dir" || exit 1
-              apk_count=$(ls ./*.apk 2>/dev/null | wc -l)
-              ipk_count=$(ls ./*.ipk 2>/dev/null | wc -l)
-              echo "==> $dir  APK=$apk_count IPK=$ipk_count"
-              if [ "$apk_count" -gt 0 ]; then
-                rm -f packages.adb packages.adb.* APKINDEX*
-                "$SDK_DIR/staging_dir/host/bin/apk" mkndx --allow-untrusted --sign-key /keys/private-key.pem --output packages.adb ./*.apk
-                echo "  APK: packages.adb $(wc -c < packages.adb) bytes"
-              fi
-              if [ "$ipk_count" -gt 0 ]; then
-                rm -f Packages Packages.gz Packages.sig
-                "$SDK_DIR/scripts/ipkg-make-index.sh" . > Packages
-                gzip -9nc Packages > Packages.gz
-                "$SDK_DIR/staging_dir/host/bin/usign" -S -m Packages -s /keys/key-build
-                echo "  IPK: Packages.gz $(wc -c < Packages.gz) bytes, signed"
-              fi
-              EOS
-              chmod +x /tmp/index-one.sh
-              echo "--- indexing all sdk/arch dirs, 4 parallel ---"
-              printf "%s\n" /work/[0-9]*/* | xargs -P4 -I{} /tmp/index-one.sh {}
-            '
+          export -f index_one
+          echo "--- indexing all sdk/arch dirs, 4 parallel ---"
+          printf "%s\n" merged/[0-9]*/* | timeout --kill-after=60 1200 xargs -P4 -I{} bash -c 'index_one "$@"' _ {}
 
       - name: Prepare keys and upload
         if: steps.download.outputs.changed == 'true'
