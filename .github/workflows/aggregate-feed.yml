@@ -16,6 +16,10 @@ on:
       dispatch_id:
         description: 'Unique id from the daede promote gate (echoed in run-name)'
         type: string
+      full_rebuild:
+        description: 'Force a full rebuild (ignore incremental plan; use for index-equivalence checks)'
+        type: boolean
+        default: false
   schedule:
     - cron: '37 4 * * *'
 
@@ -60,6 +64,7 @@ jobs:
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           EXPECTED_DAEDE_SHA: ${{ inputs.candidate_sha }}
           EXPECTED_DAEDE_RUN: ${{ inputs.build_run_id }}
+          FULL_REBUILD: ${{ inputs.full_rebuild }}
         run: |
           set -euo pipefail
           [ -z "$R2_BUCKET" ] && { echo "No R2 bucket"; exit 1; }
@@ -69,85 +74,37 @@ jobs:
             }
           fi
 
-          # No-change guard: if none of the five project feeds changed since
-          # the last successful aggregate, skip the rest of the job. The
-          # fingerprint is written by the upload step only after a full
-          # successful sync, so a failed run never records a fingerprint.
-          # Candidate runs (daede promote gate) always do full work: the gate
-          # needs the manifest verification below to run.
-          if [ -z "$EXPECTED_DAEDE_SHA" ] && [ -z "$EXPECTED_DAEDE_RUN" ]; then
-            if rclone cat "r2:${R2_BUCKET}/openwrt-feed/aggregate-fingerprint.txt" > /tmp/prev-fingerprint.txt 2>/dev/null; then
+          # merged_set: fingerprint -> merged "path size winner" (daed-wins
+          # merge + highest-version dedup). Fingerprint lines are
+          # "project/sdk/arch/filename size". The merged path is
+          # "sdk/arch/filename"; the winner is the highest merge-order
+          # project (clashoo < jell < tower < honk < daed), so daed wins an
+          # exact filename collision. Dedup uses the same key function as
+          # the old full merge, so the merged set is identical to what the
+          # full path would produce from the same fingerprint.
+          merged_set() {
+            local fp="$1" out="$2"
+            local tmpd; tmpd=$(mktemp -d)
+            awk '
+              function ord(p) {
+                if (p == "clashoo") return 1
+                if (p == "jell") return 2
+                if (p == "tower") return 3
+                if (p == "honk") return 4
+                if (p == "daed") return 5
+                return 0
+              }
               {
-                for p in clashoo daed jell tower honk; do
-                  rclone ls "r2:${R2_BUCKET}/openwrt-feed/${p}/" 2>/dev/null | awk -v p="$p" '{print p"/"$2, $1}' || true
-                done
-              } | sort > /tmp/cur-fingerprint.txt
-              if cmp -s /tmp/prev-fingerprint.txt /tmp/cur-fingerprint.txt; then
-                echo "No feed changes since last aggregate, skipping."
-                echo "changed=false" >> "$GITHUB_OUTPUT"
-                exit 0
-              fi
-            fi
-          fi
-
-          mkdir -p aggregate/clashoo aggregate/daed aggregate/jell aggregate/tower aggregate/honk merged
-          # --stats-log-level NOTICE: the default INFO level hides the periodic
-          # stats lines in the Actions log, which left past runs with no
-          # bandwidth data at all. --transfers 32 is the main lever here;
-          # --multi-thread-streams only helps single files over 256 MB, which
-          # these packages are not, so it is intentionally not set. The five
-          # copies stay sequential: one --transfers 32 stream gives a clean
-          # bandwidth reading, and the runner's egress is the shared cap.
-          RCLONE_FLAGS=(--fast-list --transfers 32 --checkers 32 --stats 30s --stats-one-line --stats-log-level NOTICE)
-          rclone copy "r2:${R2_BUCKET}/openwrt-feed/clashoo/" aggregate/clashoo/ "${RCLONE_FLAGS[@]}" || true
-          rclone copy "r2:${R2_BUCKET}/openwrt-feed/daed/" aggregate/daed/ "${RCLONE_FLAGS[@]}"
-          rclone copy "r2:${R2_BUCKET}/openwrt-feed/jell/" aggregate/jell/ "${RCLONE_FLAGS[@]}" || true
-          rclone copy "r2:${R2_BUCKET}/openwrt-feed/tower/" aggregate/tower/ "${RCLONE_FLAGS[@]}" || true
-          rclone copy "r2:${R2_BUCKET}/openwrt-feed/honk/" aggregate/honk/ "${RCLONE_FLAGS[@]}" || true
-
-          # New daede releases provide a byte-for-byte feed manifest. Older
-          # releases remain readable during the transition.
-          manifest=aggregate/daed/release-manifest.json
-          if [ -f "$manifest" ]; then
-            jq -e '.candidate_sha | test("^[0-9a-f]{40}$")' "$manifest" >/dev/null
-            if [ -n "$EXPECTED_DAEDE_SHA" ]; then
-              jq -e --arg sha "$EXPECTED_DAEDE_SHA" --argjson run "$EXPECTED_DAEDE_RUN" \
-                '.candidate_sha == $sha and .build_run_id == $run' "$manifest" >/dev/null
-            fi
-            jq -e '[.files[] | select(.path | startswith("feed/"))] | length > 0' "$manifest" >/dev/null
-            jq -r '.files[] | select(.path | startswith("feed/")) | [.path, .sha256] | @tsv' "$manifest" |
-              while IFS=$'\t' read -r path expected; do
-                file="aggregate/daed/${path#feed/}"
-                [ -f "$file" ] || { echo "Missing daede feed file: $path"; exit 1; }
-                actual=$(sha256sum "$file" | cut -d' ' -f1)
-                [ "$actual" = "$expected" ] || { echo "Daede feed hash mismatch: $path"; exit 1; }
-              done
-          elif [ -n "$EXPECTED_DAEDE_SHA" ]; then
-            echo "Expected daede candidate manifest is missing"
-            exit 1
-          fi
-
-          # Copy daed last so its verified candidate wins an exact filename
-          # collision with jell (notably luci-app-daede).
-          for project in clashoo jell tower honk daed; do
-            [ -d "aggregate/${project}" ] || continue
-            find "aggregate/${project}" -mindepth 2 -maxdepth 2 -type d | while read -r dir; do
-              sdk=$(basename "$(dirname "$dir")")
-              arch=$(basename "$dir")
-              target="merged/${sdk}/${arch}"
-              mkdir -p "$target"
-              # Same filesystem (both under $PWD), so mv is a rename: no data
-              # copy, no per-file log spam. Batched (-exec ... {} +) so this
-              # is a handful of mv processes, not one per file (~16k before).
-              find "$dir" -maxdepth 1 -type f \( -name '*.apk' -o -name '*.ipk' \) -exec mv -t "$target/" {} +
-            done
-          done
-
-          # Two project feeds can ship the same package at different versions
-          # (jell trails daed, say). Keep only the highest per arch, so the
-          # index never lists a build that prune-feed later drops upstream.
-          find merged -type f \( -name '*.apk' -o -name '*.ipk' \) \
-          | awk '
+                n = split($1, seg, "/")
+                proj = seg[1]
+                path = seg[2]
+                for (i = 3; i <= n; i++) path = path "/" seg[i]
+                if (ord(proj) >= ord(win[path])) { win[path] = proj; sz[path] = $2 }
+              }
+              END { for (p in win) print p, sz[p], win[p] }
+            ' "$fp" | sort > "$tmpd/merged-raw.txt"
+            cut -d" " -f1 "$tmpd/merged-raw.txt" |
+            awk '
               function key(p,   n,seg,fn,dir,a,i,k,t) {
                 n = split(p, seg, "/"); fn = seg[n]
                 dir = ""; for (i = 1; i < n; i++) dir = dir seg[i] "/"
@@ -163,21 +120,358 @@ jobs:
                 return dir t
               }
               { print key($0) "\t" $0 }
-            ' \
-          | sort -t$'\t' -k1,1 -k2,2V \
-          | awk -F'\t' '
-              { if (NR > 1 && $1 == prevkey) print prevpath; prevkey = $1; prevpath = $2 }
-            ' \
-          | while IFS= read -r stale; do echo "superseded: $stale"; rm -f "$stale"; done
+            ' |
+            sort -t$'\t' -k1,1 -k2,2V |
+            awk -F'\t' '{ if (NR > 1 && $1 == prevkey) print prevpath; prevkey = $1; prevpath = $2 }' \
+              > "$tmpd/superseded.txt"
+            awk 'NR==FNR {sup[$1]=1; next} !($1 in sup)' "$tmpd/superseded.txt" "$tmpd/merged-raw.txt" > "$out"
+            rm -rf "$tmpd"
+          }
 
-          if [ -f "$manifest" ] && [ -n "$EXPECTED_DAEDE_SHA" ]; then
-            jq -r '.files[] | select((.path | startswith("feed/")) and (.path | test("\\.(apk|ipk)$"))) | [.path, .sha256] | @tsv' "$manifest" |
-              while IFS=$'\t' read -r path expected; do
-                file="merged/${path#feed/}"
-                [ -f "$file" ] || { echo "Candidate package missing from merged feed: $path"; exit 1; }
-                actual=$(sha256sum "$file" | cut -d' ' -f1)
-                [ "$actual" = "$expected" ] || { echo "Merged candidate package differs: $path"; exit 1; }
+          MODE=incremental
+          if [ "${FULL_REBUILD:-false}" = "true" ]; then
+            echo "full_rebuild requested, MODE=full"
+            MODE=full
+          fi
+
+          # Current source listing (also the no-change guard input).
+          {
+            for p in clashoo daed jell tower honk; do
+              rclone ls "r2:${R2_BUCKET}/openwrt-feed/${p}/" 2>/dev/null | awk -v p="$p" '{print p"/"$2, $1}' || true
+            done
+          } | sort > /tmp/cur-fingerprint.txt
+
+          if [ "$MODE" = "incremental" ]; then
+            if ! rclone cat "r2:${R2_BUCKET}/openwrt-feed/aggregate-fingerprint.txt" > /tmp/prev-fingerprint.txt 2>/dev/null; then
+              echo "No previous fingerprint, falling back to full rebuild"
+              MODE=full
+            fi
+          fi
+
+          # No-change guard: if none of the five project feeds changed since
+          # the last successful aggregate, skip the rest of the job. The
+          # fingerprint is written by the upload step only after a full
+          # successful sync, so a failed run never records a fingerprint.
+          # Candidate runs (daede promote gate) always do full work: the gate
+          # needs the manifest verification below to run.
+          if [ "$MODE" = "incremental" ] && [ -z "$EXPECTED_DAEDE_SHA" ] && [ -z "$EXPECTED_DAEDE_RUN" ]; then
+            if cmp -s /tmp/prev-fingerprint.txt /tmp/cur-fingerprint.txt; then
+              echo "No feed changes since last aggregate, skipping."
+              echo "changed=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+
+          mkdir -p aggregate/clashoo aggregate/daed aggregate/jell aggregate/tower aggregate/honk merged
+          RCLONE_FLAGS=(--fast-list --transfers 32 --checkers 32 --stats 30s --stats-one-line --stats-log-level NOTICE)
+
+          if [ "$MODE" = "full" ]; then
+            # ---- FULL path (plan A behaviour, kept as the fallback) ----
+            rclone copy "r2:${R2_BUCKET}/openwrt-feed/clashoo/" aggregate/clashoo/ "${RCLONE_FLAGS[@]}" || true
+            rclone copy "r2:${R2_BUCKET}/openwrt-feed/daed/" aggregate/daed/ "${RCLONE_FLAGS[@]}"
+            rclone copy "r2:${R2_BUCKET}/openwrt-feed/jell/" aggregate/jell/ "${RCLONE_FLAGS[@]}" || true
+            rclone copy "r2:${R2_BUCKET}/openwrt-feed/tower/" aggregate/tower/ "${RCLONE_FLAGS[@]}" || true
+            rclone copy "r2:${R2_BUCKET}/openwrt-feed/honk/" aggregate/honk/ "${RCLONE_FLAGS[@]}" || true
+
+            # New daede releases provide a byte-for-byte feed manifest. Older
+            # releases remain readable during the transition.
+            manifest=aggregate/daed/release-manifest.json
+            if [ -f "$manifest" ]; then
+              jq -e '.candidate_sha | test("^[0-9a-f]{40}$")' "$manifest" >/dev/null
+              if [ -n "$EXPECTED_DAEDE_SHA" ]; then
+                jq -e --arg sha "$EXPECTED_DAEDE_SHA" --argjson run "$EXPECTED_DAEDE_RUN" \
+                  '.candidate_sha == $sha and .build_run_id == $run' "$manifest" >/dev/null
+              fi
+              jq -e '[.files[] | select(.path | startswith("feed/"))] | length > 0' "$manifest" >/dev/null
+              jq -r '.files[] | select(.path | startswith("feed/")) | [.path, .sha256] | @tsv' "$manifest" |
+                while IFS=$'\t' read -r path expected; do
+                  file="aggregate/daed/${path#feed/}"
+                  [ -f "$file" ] || { echo "Missing daede feed file: $path"; exit 1; }
+                  actual=$(sha256sum "$file" | cut -d' ' -f1)
+                  [ "$actual" = "$expected" ] || { echo "Daede feed hash mismatch: $path"; exit 1; }
+                done
+            elif [ -n "$EXPECTED_DAEDE_SHA" ]; then
+              echo "Expected daede candidate manifest is missing"
+              exit 1
+            fi
+
+            # Copy daed last so its verified candidate wins an exact filename
+            # collision with jell (notably luci-app-daede).
+            for project in clashoo jell tower honk daed; do
+              [ -d "aggregate/${project}" ] || continue
+              find "aggregate/${project}" -mindepth 2 -maxdepth 2 -type d | while read -r dir; do
+                sdk=$(basename "$(dirname "$dir")")
+                arch=$(basename "$dir")
+                target="merged/${sdk}/${arch}"
+                mkdir -p "$target"
+                # Same filesystem (both under $PWD), so mv is a rename: no data
+                # copy, no per-file log spam. Batched (-exec ... {} +) so this
+                # is a handful of mv processes, not one per file (~16k before).
+                find "$dir" -maxdepth 1 -type f \( -name '*.apk' -o -name '*.ipk' \) -exec mv -t "$target/" {} +
               done
+            done
+
+            # Two project feeds can ship the same package at different versions
+            # (jell trails daed, say). Keep only the highest per arch, so the
+            # index never lists a build that prune-feed later drops upstream.
+            find merged -type f \( -name '*.apk' -o -name '*.ipk' \) \
+            | awk '
+                function key(p,   n,seg,fn,dir,a,i,k,t) {
+                  n = split(p, seg, "/"); fn = seg[n]
+                  dir = ""; for (i = 1; i < n; i++) dir = dir seg[i] "/"
+                  if (fn ~ /\.ipk$/) {
+                    n = split(fn, a, "_")
+                    if (n >= 3) { k = a[1]; for (i = 3; i <= n; i++) k = k "_" a[i]; return dir k }
+                    return dir fn
+                  }
+                  t = fn
+                  sub(/\.apk$/, "", t)
+                  sub(/-r[0-9]+$/, "", t)
+                  sub(/-[^-]+$/, "", t)
+                  return dir t
+                }
+                { print key($0) "\t" $0 }
+              ' \
+            | sort -t$'\t' -k1,1 -k2,2V \
+            | awk -F'\t' '
+                { if (NR > 1 && $1 == prevkey) print prevpath; prevkey = $1; prevpath = $2 }
+              ' \
+            | while IFS= read -r stale; do echo "superseded: $stale"; rm -f "$stale"; done
+
+            if [ -f "$manifest" ] && [ -n "$EXPECTED_DAEDE_SHA" ]; then
+              jq -r '.files[] | select((.path | startswith("feed/")) and (.path | test("\\.(apk|ipk)$"))) | [.path, .sha256] | @tsv' "$manifest" |
+                while IFS=$'\t' read -r path expected; do
+                  file="merged/${path#feed/}"
+                  [ -f "$file" ] || { echo "Candidate package missing from merged feed: $path"; exit 1; }
+                  actual=$(sha256sum "$file" | cut -d' ' -f1)
+                  [ "$actual" = "$expected" ] || { echo "Merged candidate package differs: $path"; exit 1; }
+                done
+            fi
+
+            echo "MODE=full" > incremental-plan.txt
+            find merged -mindepth 2 -maxdepth 2 -type d | sed 's|^merged/||' | sort |
+              while read -r d; do echo "DIR $d full" >> incremental-plan.txt; done
+          else
+            # ---- INCREMENTAL path (plan B) ----
+            merged_set /tmp/prev-fingerprint.txt /tmp/old-merged.txt
+            merged_set /tmp/cur-fingerprint.txt /tmp/new-merged.txt
+
+            # Diff OLD vs NEW merged sets.
+            # added: path in NEW only ; removed: path in OLD only
+            # changed: same path, different size ; unchanged: same path, same size
+            comm -13 <(cut -d" " -f1 /tmp/old-merged.txt) <(cut -d" " -f1 /tmp/new-merged.txt) > /tmp/added.txt
+            comm -23 <(cut -d" " -f1 /tmp/old-merged.txt) <(cut -d" " -f1 /tmp/new-merged.txt) > /tmp/removed.txt
+            join -j 1 -o 0,1.2,2.2,2.3 /tmp/old-merged.txt /tmp/new-merged.txt > /tmp/common.txt
+            awk '$2 != $3 {print $1, $4, $3}' /tmp/common.txt > /tmp/changed.txt
+            awk '$2 == $3 {print $1, $4, $3}' /tmp/common.txt > /tmp/unchanged.txt
+
+            echo "MODE=incremental" > incremental-plan.txt
+            echo "--- incremental plan ---"
+            echo "changed/added files (download):"
+            cat /tmp/changed.txt | while read -r path winner size; do echo "  CHANGED $winner $path $size"; done
+            while read -r path; do
+              awk -v p="$path" '$1==p {print "  CHANGED", $3, $1, $2}' /tmp/new-merged.txt
+            done < /tmp/added.txt
+            echo "removed files (delete from R2, drop from index):"
+            while read -r path; do echo "  REMOVED $path"; done < /tmp/removed.txt
+            echo "unchanged files (placeholder / keep old entry): $(wc -l < /tmp/unchanged.txt)"
+
+            # Dirs needing re-index: any dir with a changed, added or removed file.
+            {
+              cut -d" " -f1 /tmp/changed.txt
+              cat /tmp/added.txt
+              cat /tmp/removed.txt
+            } | awk -F/ '{print $1"/"$2}' | sort -u > /tmp/dirty-dirs.txt
+            echo "dirs needing re-index:"
+            cat /tmp/dirty-dirs.txt | while read -r d; do echo "  $d"; done
+
+            # Edge: the source changed but the merged set did not (e.g. a new
+            # lower version that dedup drops immediately, or a file removed
+            # from a project that was not the winner). Nothing to index or
+            # upload, but record the current fingerprint so the next run
+            # does not re-detect the same no-op change.
+            if [ ! -s /tmp/dirty-dirs.txt ]; then
+              echo "Source changed but merged set is unchanged, nothing to do."
+              rclone copy /tmp/cur-fingerprint.txt "r2:${R2_BUCKET}/openwrt-feed/aggregate-fingerprint.txt" --checksum
+              echo "Fingerprint recorded."
+              echo "changed=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            # Per-dir mode: fetch the old index from the previous aggregate
+            # output. If it cannot be fetched, the dir falls back to full
+            # (all its files are downloaded real and indexed from scratch).
+            : > /tmp/download-list.txt
+            while read -r dir; do
+              sdk=$(echo "$dir" | cut -d/ -f1); arch=$(echo "$dir" | cut -d/ -f2)
+              mkdir -p "merged/${sdk}/${arch}"
+              # Is this dir apk, ipk, or both? Check BOTH old and new merged
+              # sets: a dir that had .apk but lost them all still needs its
+              # old index fetched, so Generate can emit an empty index
+              # instead of leaving a stale one on R2.
+              has_apk=$(awk -v d="$dir" 'index($1, d "/") == 1 && $1 ~ /\.apk$/ {print 1; exit}' /tmp/new-merged.txt /tmp/old-merged.txt || true)
+              has_ipk=$(awk -v d="$dir" 'index($1, d "/") == 1 && $1 ~ /\.ipk$/ {print 1; exit}' /tmp/new-merged.txt /tmp/old-merged.txt || true)
+              dir_mode=incremental
+              if [ -n "$has_apk" ]; then
+                if rclone copyto "r2:${R2_BUCKET}/openwrt-feed/${sdk}/${arch}/packages.adb" "merged/${sdk}/${arch}/packages.adb.old" 2>/dev/null && [ -s "merged/${sdk}/${arch}/packages.adb.old" ]; then
+                  echo "  $dir: old packages.adb fetched"
+                else
+                  echo "  $dir: old packages.adb missing, full rebuild for this dir"
+                  dir_mode=full
+                fi
+              fi
+              if [ -n "$has_ipk" ] && [ "$dir_mode" = "incremental" ]; then
+                if rclone copyto "r2:${R2_BUCKET}/openwrt-feed/${sdk}/${arch}/Packages" "merged/${sdk}/${arch}/Packages.old" 2>/dev/null && [ -s "merged/${sdk}/${arch}/Packages.old" ]; then
+                  echo "  $dir: old Packages fetched"
+                else
+                  echo "  $dir: old Packages missing, full rebuild for this dir"
+                  dir_mode=full
+                fi
+              fi
+              echo "DIR $dir $dir_mode" >> incremental-plan.txt
+              if [ "$dir_mode" = "full" ]; then
+                # Full dir: download ALL its files real (from NEW merged set).
+                awk -v d="$dir" 'index($1, d "/") == 1 {print $3, $1, $2}' /tmp/new-merged.txt >> /tmp/download-list.txt
+              fi
+            done < /tmp/dirty-dirs.txt
+
+            # Download list: changed files (winner project is the source) +
+            # all files of full dirs. Format per line: "project path size".
+            while read -r path winner size; do echo "$winner $path $size" >> /tmp/download-list.txt; done < /tmp/changed.txt
+            while read -r path; do
+              awk -v p="$path" '$1==p {print $3, $1, $2}' /tmp/new-merged.txt >> /tmp/download-list.txt
+            done < /tmp/added.txt
+            sort -u /tmp/download-list.txt -o /tmp/download-list.txt
+            echo "files to download: $(wc -l < /tmp/download-list.txt)"
+
+            # Download only the changed files, per project, via --files-from.
+            # (The runner starts empty, so a plain copy would re-download
+            # all 21 GiB; --files-from restricts it to the diff.)
+            for project in clashoo daed jell tower honk; do
+              awk -v p="$project" '$1==p {print $2}' /tmp/download-list.txt > "/tmp/files-from-${project}.txt"
+              if [ -s "/tmp/files-from-${project}.txt" ]; then
+                echo "downloading $(wc -l < "/tmp/files-from-${project}.txt") files from $project"
+                rclone copy "r2:${R2_BUCKET}/openwrt-feed/${project}/" "aggregate/${project}/" \
+                  --files-from "/tmp/files-from-${project}.txt" "${RCLONE_FLAGS[@]}"
+              fi
+            done
+
+            # Daede manifest: fetched directly (small), not via the full feed.
+            # Under B only the CHANGED daede files are verified against it;
+            # unchanged files were verified in a previous run and have not
+            # changed (same size in the fingerprint).
+            manifest=""
+            if rclone cat "r2:${R2_BUCKET}/openwrt-feed/daed/release-manifest.json" > /tmp/release-manifest.json 2>/dev/null; then
+              manifest=/tmp/release-manifest.json
+              jq -e '.candidate_sha | test("^[0-9a-f]{40}$")' "$manifest" >/dev/null
+              if [ -n "$EXPECTED_DAEDE_SHA" ]; then
+                jq -e --arg sha "$EXPECTED_DAEDE_SHA" --argjson run "$EXPECTED_DAEDE_RUN" \
+                  '.candidate_sha == $sha and .build_run_id == $run' "$manifest" >/dev/null
+              fi
+              jq -e '[.files[] | select(.path | startswith("feed/"))] | length > 0' "$manifest" >/dev/null
+              # Verify sha256 only for changed daede files (downloaded real).
+              jq -r '.files[] | select(.path | startswith("feed/")) | [.path, .sha256] | @tsv' "$manifest" |
+                while IFS=$'\t' read -r path expected; do
+                  rel="${path#feed/}"
+                  file="aggregate/daed/${rel}"
+                  if [ -f "$file" ]; then
+                    actual=$(sha256sum "$file" | cut -d' ' -f1)
+                    [ "$actual" = "$expected" ] || { echo "Daede feed hash mismatch: $path"; exit 1; }
+                  fi
+                done
+              # Safety net: a candidate run with NO changed daede files means
+              # the candidate is already in the feed; verify it anyway by
+              # downloading the manifest files (rare, costs a full daede
+              # download, but the gate must not pass unverified).
+              if [ -n "$EXPECTED_DAEDE_SHA" ]; then
+                if ! awk '$1=="daed" {found=1; exit} END {exit !found}' /tmp/download-list.txt; then
+                  echo "candidate run with no changed daede files, verifying manifest files in full"
+                  jq -r '.files[] | select(.path | startswith("feed/")) | .path' "$manifest" |
+                    sed 's|^feed/||' > /tmp/manifest-files.txt
+                  rclone copy "r2:${R2_BUCKET}/openwrt-feed/daed/" aggregate/daed/ \
+                    --files-from /tmp/manifest-files.txt "${RCLONE_FLAGS[@]}"
+                  jq -r '.files[] | select(.path | startswith("feed/")) | [.path, .sha256] | @tsv' "$manifest" |
+                    while IFS=$'\t' read -r path expected; do
+                      file="aggregate/daed/${path#feed/}"
+                      [ -f "$file" ] || { echo "Missing daede feed file: $path"; exit 1; }
+                      actual=$(sha256sum "$file" | cut -d' ' -f1)
+                      [ "$actual" = "$expected" ] || { echo "Daede feed hash mismatch: $path"; exit 1; }
+                    done
+                fi
+              fi
+            elif [ -n "$EXPECTED_DAEDE_SHA" ]; then
+              echo "Expected daede candidate manifest is missing"
+              exit 1
+            fi
+
+            # Build merged/ for dirty dirs:
+            # - move changed real files from aggregate/<project>/ into merged/
+            # - incremental apk dirs: placeholder (truncate + touch -r old adb)
+            #   for unchanged .apk files; the old adb is the mkndx -x input
+            # - incremental ipk dirs: Packages.old stays for the merge step
+            # - full dirs: only real files, no placeholders, no old index
+            : > placeholders.txt
+            while read -r line; do
+              set -- $line
+              [ "$1" = "DIR" ] || continue
+              dir="$2"; dir_mode="$3"
+              sdk=$(echo "$dir" | cut -d/ -f1); arch=$(echo "$dir" | cut -d/ -f2)
+              target="merged/${sdk}/${arch}"
+              mkdir -p "$target"
+              # Move changed real files (all projects; daed last wins a collision,
+              # same order as the full path).
+              for project in clashoo jell tower honk daed; do
+                src="aggregate/${project}/${sdk}/${arch}"
+                [ -d "$src" ] || continue
+                find "$src" -maxdepth 1 -type f \( -name '*.apk' -o -name '*.ipk' \) -exec mv -t "$target/" {} + 2>/dev/null || true
+              done
+              if [ "$dir_mode" = "incremental" ]; then
+                # Pin the old index mtime to a fixed old date, and touch every
+                # placeholder to it. mkndx reuses an old entry only when
+                # index_mtime >= file mtime, so this makes reuse deterministic
+                # regardless of how rclone sets mtimes on download, and makes
+                # real (just downloaded) files always newer than the index,
+                # so a same-name same-size rebuild is never stale-reused.
+                if [ -f "$target/packages.adb.old" ]; then
+                  touch -d '2000-01-01 00:00:00' "$target/packages.adb.old"
+                  # /tmp/unchanged.txt lines are "path winner size".
+                  awk -v d="$dir" 'index($1, d "/") == 1 && $1 ~ /\.apk$/ {print $1, $3}' /tmp/unchanged.txt |
+                    while read -r path size; do
+                      fn=$(basename "$path")
+                      [ -e "$target/$fn" ] && continue
+                      truncate -s "$size" "$target/$fn"
+                      touch -r "$target/packages.adb.old" "$target/$fn"
+                      echo "${sdk}/${arch}/$fn" >> placeholders.txt
+                    done
+                fi
+              fi
+            done < incremental-plan.txt
+
+            # Candidate packages in merged/: verify sha256 for the CHANGED
+            # ones only (real files). Unchanged ones are placeholders (apk)
+            # or old entries (ipk) and were verified in a previous run.
+            if [ -n "$manifest" ] && [ -n "$EXPECTED_DAEDE_SHA" ]; then
+              jq -r '.files[] | select((.path | startswith("feed/")) and (.path | test("\\.(apk|ipk)$"))) | [.path, .sha256] | @tsv' "$manifest" |
+                while IFS=$'\t' read -r path expected; do
+                  file="merged/${path#feed/}"
+                  [ -f "$file" ] || continue
+                  # Only verify files that were actually downloaded this run
+                  # (present in the download list as a daede file).
+                  rel="${path#feed/}"
+                  if grep -q "^daed ${rel} " /tmp/download-list.txt; then
+                    actual=$(sha256sum "$file" | cut -d' ' -f1)
+                    [ "$actual" = "$expected" ] || { echo "Merged candidate package differs: $path"; exit 1; }
+                  fi
+                done
+            fi
+
+            # Record the removed files for the upload + verify steps.
+            : > /tmp/removed-list.txt
+            while read -r path; do echo "$path" >> /tmp/removed-list.txt; done < /tmp/removed.txt
+            cp /tmp/removed-list.txt removed-list.txt
+            # The upload step needs the download list (workspace copy, so it
+            # does not depend on /tmp surviving between steps).
+            cp /tmp/download-list.txt download-list.txt
           fi
 
           find merged -type f | sort
@@ -189,7 +483,9 @@ jobs:
         env:
           KEY_BUILD: ${{ secrets.OPKG_KEY_BUILD }}
           PRIVATE_KEY: ${{ secrets.APK_PRIVATE_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
         run: |
+          set -euo pipefail
           [ -z "$KEY_BUILD" ] && { echo "No OPKG signing key"; exit 1; }
           [ -z "$PRIVATE_KEY" ] && { echo "No APK signing key"; exit 1; }
           printf '%s\n' "$KEY_BUILD" > key-build
@@ -260,28 +556,121 @@ jobs:
           # Per-directory indexer as an exported function (no heredoc: a
           # heredoc terminator cannot sit at column 0 inside a YAML run
           # block, and an indented one is silently swallowed by bash).
+          # $1 = dir (merged/<sdk>/<arch>), $2 = mode (incremental|full).
+          # Incremental apk: mkndx -x reuses the old index for placeholder
+          # files (same name+size, mtime <= old index mtime) and reads real
+          # (changed) files fresh. Incremental ipk: merge Packages.old
+          # (minus updated/removed entries) with fresh entries for the real
+          # .ipk files present. On any incremental failure, fall back to a
+          # full rebuild of that dir (download all its real files from the
+          # previous aggregate output, then index from scratch), so a B
+          # failure degrades to slower-but-correct, never a wrong feed.
           index_one() {
             dir="$1"
-            cd "$dir" || exit 1
+            mode="$2"
+            sdk=$(basename "$(dirname "$dir")")
+            arch=$(basename "$dir")
+            cd "merged/$dir" || exit 1
             apk_count=$(ls ./*.apk 2>/dev/null | wc -l)
             ipk_count=$(ls ./*.ipk 2>/dev/null | wc -l)
-            echo "==> $dir  APK=$apk_count IPK=$ipk_count"
+            echo "==> $dir (mode=$mode) APK=$apk_count IPK=$ipk_count"
             if [ "$apk_count" -gt 0 ]; then
-              rm -f packages.adb packages.adb.* APKINDEX*
-              "$SDK_DIR/staging_dir/host/bin/apk" mkndx --allow-untrusted --sign-key "$WORK_ROOT/private-key.pem" --output packages.adb ./*.apk
-              echo "  APK: packages.adb $(wc -c < packages.adb) bytes"
+              # NOTE: do NOT rm packages.adb.* here: that glob also matches
+              # packages.adb.old, which the incremental mkndx -x needs.
+              rm -f packages.adb APKINDEX*
+              if [ "$mode" = "incremental" ] && [ -f packages.adb.old ]; then
+                if ! "$SDK_DIR/staging_dir/host/bin/apk" mkndx -v --allow-untrusted --sign-key "$WORK_ROOT/private-key.pem" --index packages.adb.old --output packages.adb ./*.apk; then
+                  echo "  APK incremental mkndx failed, falling back to full rebuild for $dir"
+                  rclone copy "r2:${R2_BUCKET}/openwrt-feed/${sdk}/${arch}/" . --include '*.apk' --fast-list --transfers 16 --stats-one-line --stats-log-level NOTICE || exit 1
+                  rm -f packages.adb.old
+                  "$SDK_DIR/staging_dir/host/bin/apk" mkndx -v --allow-untrusted --sign-key "$WORK_ROOT/private-key.pem" --output packages.adb ./*.apk
+                fi
+                echo "  APK: packages.adb $(wc -c < packages.adb) bytes"
+              else
+                "$SDK_DIR/staging_dir/host/bin/apk" mkndx -v --allow-untrusted --sign-key "$WORK_ROOT/private-key.pem" --output packages.adb ./*.apk
+                echo "  APK: packages.adb $(wc -c < packages.adb) bytes"
+              fi
+            elif [ -f packages.adb.old ]; then
+              # All .apk removed from this dir: emit an empty index so R2
+              # does not keep the stale one.
+              rm -f packages.adb APKINDEX*
+              "$SDK_DIR/staging_dir/host/bin/apk" mkndx -v --allow-untrusted --sign-key "$WORK_ROOT/private-key.pem" --output packages.adb
+              echo "  APK: packages.adb (empty, all .apk removed) $(wc -c < packages.adb) bytes"
             fi
             if [ "$ipk_count" -gt 0 ]; then
               rm -f Packages Packages.gz Packages.sig
-              "$SDK_DIR/scripts/ipkg-make-index.sh" . > Packages
+              if [ "$mode" = "incremental" ] && [ -f Packages.old ]; then
+                # Fresh entries for the real (changed/new) .ipk files present.
+                "$SDK_DIR/scripts/ipkg-make-index.sh" . > Packages.new 2>/dev/null
+                # Drop names: packages updated this run (present in Packages.new).
+                dropnames=$(grep '^Package: ' Packages.new | cut -d' ' -f2 | paste -sd' ' - || true)
+                # Drop files: removed .ipk files for this dir (from removed-list.txt).
+                dropfiles=""
+                if [ -f "$WORK_ROOT/removed-list.txt" ]; then
+                  dropfiles=$(awk -v d="${sdk}/${arch}" 'index($1, d "/") == 1 {n=split($1, s, "/"); print s[n]}' "$WORK_ROOT/removed-list.txt" | paste -sd' ' - || true)
+                fi
+                # Merge: old entries (minus dropped) + new entries. Entries
+                # stay separated by blank lines (RS=""); order is old-kept
+                # then new, which is fine: opkg reads entries in any order,
+                # and the acceptance check compares parsed entries, not raw
+                # file bytes.
+                {
+                  awk -v dropnames=" $dropnames " -v dropfiles=" $dropfiles " '
+                    BEGIN { RS = ""; FS = "\n"; ORS = "\n\n" }
+                    {
+                      pkg = ""; fn = ""
+                      for (i = 1; i <= NF; i++) {
+                        if ($i ~ /^Package: /) pkg = substr($i, 10)
+                        if ($i ~ /^Filename: /) fn = substr($i, 11)
+                      }
+                      if (pkg != "" && index(dropnames, " " pkg " ")) next
+                      if (fn != "" && index(dropfiles, " " fn " ")) next
+                      print $0
+                    }
+                  ' Packages.old
+                  awk '
+                    BEGIN { RS = ""; FS = "\n"; ORS = "\n\n" }
+                    { print $0 }
+                  ' Packages.new
+                } > Packages
+                if [ ! -s Packages ]; then
+                  echo "  IPK incremental merge produced an empty Packages, falling back to full rebuild for $dir"
+                  rclone copy "r2:${R2_BUCKET}/openwrt-feed/${sdk}/${arch}/" . --include '*.ipk' --fast-list --transfers 16 --stats-one-line --stats-log-level NOTICE || exit 1
+                  rm -f Packages.old
+                  "$SDK_DIR/scripts/ipkg-make-index.sh" . > Packages 2>/dev/null
+                fi
+                rm -f Packages.new
+                gzip -9nc Packages > Packages.gz
+                "$SDK_DIR/staging_dir/host/bin/usign" -S -m Packages -s "$WORK_ROOT/key-build"
+                echo "  IPK: Packages.gz $(wc -c < Packages.gz) bytes, signed"
+              else
+                "$SDK_DIR/scripts/ipkg-make-index.sh" . > Packages 2>/dev/null
+                gzip -9nc Packages > Packages.gz
+                "$SDK_DIR/staging_dir/host/bin/usign" -S -m Packages -s "$WORK_ROOT/key-build"
+                echo "  IPK: Packages.gz $(wc -c < Packages.gz) bytes, signed"
+              fi
+            elif [ -f Packages.old ]; then
+              # All .ipk removed from this dir: emit an empty index so R2
+              # does not keep the stale one.
+              rm -f Packages Packages.gz Packages.sig
+              "$SDK_DIR/scripts/ipkg-make-index.sh" . > Packages 2>/dev/null
               gzip -9nc Packages > Packages.gz
               "$SDK_DIR/staging_dir/host/bin/usign" -S -m Packages -s "$WORK_ROOT/key-build"
-              echo "  IPK: Packages.gz $(wc -c < Packages.gz) bytes, signed"
+              echo "  IPK: Packages.gz (empty, all .ipk removed) $(wc -c < Packages.gz) bytes, signed"
             fi
+            rm -f packages.adb.old Packages.old
           }
           export -f index_one
-          echo "--- indexing all sdk/arch dirs, 4 parallel ---"
-          printf "%s\n" merged/[0-9]*/* | timeout --kill-after=60 1200 xargs -P4 -I{} bash -c 'index_one "$@"' _ {}
+          echo "--- indexing dirty dirs, 4 parallel (mode from incremental-plan.txt) ---"
+          # -n2 (not -I{}): each plan line is "dir mode", two whitespace
+          # tokens, and -I{} would pass the whole line as ONE argument.
+          grep '^DIR ' incremental-plan.txt | awk '{print $2, $3}' |
+            timeout --kill-after=60 1200 xargs -P4 -n2 bash -c 'index_one "$@"' _
+          echo "--- removing apk placeholders (sparse files, never uploaded) ---"
+          if [ -f placeholders.txt ]; then
+            while read -r ph; do rm -f "merged/$ph"; done < placeholders.txt
+            echo "removed $(wc -l < placeholders.txt) placeholders"
+          fi
 
       - name: Prepare keys and upload
         if: steps.download.outputs.changed == 'true'
@@ -299,16 +688,63 @@ jobs:
 
           rclone copy merged/keys/ "r2:${R2_BUCKET}/openwrt-feed/keys/" --checksum --fast-list --stats 30s --stats-one-line --stats-log-level NOTICE
 
-          dirs=()
-          while IFS= read -r d; do dirs+=("$d"); done < <(find merged -mindepth 2 -maxdepth 2 -type d)
-          for dir in "${dirs[@]}"; do
-            sdk=$(basename "$(dirname "$dir")")
-            arch=$(basename "$dir")
-            [ "$sdk" = "keys" ] && continue
-            echo "Uploading ${sdk}/${arch} ..."
-            rclone sync "$dir/" "r2:${R2_BUCKET}/openwrt-feed/${sdk}/${arch}/" --checksum --fast-list --transfers 8 --checkers 16 --stats 30s --stats-one-line --stats-log-level NOTICE
-            echo "  -> done"
-          done
+          MODE=$(grep '^MODE=' incremental-plan.txt | cut -d= -f2)
+          [ -n "$MODE" ] || MODE=incremental
+          if [ "$MODE" = "full" ]; then
+            # ---- FULL path: rclone sync (as before) ----
+            dirs=()
+            while IFS= read -r d; do dirs+=("$d"); done < <(find merged -mindepth 2 -maxdepth 2 -type d)
+            for dir in "${dirs[@]}"; do
+              sdk=$(basename "$(dirname "$dir")")
+              arch=$(basename "$dir")
+              [ "$sdk" = "keys" ] && continue
+              echo "Uploading ${sdk}/${arch} ..."
+              rclone sync "$dir/" "r2:${R2_BUCKET}/openwrt-feed/${sdk}/${arch}/" --checksum --fast-list --transfers 8 --checkers 16 --stats 30s --stats-one-line --stats-log-level NOTICE
+              echo "  -> done"
+            done
+          else
+            # ---- INCREMENTAL path: copy only (never delete) + explicit deletes ----
+            # Upload allowlist per dir: changed package files + index files.
+            # Placeholders are never in the allowlist, so a zero file can
+            # never overwrite a real package on R2.
+            [ -f download-list.txt ] || { echo "download-list.txt missing (incremental upload needs it)"; exit 1; }
+            while read -r line; do
+              set -- $line
+              [ "$1" = "DIR" ] || continue
+              dir="$2"
+              sdk=$(echo "$dir" | cut -d/ -f1); arch=$(echo "$dir" | cut -d/ -f2)
+              # Edge: a dir whose packages were all removed (empty after
+              # indexing). Purge its R2 prefix instead of uploading nothing
+              # and leaving a stale index behind.
+              if ! find "merged/${sdk}/${arch}" -type f -print -quit | grep -q .; then
+                echo "Purging emptied dir ${sdk}/${arch} from R2 ..."
+                rclone purge "r2:${R2_BUCKET}/openwrt-feed/${sdk}/${arch}/" || echo "  (purge failed or already empty)"
+                continue
+              fi
+              echo "Uploading ${sdk}/${arch} (incremental) ..."
+              : > "/tmp/upload-files-${sdk}-${arch}.txt"
+              # Changed package files in this dir (from the download list).
+              awk -v d="$dir" 'index($2, d "/") == 1 {n=split($2, s, "/"); print s[n]}' download-list.txt >> "/tmp/upload-files-${sdk}-${arch}.txt" || true
+              # Index files produced by this run.
+              for idx in packages.adb Packages Packages.gz Packages.sig; do
+                [ -f "merged/${sdk}/${arch}/$idx" ] && echo "$idx" >> "/tmp/upload-files-${sdk}-${arch}.txt"
+              done
+              sort -u "/tmp/upload-files-${sdk}-${arch}.txt" -o "/tmp/upload-files-${sdk}-${arch}.txt"
+              if [ -s "/tmp/upload-files-${sdk}-${arch}.txt" ]; then
+                rclone copy "merged/${sdk}/${arch}/" "r2:${R2_BUCKET}/openwrt-feed/${sdk}/${arch}/" \
+                  --files-from "/tmp/upload-files-${sdk}-${arch}.txt" --checksum --fast-list --transfers 8 --checkers 16 --stats 30s --stats-one-line --stats-log-level NOTICE
+              fi
+              echo "  -> done"
+            done < incremental-plan.txt
+            # Explicitly delete removed / superseded packages from R2.
+            if [ -f removed-list.txt ] && [ -s removed-list.txt ]; then
+              echo "Deleting $(wc -l < removed-list.txt) removed packages from R2 ..."
+              while read -r path; do
+                echo "  deleting $path"
+                rclone deletefile "r2:${R2_BUCKET}/openwrt-feed/${path}" || echo "  (delete failed or already gone: $path)"
+              done < removed-list.txt
+            fi
+          fi
 
           # Record the source fingerprint for the next run's no-change guard.
           # Only written after a full successful upload.
@@ -331,20 +767,56 @@ jobs:
           echo "  -> OK"
 
           fail=0
-          for dir in merged/*/*; do
-            [ -d "$dir" ] || continue
-            sdk=$(basename "$(dirname "$dir")")
-            arch=$(basename "$dir")
-            [ "$sdk" = "keys" ] && continue
-
-            echo "Checking ${sdk}/${arch} ..."
-            if rclone lsf "r2:${R2_BUCKET}/openwrt-feed/${sdk}/${arch}/" --files-only > /dev/null 2>&1; then
+          MODE=$(grep '^MODE=' incremental-plan.txt | cut -d= -f2)
+          [ -n "$MODE" ] || MODE=incremental
+          if [ "$MODE" = "full" ]; then
+            for dir in merged/*/*; do
+              [ -d "$dir" ] || continue
+              sdk=$(basename "$(dirname "$dir")")
+              arch=$(basename "$dir")
+              [ "$sdk" = "keys" ] && continue
+              echo "Checking ${sdk}/${arch} ..."
+              if rclone lsf "r2:${R2_BUCKET}/openwrt-feed/${sdk}/${arch}/" --files-only > /dev/null 2>&1; then
+                echo "  -> OK"
+              else
+                echo "  -> FAIL"
+                fail=1
+              fi
+            done
+          else
+            # Incremental: only the dirty dirs were touched. Check each has
+            # its index file(s), and each removed file is actually gone.
+            while read -r line; do
+              set -- $line
+              [ "$1" = "DIR" ] || continue
+              dir="$2"
+              sdk=$(echo "$dir" | cut -d/ -f1); arch=$(echo "$dir" | cut -d/ -f2)
+              echo "Checking ${sdk}/${arch} ..."
+              listing=$(rclone ls "r2:${R2_BUCKET}/openwrt-feed/${sdk}/${arch}/" 2>/dev/null || true)
+              if [ -z "$listing" ]; then echo "  -> FAIL (empty)"; fail=1; continue; fi
+              # Index file(s) must be present.
+              if [ -f "merged/${sdk}/${arch}/packages.adb" ]; then
+                echo "$listing" | grep -q ' packages.adb$' || { echo "  -> FAIL (no packages.adb)"; fail=1; }
+              fi
+              if [ -f "merged/${sdk}/${arch}/Packages.gz" ]; then
+                echo "$listing" | grep -q ' Packages.gz$' || { echo "  -> FAIL (no Packages.gz)"; fail=1; }
+              fi
+              # Removed files must be gone.
+              if [ -f removed-list.txt ]; then
+                while read -r rpath; do
+                  case "$rpath" in
+                    "${sdk}/${arch}/"*)
+                      fn=$(basename "$rpath")
+                      if echo "$listing" | grep -q " ${fn}$"; then
+                        echo "  -> FAIL (removed file still present: $fn)"; fail=1
+                      fi
+                      ;;
+                  esac
+                done < removed-list.txt
+              fi
               echo "  -> OK"
-            else
-              echo "  -> FAIL"
-              fail=1
-            fi
-          done
+            done < incremental-plan.txt
+          fi
 
           if [ "$fail" -ne 0 ]; then
             echo "Verification FAILED"
