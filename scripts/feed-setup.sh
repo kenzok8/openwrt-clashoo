@@ -32,6 +32,15 @@ fetch_file() {
   echo "[ERROR] Need wget/uclient-fetch/curl" >&2; exit 1
 }
 
+# 输出到标准输出（用于解析资产列表），失败返回非零
+fetch_stdout() {
+  url="$1"
+  if command -v wget >/dev/null 2>&1; then wget -qO- "$url"; return $?; fi
+  if command -v uclient-fetch >/dev/null 2>&1; then uclient-fetch -q -O - "$url"; return $?; fi
+  if command -v curl >/dev/null 2>&1; then curl -fsSL "$url"; return $?; fi
+  return 1
+}
+
 url_exists() {
   url="$1"
   # Do a real redirected GET. Some CDN/B2 paths return 302 to HEAD
@@ -157,6 +166,7 @@ fi
 # 固件自带 /sys/kernel/btf/vmlinux 时不做事；否则按 uname -r 精确匹配取同名包，
 # 匹配不上就明确报出来，绝不装近似版本（BTF 描述的是具体内核结构布局）。
 BTF_RELEASE="https://github.com/kenzok8/vmlinux-btf/releases/download/latest"
+BTF_ASSETS="https://api.github.com/repos/kenzok8/vmlinux-btf/releases/tags/latest"
 
 kernel_btf_ready() {
   [ -r /sys/kernel/btf/vmlinux ] && return 0
@@ -176,11 +186,28 @@ ensure_btf() {
     name="vmlinux-btf_${kv}-r1_${btf_arch}.ipk"
   fi
   url="$BTF_RELEASE/$name"
+  exact=1
   if ! url_exists "$url"; then
-    echo "[WARN] 当前内核 ${kv} 没有匹配的 BTF 包：$name"
-    echo "[WARN] 跳过 BTF 安装。honk / dae 启动会报「内核缺少 BTF」。"
-    echo "[WARN] 请到 https://github.com/kenzok8/vmlinux-btf/issues 反馈 uname -r 与架构，我们补编。"
-    return 0
+    exact=0
+    # 退一步：同系列（major.minor 相同）的补丁位版本一般可用，装但明确告警；
+    # 跨系列一律不装 —— BTF 描述的是具体内核布局，跨系列会跑出错误偏移。
+    series="${kv%.*}"
+    assets=$(fetch_stdout "$BTF_ASSETS" 2>/dev/null || true)
+    if [ "$PM" = "apk" ]; then
+      sibling=$(printf '%s\n' "$assets" | grep -oE "vmlinux-btf-${series}\.[0-9]+-r[0-9]+-${btf_arch}\.apk" | head -n 1)
+    else
+      sibling=$(printf '%s\n' "$assets" | grep -oE "vmlinux-btf_${series}\.[0-9]+-r[0-9]+_${btf_arch}\.ipk" | head -n 1)
+    fi
+    if [ -z "$sibling" ]; then
+      echo "[WARN] 当前内核 ${kv} 没有匹配的 BTF 包（精确 ${name} 与同系列都没有）。"
+      echo "[WARN] 跳过 BTF 安装。honk / dae 启动会报「内核缺少 BTF」。"
+      echo "[WARN] 请到 https://github.com/kenzok8/vmlinux-btf/issues 反馈 uname -r 与架构，我们补编。"
+      return 0
+    fi
+    name="$sibling"
+    url="$BTF_RELEASE/$name"
+    echo "[WARN] 没有 ${kv} 的精确包，退回同系列：$name"
+    echo "[WARN] 同系列补丁位一般可用；若核心异常，先怀疑这份 BTF。"
   fi
   echo "[INFO] 安装匹配内核 ${kv} 的 BTF：$name"
   fetch_file "$url" "/tmp/$name"
