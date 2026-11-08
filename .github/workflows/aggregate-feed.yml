@@ -720,7 +720,6 @@ jobs:
 
           rclone copy merged/keys/ "r2:${R2_BUCKET}/openwrt-feed/keys/" --checksum --fast-list --stats 30s --stats-one-line --stats-log-level NOTICE
 
-          # 一键脚本跟着发版走，别让它只在 R2 上存在一份没人管的历史版本。
           rclone copyto scripts/feed-setup.sh "r2:${R2_BUCKET}/openwrt-feed/openwrt-feed-setup.sh" --checksum --stats 30s --stats-one-line --stats-log-level NOTICE
 
           MODE=$(grep '^MODE=' incremental-plan.txt | cut -d= -f2)

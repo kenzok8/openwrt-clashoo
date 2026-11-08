@@ -32,7 +32,6 @@ fetch_file() {
   echo "[ERROR] Need wget/uclient-fetch/curl" >&2; exit 1
 }
 
-# 输出到标准输出（用于解析资产列表），失败返回非零
 fetch_stdout() {
   url="$1"
   if command -v wget >/dev/null 2>&1; then wget -qO- "$url"; return $?; fi
@@ -162,9 +161,6 @@ else
 fi
 
 
-# BTF 补齐：honk / dae / daed 的 eBPF 运行时需要内核 BTF。
-# 固件自带 /sys/kernel/btf/vmlinux 时不做事；否则按 uname -r 精确匹配取同名包，
-# 匹配不上就明确报出来，绝不装近似版本（BTF 描述的是具体内核结构布局）。
 BTF_RELEASE="https://github.com/kenzok8/vmlinux-btf/releases/download/latest"
 BTF_ASSETS="https://api.github.com/repos/kenzok8/vmlinux-btf/releases/tags/latest"
 
@@ -189,8 +185,6 @@ ensure_btf() {
   exact=1
   if ! url_exists "$url"; then
     exact=0
-    # 退一步：同系列（major.minor 相同）的补丁位版本一般可用，装但明确告警；
-    # 跨系列一律不装 —— BTF 描述的是具体内核布局，跨系列会跑出错误偏移。
     series="${kv%.*}"
     assets=$(fetch_stdout "$BTF_ASSETS" 2>/dev/null || true)
     if [ "$PM" = "apk" ]; then
