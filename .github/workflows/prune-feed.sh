@@ -17,12 +17,12 @@
 #
 set -euo pipefail
 
-REMOTE="${REMOTE:?set REMOTE, e.g. b2:bucket}"
+REMOTE="${REMOTE:?set REMOTE, e.g. r2:dllkids-openwrt-feed}"
 KEEP="${KEEP:-1}"
 DRY="${DRY:-1}"
 
 # KEEP comes from a manual workflow_dispatch input. awk coerces junk to 0, so
-# "abc" or "-1" would put every file of a group on the delete list (--b2-hard-delete).
+# "abc" or "-1" would put every file of a group on the delete list.
 # Fail closed instead of pruning the whole feed.
 case "$KEEP" in
   *[!0-9]*) echo "KEEP must be a positive integer, got '$KEEP'" >&2; exit 2 ;;
@@ -118,7 +118,7 @@ prune_one() {
 
   if [[ "$files" -gt 0 ]]; then
     cut -f2 "$del" > "$work/paths"
-    local args=(delete "$base" --files-from-raw "$work/paths" --b2-hard-delete -v)
+    local args=(delete "$base" --files-from-raw "$work/paths" -v)
     [[ "$DRY" == "1" ]] && args+=(--dry-run)
     rclone "${args[@]}"
   fi
