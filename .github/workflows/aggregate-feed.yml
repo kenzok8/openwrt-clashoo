@@ -207,6 +207,18 @@ jobs:
             rclone copy "r2:${R2_BUCKET}/openwrt-feed/tower/" aggregate/tower/ "${RCLONE_FLAGS[@]}" || true
             rclone copy "r2:${R2_BUCKET}/openwrt-feed/honk/" aggregate/honk/ "${RCLONE_FLAGS[@]}" || true
 
+            # jell 也打 honk / luci-app-honk，但那份是按标准源编的，24.10（内核 6.6）上起不来。
+            # honk 通道一旦给了同 SDK/架构的包，jell 的同名包就不参与合并——判据是通道，
+            # 不看版本号，避免某个通道版本号更低时兼容包被"取最高版本"这一步删掉。
+            for dir in aggregate/honk/*/*; do
+              [ -d "$dir" ] || continue
+              ls "$dir"/honk_*.ipk >/dev/null 2>&1 || continue
+              drop_sdk=$(basename "$(dirname "$dir")")
+              drop_arch=$(basename "$dir")
+              rm -f "aggregate/jell/$drop_sdk/$drop_arch"/honk_*.ipk \
+                    "aggregate/jell/$drop_sdk/$drop_arch"/luci-app-honk_*.ipk 2>/dev/null || true
+            done
+
             # New daede releases provide a byte-for-byte feed manifest. Older
             # releases remain readable during the transition.
             manifest=aggregate/daed/release-manifest.json
@@ -459,6 +471,10 @@ jobs:
               for project in clashoo jell tower honk daed; do
                 src="aggregate/${project}/${sdk}/${arch}"
                 [ -d "$src" ] || continue
+                # 同 full 路径：honk 通道有同架构的包时，丢掉 jell 的重份。
+                if [ "$project" = "jell" ] && ls "aggregate/honk/${sdk}/${arch}"/honk_*.ipk >/dev/null 2>&1; then
+                  rm -f "$src"/honk_*.ipk "$src"/luci-app-honk_*.ipk 2>/dev/null || true
+                fi
                 find "$src" -maxdepth 1 -type f \( -name '*.apk' -o -name '*.ipk' \) -exec mv -t "$target/" {} + 2>/dev/null || true
               done
               if [ "$dir_mode" = "incremental" ]; then
