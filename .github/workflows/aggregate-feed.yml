@@ -802,11 +802,12 @@ jobs:
 
           # Record the source fingerprint for the next run's no-change guard.
           # Only written after a full successful upload.
-          {
-            for p in clashoo daed jell tower honk; do
-              rclone ls "r2:${R2_BUCKET}/openwrt-feed/${p}/" 2>/dev/null | awk -v p="$p" '{print p"/"$2, $1}' || true
-            done
-          } | sort > /tmp/aggregate-fingerprint.txt
+          # Must be the snapshot the merged set was computed from
+          # (/tmp/cur-fingerprint.txt), not a fresh listing: a fresh listing
+          # records source changes that landed mid-run as "already processed"
+          # although the merge never saw them (2026-11-21: swallowed the daed
+          # 2026.11.21 update and the daede promote failed its gate).
+          cp /tmp/cur-fingerprint.txt /tmp/aggregate-fingerprint.txt
           rclone copy /tmp/aggregate-fingerprint.txt "r2:${R2_BUCKET}/openwrt-feed/" --checksum
           echo "Fingerprint recorded."
 
