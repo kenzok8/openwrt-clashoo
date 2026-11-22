@@ -110,7 +110,7 @@
 | 包名 | 说明 |
 |------|------|
 | `ca-bundle` | CA 证书包 |
-| `curl`¹ | 下载 GeoIP / 面板 / 订阅 |
+| `curl` | 下载 GeoIP / 面板 / 订阅 |
 | `yq` | YAML 处理（配置生成与校验） |
 | `firewall4` | nftables 防火墙（透明代理规则） |
 | `ip-full` | 完整 iproute2 |
@@ -123,7 +123,6 @@
 | `kmod-dummy` | dummy 网卡模块 |
 | `unzip` | 解压下载的面板压缩包 |
 
-¹ `curl` 被多个运行时脚本调用，但未写进 Makefile 的 DEPENDS，依赖系统自带。
 
 `luci-app-clashoo` 另依赖 `luci-base` 与 `luci-i18n-clashoo-zh-cn`（中文翻译）。完整依赖见 `clashoo/Makefile` 与 `luci-app-clashoo/Makefile`。
 

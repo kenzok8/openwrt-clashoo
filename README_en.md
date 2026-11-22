@@ -110,7 +110,7 @@
 | Package | Purpose |
 |------|------|
 | `ca-bundle` | CA certificate bundle |
-| `curl`¹ | Downloading GeoIP / dashboards / subscriptions |
+| `curl` | Downloading GeoIP / dashboards / subscriptions |
 | `yq` | YAML processing (config generation and validation) |
 | `firewall4` | nftables firewall (transparent proxy rules) |
 | `ip-full` | Full iproute2 |
@@ -123,7 +123,6 @@
 | `kmod-dummy` | Dummy network device module |
 | `unzip` | Extracting downloaded dashboard archives |
 
-¹ `curl` is called by several runtime scripts but is not declared in any Makefile DEPENDS; it relies on being present on the system.
 
 `luci-app-clashoo` additionally depends on `luci-base` and `luci-i18n-clashoo-zh-cn` (Chinese translation). See `clashoo/Makefile` and `luci-app-clashoo/Makefile` for the full dependency lists.
 
