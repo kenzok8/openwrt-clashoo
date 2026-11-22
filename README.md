@@ -11,6 +11,9 @@
 </p>
 <h1 align="center">Clashoo</h1>
 <p align="center"><strong>面向 OpenWrt 的双内核代理管理插件：mihomo + sing-box</strong></p>
+
+<p align="center"><a href="README_en.md">English</a> · 中文</p>
+
 <div align="center">
     <a href="https://github.com/kenzok8/openwrt-clashoo/releases" target="_blank">
     <img alt="GitHub release" src="https://img.shields.io/github/v/release/kenzok8/openwrt-clashoo?style=flat-square"></a>
@@ -45,11 +48,22 @@
 
 ---
 
+## 支持范围
+
+| SDK | 包格式 | 说明 |
+|---|---|---|
+| OpenWrt 24.10 | `.ipk` | opkg |
+| OpenWrt 25.12 | `.apk` | apk，推荐 |
+
+9 个架构（构建矩阵见 `.github/workflows/release.yml`）：`aarch64_cortex-a53`、`aarch64_cortex-a72`、`aarch64_generic`、`arm_cortex-a7_neon-vfpv4`、`arm_cortex-a9_neon`、`i386_pentium4`、`mips_24kc`、`mipsel_24kc`、`x86_64`。
+
+---
+
 ## 功能特性
 
 **双内核，一个界面**
 - **mihomo（Clash Meta）** — 稳定版 / Alpha 版 / Smart 版三选一，走 YAML 订阅
-- Clashoo 安装包自带 mihomo 正式版；新安装默认使用正式版。Alpha 可在「系统 → 内核/数据组件」手动安装，已有设备保留原来的内核选择。
+- Clashoo 安装包自带 mihomo 正式版 v1.19.34（版本见 `clashoo/Makefile` 的 `PKG_UPSTREAM_VERSION`）；新安装默认使用正式版。Alpha 可在「系统 → 内核/数据组件」手动安装，已有设备保留原来的内核选择。
 - **sing-box** — 稳定版 / Alpha 版可切，走 JSON 配置文件
 - 内核切换无需重装，同一套 UCI 配置自动适配两端
 
@@ -86,7 +100,7 @@
 - 组件更新：内核 / 内核数据 / 插件本体按组件单独检查更新，便于定位失败
 - 备份与还原：配置一键导出 / 导入，支持还原出厂默认设置，折腾不怕坏
 - 内核、管理面板、GeoIP / GeoSite 一键下载/更新
-- 镜像源自动回退（自定义 → gh-proxy → 直连 GitHub 兜底）
+- 镜像源自动回退（自定义 → gh-proxy.com → ghfast.top → 直连 GitHub 兜底）
 - 面板四选一 MetaCubeXD / YACD / Zashboard / Razord
 
 ---
@@ -96,25 +110,26 @@
 | 包名 | 说明 |
 |------|------|
 | `ca-bundle` | CA 证书包 |
-| `curl` | 下载 GeoIP / 面板 / 订阅 |
-| `yq` | YAML 处理工具 |
-| `firewall4` | nftables 防火墙 |
+| `curl`¹ | 下载 GeoIP / 面板 / 订阅 |
+| `yq` | YAML 处理（配置生成与校验） |
+| `firewall4` | nftables 防火墙（透明代理规则） |
 | `ip-full` | 完整 iproute2 |
+| `coreutils-nohup` | 后台跑异步更新任务（GeoIP、China IP） |
+| `coreutils-timeout` | 健康检查命令限时（如 `timeout 3 nslookup`） |
 | `kmod-inet-diag` | 网络诊断内核模块 |
 | `kmod-nft-socket` | nftables socket 匹配 |
 | `kmod-nft-tproxy` | nftables TPROXY 支持 |
 | `kmod-tun` | TUN 设备支持 |
 | `kmod-dummy` | dummy 网卡模块 |
+| `unzip` | 解压下载的面板压缩包 |
+
+¹ `curl` 被多个运行时脚本调用，但未写进 Makefile 的 DEPENDS，依赖系统自带。
+
+`luci-app-clashoo` 另依赖 `luci-base` 与 `luci-i18n-clashoo-zh-cn`（中文翻译）。完整依赖见 `clashoo/Makefile` 与 `luci-app-clashoo/Makefile`。
 
 sing-box 内核通过 Clashoo 的「组件更新」下载到私有目录，不会覆盖系统的
 `/usr/bin/sing-box`，因此可与 HomeProxy 共装。两套插件仍不应同时接管透明代理；
 如需并行运行，请将 Clashoo 切到仅内核模式，并确保监听端口不冲突。
-
----
-
-## 系统要求
-
-- OpenWrt **24.10+**（推荐 25.x）
 
 ---
 
@@ -146,6 +161,9 @@ wget -O - https://raw.githubusercontent.com/kenzok8/openwrt-clashoo/refs/heads/m
 CLASHOO_ALLOW_GITHUB_FALLBACK=1 sh install.sh
 ```
 
+<details>
+<summary><b>公钥指纹与校验说明</b></summary>
+
 脚本自己会导入 feed 公钥，不需要手工操作。公钥指纹如下（`scripts/install.sh` 里写死的就是这两个值）：
 
 | 公钥 | 用途 | SHA-256 |
@@ -165,6 +183,8 @@ sha256sum dllkids-feed.pub dllkids-feed.pub.pem
 
 能防什么、不能防什么：能防链路上的中间人、下载到的公钥被替换、包索引被篡改；防不住同时打穿脚本来源（GitHub 或镜像）和 feed 源站的攻击者，也防不住发布账号失陷——脚本没法为自己背书，真要防这一层只能人工核对上面的指纹。换密钥时先改 `scripts/install.sh` 里的常量，再改本表。
 
+</details>
+
 ### 软件源安装
 
 在 OpenWrt 路由器上执行以下命令：
@@ -179,8 +199,15 @@ wget -qO- https://down.dllkids.xyz/openwrt-feed/openwrt-feed-setup.sh | sh
 - ✅ 检测该架构 feed 是否存在（覆盖 `Packages.gz` / `APKINDEX.tar.gz` / `packages.adb` 三类索引），缺则回退 `all`
 - ✅ 下载对应公钥，opkg → `opkg-key add`；apk → 放入 `/etc/apk/keys/`
 - ✅ 写入/更新源配置（`customfeeds.conf` 或 `/etc/apk/repositories`），不会重复堆积
-- ✅ 执行 `opkg update` / `apk update`，签名校验失败时自动回退 `--allow-untrusted`
-- ✅ `apk update && apk add clashoo luci-app-clashoo`
+- ✅ 执行 `opkg update` / `apk update`（apk 签名校验失败时自动回退 `--allow-untrusted`）
+- ✅ 内核缺 BTF 时按 `uname -r` 补装 `vmlinux-btf`（honk / dae 才需要，clashoo 本身不用）
+
+脚本只配源、不装包；配好源后自己装：
+
+```bash
+apk add clashoo luci-app-clashoo        # 25.12
+opkg install clashoo luci-app-clashoo   # 24.10
+```
 
 ### 源码编译
 
@@ -236,13 +263,7 @@ npx skills add kenzok8/openwrt-clashoo -a '*'
 
 ## 开发
 
-```bash
-./scripts/test_dns_helpers.sh          # DNS 单元测试
-./scripts/test_singbox_dns_normalize.sh # sing-box 规则化测试
-./scripts/test_initd_clash.sh           # init.d 守卫检查
-./scripts/test_yaml2singbox.sh          # YAML → JSON 转换测试
-./tests/test_subscription_update.sh     # 订阅更新与定时任务测试
-```
+仓库没有本地测试脚本。改动 `clashoo/` 或 `luci-app-clashoo/` 的 PR 会触发 `release.yml` 的构建矩阵（9 架构 × 24.10 / 25.12 SDK）；手动调试构建走 Actions 里的 **Debug plugins build**（24.10.4 / 25.12.2，可指定插件名与架构）。
 
 ---
 
@@ -257,4 +278,4 @@ npx skills add kenzok8/openwrt-clashoo -a '*'
 
 ## 许可证
 
-本项目遵循仓库内开源许可证（见 `LICENSE`），并保留上游项目的版权与许可声明。
+本项目采用 GPL-3.0（见 `LICENSE`），并保留上游项目的版权与许可声明。

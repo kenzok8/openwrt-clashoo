@@ -40,7 +40,12 @@ sha256sum dllkids-feed.pub dllkids-feed.pub.pem</code></pre>
 
 <pre><code>wget -qO- https://down.dllkids.xyz/openwrt-feed/openwrt-feed-setup.sh | sh</code></pre>
 
-<p>脚本会检测 SDK 版本与架构、下载对应公钥、写源配置、刷索引，最后 <code>apk add</code> / <code>opkg install</code>。之后升级只走系统包管理器：</p>
+<p>脚本会检测 SDK 版本与架构、下载对应公钥、写源配置、刷索引，内核缺 BTF 时还会补装 <code>vmlinux-btf</code>；它只配源、不装包，配好源后自己装：</p>
+
+<pre><code>apk add clashoo luci-app-clashoo        # 25.12，首次安装
+opkg install clashoo luci-app-clashoo   # 24.10，首次安装</code></pre>
+
+<p>之后升级只走系统包管理器：</p>
 
 <pre><code>apk update &amp;&amp; apk upgrade            # 25.12
 opkg update &amp;&amp; opkg upgrade clashoo luci-app-clashoo   # 24.10</code></pre>
@@ -61,7 +66,11 @@ make package/luci-app-clashoo/compile V=s</code></pre>
   <tr><td><code>kmod-nft-socket</code> / <code>kmod-nft-tproxy</code></td><td>nftables 的 socket 匹配与 TPROXY</td></tr>
   <tr><td><code>kmod-tun</code> / <code>kmod-dummy</code></td><td>TUN 设备与 dummy 网卡</td></tr>
   <tr><td><code>kmod-inet-diag</code></td><td>网络诊断</td></tr>
+  <tr><td><code>coreutils-nohup</code> / <code>coreutils-timeout</code></td><td>后台异步任务与健康检查限时</td></tr>
+  <tr><td><code>unzip</code></td><td>解压下载的面板压缩包</td></tr>
 </table>
+
+<p><code>curl</code> 被运行时脚本调用，但未写进 Makefile 的 DEPENDS。<code>luci-app-clashoo</code> 另依赖 <code>luci-base</code> 与 <code>luci-i18n-clashoo-zh-cn</code>。</p>
 
 <h2 id="uninstall">卸载</h2>
 
