@@ -146,7 +146,7 @@ jobs:
           # Current source listing (also the no-change guard input).
           {
             for p in clashoo daed jell tower honk; do
-              rclone ls "r2:${R2_BUCKET}/openwrt-feed/${p}/" 2>/dev/null | awk -v p="$p" '{print p"/"$2, $1}' || true
+              rclone ls "r2:${R2_BUCKET}/openwrt-feed/${p}/" 2>/dev/null | awk -v p="$p" '$2 != "release-manifest.json" {print p"/"$2, $1}' || true
             done
           } | sort > /tmp/cur-fingerprint.txt
 
@@ -355,7 +355,7 @@ jobs:
               cut -d" " -f1 /tmp/changed.txt
               cat /tmp/added.txt
               cat /tmp/removed.txt
-            } | awk -F/ '{print $1"/"$2}' | sort -u > /tmp/dirty-dirs.txt
+            } | awk -F/ 'NF > 1 {print $1"/"$2}' | sort -u > /tmp/dirty-dirs.txt
             echo "dirs needing re-index:"
             cat /tmp/dirty-dirs.txt | while read -r d; do echo "  $d"; done
 
