@@ -219,9 +219,8 @@ jobs:
                     "aggregate/jell/$drop_sdk/$drop_arch"/luci-app-honk_*.ipk 2>/dev/null || true
             done
 
-            # 同一上游版本的重名包以 clashoo 通道为准（jell 只是镜像本仓库）；
-            # jell 若跟到更新的上游版本，仍按版本号参与合并，不会被挡住。
-            pkg_base() { # <file> <arch>
+            # 同上游版本的重名包以本通道为准；jell 跟到新版本时照常合并。
+            pkg_base() {
               f=$(basename "$1"); f=${f%.ipk}; f=${f%.apk}
               case "$f" in
                 clashoo_*) f=${f#clashoo_} ;;
@@ -242,7 +241,6 @@ jobs:
                 base=$(pkg_base "$ours" "$drop_arch")
                 rm -f "$jell_dir"/clashoo_"$base"-r*.ipk "$jell_dir"/clashoo-"$base"-r*.apk 2>/dev/null || true
               done
-              # 前端与语言包归本通道，同架构有我们的就不再取 jell 的。
               if exists_any "$dir"/luci-app-clashoo_*.ipk "$dir"/luci-app-clashoo-*.apk; then
                 rm -f "$jell_dir"/luci-app-clashoo_*.ipk "$jell_dir"/luci-app-clashoo-*.apk \
                       "$jell_dir"/luci-i18n-clashoo-zh-cn_*.ipk "$jell_dir"/luci-i18n-clashoo-zh-cn-*.apk 2>/dev/null || true
@@ -505,7 +503,7 @@ jobs:
                 if [ "$project" = "jell" ] && ls "aggregate/honk/${sdk}/${arch}"/honk_*.ipk >/dev/null 2>&1; then
                   rm -f "$src"/honk_*.ipk "$src"/luci-app-honk_*.ipk 2>/dev/null || true
                 fi
-                # 同 full 路径：只丢同一上游版本的重名包，jell 换了更新的版本仍参与合并。
+                # 同 full 路径。
                 if [ "$project" = "jell" ] && [ -d "aggregate/clashoo/${sdk}/${arch}" ]; then
                   for ours in "aggregate/clashoo/${sdk}/${arch}"/clashoo_*.ipk \
                               "aggregate/clashoo/${sdk}/${arch}"/clashoo-*.apk; do
