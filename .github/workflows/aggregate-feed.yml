@@ -219,20 +219,34 @@ jobs:
                     "aggregate/jell/$drop_sdk/$drop_arch"/luci-app-honk_*.ipk 2>/dev/null || true
             done
 
-            # jell 仓库里也摊了一份 clashoo / luci-app-clashoo，和 openwrt-clashoo 的
-            # 发布重名。clashoo 通道给了同 SDK/架构的包时丢掉 jell 的那份，否则
-            # "取最高版本"会让 jell 的 release 号顶掉本通道的包，插件页和源永远对不上。
+            # 同一上游版本的重名包以 clashoo 通道为准（jell 只是镜像本仓库）；
+            # jell 若跟到更新的上游版本，仍按版本号参与合并，不会被挡住。
+            pkg_base() { # <file> <arch>
+              f=$(basename "$1"); f=${f%.ipk}; f=${f%.apk}
+              case "$f" in
+                clashoo_*) f=${f#clashoo_} ;;
+                clashoo-*) f=${f#clashoo-} ;;
+              esac
+              f=${f%_"$2"}; f=${f%-"$2"}
+              printf '%s\n' "${f%-r[0-9]*}"
+            }
+            exists_any() { for p in "$@"; do [ -e "$p" ] && return 0; done; return 1; }
             for dir in aggregate/clashoo/*/*; do
               [ -d "$dir" ] || continue
-              ls "$dir"/clashoo_*.ipk "$dir"/clashoo-*.apk >/dev/null 2>&1 || continue
               drop_sdk=$(basename "$(dirname "$dir")")
               drop_arch=$(basename "$dir")
-              rm -f "aggregate/jell/$drop_sdk/$drop_arch"/clashoo_*.ipk \
-                    "aggregate/jell/$drop_sdk/$drop_arch"/clashoo-*.apk \
-                    "aggregate/jell/$drop_sdk/$drop_arch"/luci-app-clashoo_*.ipk \
-                    "aggregate/jell/$drop_sdk/$drop_arch"/luci-app-clashoo-*.apk \
-                    "aggregate/jell/$drop_sdk/$drop_arch"/luci-i18n-clashoo-zh-cn_*.ipk \
-                    "aggregate/jell/$drop_sdk/$drop_arch"/luci-i18n-clashoo-zh-cn-*.apk 2>/dev/null || true
+              jell_dir="aggregate/jell/$drop_sdk/$drop_arch"
+              [ -d "$jell_dir" ] || continue
+              for ours in "$dir"/clashoo_*.ipk "$dir"/clashoo-*.apk; do
+                [ -f "$ours" ] || continue
+                base=$(pkg_base "$ours" "$drop_arch")
+                rm -f "$jell_dir"/clashoo_"$base"-r*.ipk "$jell_dir"/clashoo-"$base"-r*.apk 2>/dev/null || true
+              done
+              # 前端与语言包归本通道，同架构有我们的就不再取 jell 的。
+              if exists_any "$dir"/luci-app-clashoo_*.ipk "$dir"/luci-app-clashoo-*.apk; then
+                rm -f "$jell_dir"/luci-app-clashoo_*.ipk "$jell_dir"/luci-app-clashoo-*.apk \
+                      "$jell_dir"/luci-i18n-clashoo-zh-cn_*.ipk "$jell_dir"/luci-i18n-clashoo-zh-cn-*.apk 2>/dev/null || true
+              fi
             done
 
             # New daede releases provide a byte-for-byte feed manifest. Older
@@ -491,12 +505,19 @@ jobs:
                 if [ "$project" = "jell" ] && ls "aggregate/honk/${sdk}/${arch}"/honk_*.ipk >/dev/null 2>&1; then
                   rm -f "$src"/honk_*.ipk "$src"/luci-app-honk_*.ipk 2>/dev/null || true
                 fi
-                # 同 full 路径：clashoo 通道有同架构的包时，丢掉 jell 的重份。
-                if [ "$project" = "jell" ] && ls "aggregate/clashoo/${sdk}/${arch}"/clashoo_*.ipk \
-                  "aggregate/clashoo/${sdk}/${arch}"/clashoo-*.apk >/dev/null 2>&1; then
-                  rm -f "$src"/clashoo_*.ipk "$src"/clashoo-*.apk \
-                        "$src"/luci-app-clashoo_*.ipk "$src"/luci-app-clashoo-*.apk \
-                        "$src"/luci-i18n-clashoo-zh-cn_*.ipk "$src"/luci-i18n-clashoo-zh-cn-*.apk 2>/dev/null || true
+                # 同 full 路径：只丢同一上游版本的重名包，jell 换了更新的版本仍参与合并。
+                if [ "$project" = "jell" ] && [ -d "aggregate/clashoo/${sdk}/${arch}" ]; then
+                  for ours in "aggregate/clashoo/${sdk}/${arch}"/clashoo_*.ipk \
+                              "aggregate/clashoo/${sdk}/${arch}"/clashoo-*.apk; do
+                    [ -f "$ours" ] || continue
+                    base=$(pkg_base "$ours" "$arch")
+                    rm -f "$src"/clashoo_"$base"-r*.ipk "$src"/clashoo-"$base"-r*.apk 2>/dev/null || true
+                  done
+                  if exists_any "aggregate/clashoo/${sdk}/${arch}"/luci-app-clashoo_*.ipk \
+                                "aggregate/clashoo/${sdk}/${arch}"/luci-app-clashoo-*.apk; then
+                    rm -f "$src"/luci-app-clashoo_*.ipk "$src"/luci-app-clashoo-*.apk \
+                          "$src"/luci-i18n-clashoo-zh-cn_*.ipk "$src"/luci-i18n-clashoo-zh-cn-*.apk 2>/dev/null || true
+                  fi
                 fi
                 find "$src" -maxdepth 1 -type f \( -name '*.apk' -o -name '*.ipk' \) -exec mv -t "$target/" {} + 2>/dev/null || true
               done
