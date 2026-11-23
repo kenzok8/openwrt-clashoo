@@ -388,7 +388,12 @@ jobs:
               has_apk=$(awk -v d="$dir" 'index($1, d "/") == 1 && $1 ~ /\.apk$/ {print 1; exit}' /tmp/new-merged.txt /tmp/old-merged.txt || true)
               has_ipk=$(awk -v d="$dir" 'index($1, d "/") == 1 && $1 ~ /\.ipk$/ {print 1; exit}' /tmp/new-merged.txt /tmp/old-merged.txt || true)
               dir_mode=incremental
-              if [ -n "$has_apk" ]; then
+              # mkndx -x reuses old entries, so a deleted .apk would stay in the index.
+              if [ -n "$has_apk" ] && awk -v d="$dir" 'index($0, d "/") == 1 {f=1; exit} END {exit !f}' /tmp/removed.txt; then
+                echo "  $dir: apk removals, full rebuild for this dir"
+                dir_mode=full
+              fi
+              if [ -n "$has_apk" ] && [ "$dir_mode" = "incremental" ]; then
                 if rclone copyto "r2:${R2_BUCKET}/openwrt-feed/${sdk}/${arch}/packages.adb" "merged/${sdk}/${arch}/packages.adb.old" 2>/dev/null && [ -s "merged/${sdk}/${arch}/packages.adb.old" ]; then
                   echo "  $dir: old packages.adb fetched"
                 else
