@@ -124,7 +124,7 @@
 | `unzip` | Extracting downloaded dashboard archives |
 
 
-`luci-app-clashoo` additionally depends on `luci-base` and `luci-i18n-clashoo-zh-cn` (Chinese translation). See `clashoo/Makefile` and `luci-app-clashoo/Makefile` for the full dependency lists.
+`luci-app-clashoo` additionally depends on `luci-base`; the Chinese translation ships in a separate `luci-i18n-clashoo-zh-cn` package (which depends on `luci-app-clashoo` and is pulled in automatically when the firmware selects Chinese). See `clashoo/Makefile` and `luci-app-clashoo/Makefile` for the full dependency lists.
 
 The sing-box core is downloaded by Clashoo's "Component Update" into a private directory and never overwrites the system's `/usr/bin/sing-box`, so it can coexist with HomeProxy. The two plugins still must not take over the transparent proxy at the same time; to run them side by side, switch Clashoo to core-only mode and make sure the listen ports don't collide.
 

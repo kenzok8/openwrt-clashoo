@@ -124,7 +124,7 @@
 | `unzip` | 解压下载的面板压缩包 |
 
 
-`luci-app-clashoo` 另依赖 `luci-base` 与 `luci-i18n-clashoo-zh-cn`（中文翻译）。完整依赖见 `clashoo/Makefile` 与 `luci-app-clashoo/Makefile`。
+`luci-app-clashoo` 另依赖 `luci-base`；中文翻译在独立的 `luci-i18n-clashoo-zh-cn` 包里（它依赖 `luci-app-clashoo`，固件勾中文时自动带上）。完整依赖见 `clashoo/Makefile` 与 `luci-app-clashoo/Makefile`。
 
 sing-box 内核通过 Clashoo 的「组件更新」下载到私有目录，不会覆盖系统的
 `/usr/bin/sing-box`，因此可与 HomeProxy 共装。两套插件仍不应同时接管透明代理；

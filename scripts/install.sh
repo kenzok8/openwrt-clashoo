@@ -262,9 +262,9 @@ apk_install_from_feed() {
     printf '%s\n' "$index_url"
   } > "$repo_file"
 
-  # luci-app-clashoo 的 Depends 里硬依赖 luci-i18n-clashoo-zh-cn，所以 feed 只要能装
-  # 前者就一定有后者。三个包都显式列出，不再去解析索引猜“有没有”，
-  # 免得 adbdump 不可用或缺包时被静默跳过。
+  # 三个包都显式列出，不再去解析索引猜“有没有”，免得 adbdump 不可用
+  # 或缺包时被静默跳过。（翻译包的 Depends 指向 luci-app-clashoo，
+  # 一起装时依赖关系自然满足。）
   pkgs="clashoo luci-app-clashoo luci-i18n-clashoo-zh-cn"
 
   out="${TMP_DIR}/apk-add.log"

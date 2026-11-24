@@ -70,7 +70,7 @@ make package/luci-app-clashoo/compile V=s</code></pre>
   <tr><td><code>unzip</code></td><td>解压下载的面板压缩包</td></tr>
 </table>
 
-<p><code>curl</code> 被运行时脚本调用，但未写进 Makefile 的 DEPENDS。<code>luci-app-clashoo</code> 另依赖 <code>luci-base</code> 与 <code>luci-i18n-clashoo-zh-cn</code>。</p>
+<p><code>curl</code> 被运行时脚本调用，但未写进 Makefile 的 DEPENDS。<code>luci-app-clashoo</code> 另依赖 <code>luci-base</code>；中文翻译在独立的 <code>luci-i18n-clashoo-zh-cn</code> 包里（它依赖 <code>luci-app-clashoo</code>，固件勾中文时自动带上）。</p>
 
 <h2 id="uninstall">卸载</h2>
 
